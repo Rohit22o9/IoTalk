@@ -16,6 +16,7 @@ const { decrypt } = require('./utils/crypto');
 const Group = require('./models/group');
 const GroupChat = require('./models/groupChat');
 const Call = require('./models/call');
+const Community = require('./models/community');
 
 // ----------- DATABASE CONNECTION -----------
 mongoose.connect(process.env.MONGO_URI, {
@@ -183,11 +184,13 @@ app.get('/dashboard', async (req, res) => {
         const users = await User.find({ _id: { $ne: req.session.userId } });
         const currentUser = await User.findById(req.session.userId);
         const groups = await Group.find({ members: req.session.userId });
+        const communities = await Community.find({ members: req.session.userId });
 
         res.render('dashboard', {
             users: users.map(u => u.getDecrypted()),
             currentUser: currentUser.getDecrypted(),
-            groups
+            groups,
+            communities
         });
     } catch (error) {
         console.error('Dashboard error:', error);
@@ -922,6 +925,200 @@ app.post('/user/theme', async (req, res) => {
     } catch (error) {
         console.error('Update theme error:', error);
         res.status(500).json({ error: 'Failed to update theme' });
+    }
+});
+
+// ----------- COMMUNITY ROUTES -----------
+app.get('/communities', async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        const communities = await Community.find({ members: req.session.userId })
+            .populate('admin')
+            .populate('moderators')
+            .populate('groups');
+
+        res.render('communities_list', {
+            communities,
+            currentUser: await User.findById(req.session.userId)
+        });
+    } catch (error) {
+        console.error('Communities list error:', error);
+        res.status(500).send('Error loading communities');
+    }
+});
+
+app.get('/communities/create', async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        res.render('community_create', {
+            currentUser: await User.findById(req.session.userId)
+        });
+    } catch (error) {
+        console.error('Community create page error:', error);
+        res.status(500).send('Error loading community creation page');
+    }
+});
+
+app.post('/communities/create', iconUpload.single('icon'), async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        const { name, description, isPrivate, requireApproval, allowMemberInvites, allowGroupCreation } = req.body;
+        const icon = req.file ? `/group_icons/${req.file.filename}` : null;
+
+        const community = await Community.create({
+            name,
+            description,
+            icon,
+            admin: req.session.userId,
+            members: [req.session.userId],
+            isPrivate: !!isPrivate,
+            settings: {
+                allowMemberInvites: !!allowMemberInvites,
+                allowGroupCreation: !!allowGroupCreation,
+                requireApproval: !!requireApproval
+            }
+        });
+
+        res.redirect(`/communities/${community._id}`);
+    } catch (error) {
+        console.error('Community creation error:', error);
+        res.status(500).send('Error creating community');
+    }
+});
+
+app.get('/communities/:id', async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        const community = await Community.findById(req.params.id)
+            .populate('admin')
+            .populate('moderators')
+            .populate('members');
+
+        if (!community.members.some(m => m._id.equals(req.session.userId))) {
+            return res.status(403).send('Not authorized');
+        }
+
+        const groups = await Group.find({ 
+            community: community._id,
+            members: req.session.userId 
+        }).populate('members');
+
+        res.render('community_detail', {
+            community,
+            groups,
+            currentUser: await User.findById(req.session.userId),
+            req
+        });
+    } catch (error) {
+        console.error('Community detail error:', error);
+        res.status(500).send('Error loading community');
+    }
+});
+
+app.get('/communities/join/:inviteCode', async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        const community = await Community.findOne({ inviteCode: req.params.inviteCode });
+        if (!community) {
+            return res.status(404).send('Invalid invite code');
+        }
+
+        if (community.members.includes(req.session.userId)) {
+            return res.redirect(`/communities/${community._id}`);
+        }
+
+        if (community.settings.requireApproval) {
+            // Handle approval logic here
+            return res.send('Your request to join has been sent for approval');
+        }
+
+        community.members.push(req.session.userId);
+        await community.save();
+
+        res.redirect(`/communities/${community._id}`);
+    } catch (error) {
+        console.error('Join community error:', error);
+        res.status(500).send('Error joining community');
+    }
+});
+
+app.get('/communities/:id/create-group', async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        const community = await Community.findById(req.params.id);
+        if (!community || !community.members.includes(req.session.userId)) {
+            return res.status(403).send('Not authorized');
+        }
+
+        const canCreateGroup = community.admin.equals(req.session.userId) ||
+                              community.moderators.includes(req.session.userId) ||
+                              community.settings.allowGroupCreation;
+
+        if (!canCreateGroup) {
+            return res.status(403).send('Not authorized to create groups');
+        }
+
+        const users = await User.find({ 
+            _id: { 
+                $in: community.members,
+                $ne: req.session.userId 
+            } 
+        });
+
+        res.render('group_create', {
+            users,
+            currentUser: await User.findById(req.session.userId),
+            community
+        });
+    } catch (error) {
+        console.error('Community group create error:', error);
+        res.status(500).send('Error loading group creation page');
+    }
+});
+
+app.post('/communities/:id/create-group', groupIconUpload.single('icon'), async (req, res) => {
+    if (!req.session.userId) return res.redirect('/login');
+
+    try {
+        const community = await Community.findById(req.params.id);
+        if (!community || !community.members.includes(req.session.userId)) {
+            return res.status(403).send('Not authorized');
+        }
+
+        const canCreateGroup = community.admin.equals(req.session.userId) ||
+                              community.moderators.includes(req.session.userId) ||
+                              community.settings.allowGroupCreation;
+
+        if (!canCreateGroup) {
+            return res.status(403).send('Not authorized to create groups');
+        }
+
+        const { name, members } = req.body;
+        const icon = req.file ? `/group_icons/${req.file.filename}` : null;
+        const memberArray = Array.isArray(members) ? members : [members];
+
+        const group = await Group.create({
+            name,
+            icon,
+            admin: req.session.userId,
+            members: [req.session.userId, ...memberArray],
+            community: community._id
+        });
+
+        // Add group to community
+        community.groups.push(group._id);
+        await community.save();
+
+        res.redirect(`/groups/${group._id}`);
+    } catch (error) {
+        console.error('Community group creation error:', error);
+        res.status(500).send('Error creating group');
     }
 });
 

@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communities | Chat App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/style.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe',
+              500: '#3b82f6', 600: '#2563eb',
+              700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            },
+            secondary: {
+              50: '#f8fafc', 100: '#f1f5f9',
+              500: '#64748b', 600: '#475569',
+              700: '#334155', 800: '#1e293b', 900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="h-screen bg-gradient-to-br from-secondary-50 via-white to-primary-50">
+  <div class="h-full flex flex-col">
+    <!-- Header -->
+    <header class="bg-white/90 backdrop-blur-lg border-b border-secondary-200 px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <form action="/dashboard" method="GET" class="inline">
+            <button type="submit" class="p-2 rounded-lg hover:bg-secondary-100 transition-colors duration-200">
+              <svg class="h-5 w-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+          </form>
+          <h1 class="text-2xl font-bold text-secondary-900">Communities</h1>
+        </div>
+        <a href="/communities/create" class="bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white px-4 py-2 rounded-xl transition-all duration-200 flex items-center space-x-2">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+          </svg>
+          <span>Create Community</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Communities Grid -->
+    <main class="flex-1 overflow-y-auto p-6">
+      <% if (communities.length === 0) { %>
+        <div class="text-center py-12">
+          <svg class="mx-auto h-12 w-12 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.196-2.121M8 20H3v-2a3 3 0 015.196-2.121M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+          </svg>
+          <h3 class="mt-2 text-sm font-medium text-secondary-900">No communities</h3>
+          <p class="mt-1 text-sm text-secondary-500">Get started by creating a new community.</p>
+          <div class="mt-6">
+            <a href="/communities/create" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
+              <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              </svg>
+              New Community
+            </a>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <% communities.forEach(community => { %>
+            <div class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer" 
+                 onclick="window.location.href='/communities/<%= community._id %>'">
+              <div class="flex items-center space-x-4 mb-4">
+                <img src="<%= community.icon || '/group_icons/default.png' %>" 
+                     alt="<%= community.name %>" 
+                     class="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md">
+                <div class="flex-1">
+                  <h3 class="text-lg font-semibold text-secondary-900"><%= community.name %></h3>
+                  <p class="text-sm text-secondary-500"><%= community.members.length %> members</p>
+                </div>
+                <% if (community.admin._id.toString() === currentUser._id.toString()) { %>
+                  <span class="bg-primary-100 text-primary-600 px-2 py-1 rounded-full text-xs font-medium">Admin</span>
+                <% } else if (community.moderators.some(mod => mod._id.toString() === currentUser._id.toString())) { %>
+                  <span class="bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs font-medium">Moderator</span>
+                <% } %>
+              </div>
+              
+              <% if (community.description) { %>
+                <p class="text-sm text-secondary-600 mb-4 line-clamp-2"><%= community.description %></p>
+              <% } %>
+              
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <svg class="h-4 w-4 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.196-2.121M8 20H3v-2a3 3 0 015.196-2.121M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                  </svg>
+                  <span class="text-sm text-secondary-500"><%= community.groups.length %> groups</span>
+                </div>
+                <div class="flex items-center space-x-1">
+                  <% if (community.isPrivate) { %>
+                    <svg class="h-4 w-4 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </main>
+  </div>
+</body>
+</html>

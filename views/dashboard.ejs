@@ -102,8 +102,49 @@
                     </div>
                 </div>
 
-                <!-- Groups List -->
+                <!-- Communities Section -->
                 <div class="lg:col-span-2 space-y-8">
+                    <div class="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+                        <div class="px-6 py-4 border-b bg-gradient-to-r from-primary-50 to-secondary-50">
+                            <h3 class="text-lg font-semibold text-secondary-900">Your Communities</h3>
+                            <p class="text-sm text-secondary-600 mt-1">View and manage your communities</p>
+                        </div>
+                        <div class="divide-y divide-secondary-100">
+                            <% if (communities && communities.length > 0) { %>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+                                    <% communities.slice(0, 6).forEach(community => { %>
+                                        <div class="bg-secondary-50 rounded-xl p-4 hover:bg-secondary-100 transition-colors cursor-pointer"
+                                             onclick="window.location.href='/communities/<%= community._id %>'">
+                                            <div class="flex items-center space-x-3">
+                                                <img src="<%= community.icon || '/group_icons/default.png' %>"
+                                                     alt="<%= community.name %>"
+                                                     class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm">
+                                                <div class="flex-1">
+                                                    <h3 class="font-medium text-secondary-900 truncate"><%= community.name %></h3>
+                                                    <p class="text-sm text-secondary-500"><%= community.members.length %> members</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <% }) %>
+                                </div>
+                            <% } else { %>
+                                <div class="text-center py-8">
+                                    <svg class="mx-auto h-12 w-12 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.196-2.121M8 20H3v-2a3 3 0 015.196-2.121M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                    </svg>
+                                    <h3 class="mt-2 text-sm font-medium text-secondary-900">No communities yet</h3>
+                                    <p class="mt-1 text-sm text-secondary-500">Join or create a community to get started.</p>
+                                    <div class="mt-4">
+                                        <a href="/communities/create" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">
+                                            Create Community
+                                        </a>
+                                    </div>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <!-- Groups List -->
                     <div class="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl border border-white/20 overflow-hidden">
                         <div class="px-6 py-4 border-b bg-gradient-to-r from-primary-50 to-secondary-50">
                             <h3 class="text-lg font-semibold text-secondary-900">Your Groups</h3>
@@ -167,12 +208,19 @@
                 </div>
             </div>
 
-            <!-- Floating Create Group Button -->
-            <a href="/groups/create" class="fixed bottom-6 right-6 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-full shadow-lg p-4 hover:scale-105 transform transition">
-                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-            </a>
+            <!-- Floating Action Buttons -->
+            <div class="fixed bottom-6 right-6 flex flex-col space-y-4">
+                <a href="/communities/create" class="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-full shadow-lg p-3 hover:scale-105 transform transition">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.196-2.121M8 20H3v-2a3 3 0 015.196-2.121M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                </a>
+                <a href="/groups/create" class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-full shadow-lg p-3 hover:scale-105 transform transition">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </a>
+            </div>
         </main>
     </div>
 

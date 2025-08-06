@@ -1,0 +1,181 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= community.name %> | Community</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/style.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe',
+              500: '#3b82f6', 600: '#2563eb',
+              700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            },
+            secondary: {
+              50: '#f8fafc', 100: '#f1f5f9',
+              500: '#64748b', 600: '#475569',
+              700: '#334155', 800: '#1e293b', 900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="h-screen bg-gradient-to-br from-secondary-50 via-white to-primary-50">
+  <div class="h-full flex flex-col">
+    <!-- Header -->
+    <header class="bg-white/90 backdrop-blur-lg border-b border-secondary-200 px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+          <form action="/communities" method="GET" class="inline">
+            <button type="submit" class="p-2 rounded-lg hover:bg-secondary-100 transition-colors duration-200">
+              <svg class="h-5 w-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+          </form>
+          <img src="<%= community.icon || '/group_icons/default.png' %>" 
+               alt="<%= community.name %>" 
+               class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md">
+          <div>
+            <h1 class="text-xl font-bold text-secondary-900"><%= community.name %></h1>
+            <p class="text-sm text-secondary-500"><%= community.members.length %> members</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center space-x-3">
+          <% if (community.admin._id.toString() === currentUser._id.toString() || community.moderators.some(mod => mod._id.toString() === currentUser._id.toString())) { %>
+            <button onclick="toggleInviteModal()" class="bg-primary-500 text-white px-4 py-2 rounded-lg hover:bg-primary-600 transition-colors">
+              Invite Members
+            </button>
+          <% } %>
+          
+          <% if (community.admin._id.toString() === currentUser._id.toString() || community.settings.allowGroupCreation || community.moderators.some(mod => mod._id.toString() === currentUser._id.toString())) { %>
+            <a href="/communities/<%= community._id %>/create-group" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
+              Create Group
+            </a>
+          <% } %>
+        </div>
+      </div>
+    </header>
+
+    <!-- Community Content -->
+    <main class="flex-1 overflow-y-auto p-6">
+      <!-- Community Description -->
+      <% if (community.description) { %>
+        <div class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg mb-6">
+          <h2 class="text-lg font-semibold text-secondary-900 mb-2">About</h2>
+          <p class="text-secondary-700"><%= community.description %></p>
+        </div>
+      <% } %>
+
+      <!-- Groups Section -->
+      <div class="bg-white/80 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-lg">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-semibold text-secondary-900">Groups</h2>
+          <span class="bg-secondary-100 text-secondary-600 px-3 py-1 rounded-full text-sm font-medium">
+            <%= groups.length %> groups
+          </span>
+        </div>
+
+        <% if (groups.length === 0) { %>
+          <div class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.196-2.121M8 20H3v-2a3 3 0 015.196-2.121M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-secondary-900">No groups yet</h3>
+            <p class="mt-1 text-sm text-secondary-500">Create the first group to get started.</p>
+          </div>
+        <% } else { %>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <% groups.forEach(group => { %>
+              <div class="bg-secondary-50 rounded-xl p-4 hover:bg-secondary-100 transition-colors cursor-pointer"
+                   onclick="window.location.href='/groups/<%= group._id %>'">
+                <div class="flex items-center space-x-3">
+                  <img src="<%= group.icon || '/group_icons/default.png' %>" 
+                       alt="<%= group.name %>" 
+                       class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm">
+                  <div class="flex-1">
+                    <h3 class="font-medium text-secondary-900"><%= group.name %></h3>
+                    <p class="text-sm text-secondary-500"><%= group.members.length %> members</p>
+                  </div>
+                  <svg class="h-5 w-5 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </main>
+  </div>
+
+  <!-- Invite Modal -->
+  <div id="inviteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-secondary-900">Invite to Community</h3>
+        <button onclick="toggleInviteModal()" class="text-secondary-400 hover:text-secondary-600">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-secondary-700 mb-2">Invite Code</label>
+          <div class="flex">
+            <input type="text" value="<%= community.inviteCode %>" readonly 
+                   class="flex-1 px-3 py-2 bg-secondary-50 border border-secondary-200 rounded-l-lg text-sm">
+            <button onclick="copyInviteCode()" class="bg-primary-500 text-white px-4 py-2 rounded-r-lg hover:bg-primary-600 transition-colors">
+              Copy
+            </button>
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-secondary-700 mb-2">Or share link</label>
+          <div class="flex">
+            <input type="text" value="<%= `${req.protocol}://${req.get('host')}/communities/join/${community.inviteCode}` %>" readonly 
+                   class="flex-1 px-3 py-2 bg-secondary-50 border border-secondary-200 rounded-l-lg text-sm">
+            <button onclick="copyInviteLink()" class="bg-primary-500 text-white px-4 py-2 rounded-r-lg hover:bg-primary-600 transition-colors">
+              Copy
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleInviteModal() {
+      const modal = document.getElementById('inviteModal');
+      modal.classList.toggle('hidden');
+    }
+
+    function copyInviteCode() {
+      const codeInput = document.querySelector('input[value="<%= community.inviteCode %>"]');
+      codeInput.select();
+      document.execCommand('copy');
+      alert('Invite code copied!');
+    }
+
+    function copyInviteLink() {
+      const linkInput = document.querySelector('input[value*="/communities/join/"]');
+      linkInput.select();
+      document.execCommand('copy');
+      alert('Invite link copied!');
+    }
+  </script>
+</body>
+</html>

@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -372,7 +371,7 @@
           <h2 class="text-lg font-semibold mt-2 text-secondary-900"><%= group.name %></h2>
           <p class="text-sm text-secondary-500"><%= group.members.length %> Members</p>
           <hr class="my-4 w-full border-secondary-200">
-          
+
           <!-- Members List -->
           <div class="w-full space-y-2 max-h-40 overflow-y-auto">
             <% group.members.forEach(member => { %>
@@ -384,7 +383,7 @@
                     <span class="text-xs bg-primary-100 text-primary-600 px-2 py-1 rounded-full ml-2">Admin</span>
                   <% } %>
                 </div>
-                
+
                 <!-- Admin can remove members (except themselves) -->
                 <% if (group.admin._id.toString() === currentUser._id.toString() && member._id.toString() !== currentUser._id.toString()) { %>
                   <button onclick="removeMember('<%= member._id %>', '<%= member.username %>')" 
@@ -403,7 +402,7 @@
             <hr class="my-4 w-full border-secondary-200">
             <div class="w-full space-y-3">
               <h3 class="text-sm font-semibold text-secondary-700">Admin Options</h3>
-              
+
               <!-- Add Member -->
               <div class="space-y-2">
                 <select id="newMemberSelect" class="w-full px-3 py-2 bg-secondary-50 border border-secondary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm">
@@ -479,7 +478,7 @@
     </div>
 
     <!-- Message Input -->
-    <footer class="bg-white/90 backdrop-blur-lg border-t border-secondary-200 p-4 flex-shrink-0">
+    <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200 p-4 z-10" style="z-index: 10;">
       <form id="chatForm" enctype="multipart/form-data" class="flex items-center space-x-3">
         <input type="file" name="media" class="hidden" id="mediaInput">
         <label for="mediaInput" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
@@ -487,7 +486,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
           </svg>
         </label>
-        
+
         <!-- Voice Message Button -->
         <button type="button" id="voiceMessageBtn" class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -519,7 +518,7 @@
     const typingUsers = new Set();
     let groupTypingTimer;
     let isGroupTyping = false;
-    
+
     socket.emit('joinGroup', groupId);
 
     const form = document.getElementById('chatForm');
@@ -528,11 +527,11 @@
     const filePreview = document.getElementById('filePreview');
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
-    
+
     function scrollToBottom() { 
       chatBox.scrollTop = chatBox.scrollHeight; 
     }
-    
+
     function toggleGroupInfo() {
       document.getElementById('groupInfoPanel').classList.toggle('open');
     }
@@ -638,12 +637,12 @@
       mediaInput.value = '';
       hideFilePreview();
     });
-    
+
     scrollToBottom();
 
     // Group typing detection
     const msgInput = form.querySelector('input[name="msg"]');
-    
+
     msgInput.addEventListener('input', () => {
       if (!isGroupTyping) {
         isGroupTyping = true;
@@ -653,7 +652,7 @@
           username: "<%= currentUser.username %>"
         });
       }
-      
+
       clearTimeout(groupTypingTimer);
       groupTypingTimer = setTimeout(() => {
         isGroupTyping = false;
@@ -682,7 +681,7 @@
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const formData = new FormData(form);
-      
+
       // Stop typing when sending message
       clearTimeout(groupTypingTimer);
       if (isGroupTyping) {
@@ -693,13 +692,13 @@
           username: "<%= currentUser.username %>"
         });
       }
-      
+
       try {
         const response = await fetch('/groupchat/' + groupId, { 
           method: 'POST', 
           body: formData 
         });
-        
+
         if (response.ok) {
           form.reset();
           hideFilePreview();
@@ -712,7 +711,7 @@
     socket.on('group message', msg => {
       const isMine = msg.from._id === currentUserId;
       let mediaHTML = '';
-      
+
       if (msg.media) {
         const ext = msg.media.split('.').pop().toLowerCase();
         const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
@@ -767,7 +766,7 @@
       const div = document.createElement('div');
       div.className = `flex ${isMine ? 'justify-end' : 'justify-start'}`;
       div.setAttribute('data-id', msg._id);
-      
+
       div.innerHTML = `
         <div class="message-container relative">
           <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl 
@@ -783,7 +782,7 @@
           </div>
         </div>
       `;
-      
+
       chatBox.appendChild(div);
       scrollToBottom();
     });
@@ -791,13 +790,13 @@
     // Group typing indicators
     socket.on('group user typing', ({ userId, username, isTyping }) => {
       if (userId === currentUserId) return; // Don't show typing for current user
-      
+
       if (isTyping) {
         typingUsers.add(username);
       } else {
         typingUsers.delete(username);
       }
-      
+
       updateGroupTypingIndicator();
     });
 
@@ -807,7 +806,7 @@
       } else {
         const userList = Array.from(typingUsers);
         let typingText = '';
-        
+
         if (userList.length === 1) {
           typingText = `${userList[0]} is typing...`;
         } else if (userList.length === 2) {
@@ -815,7 +814,7 @@
         } else {
           typingText = `${userList[0]} and ${userList.length - 1} others are typing...`;
         }
-        
+
         groupTypingText.textContent = typingText;
         groupTypingIndicator.classList.remove('hidden');
         scrollToBottom();
@@ -832,11 +831,11 @@
         this.recordingStartTime = null;
         this.recordingTimer = null;
         this.playingAudio = null;
-        
+
         this.initializeElements();
         this.initializeEventListeners();
       }
-      
+
       initializeElements() {
         this.voiceBtn = document.getElementById('voiceMessageBtn');
         this.recordingPreview = document.getElementById('voiceRecordingPreview');
@@ -846,13 +845,13 @@
         this.sendVoiceBtn = document.getElementById('sendVoiceMessage');
         this.recordedDurationElement = document.getElementById('recordedDuration');
       }
-      
+
       initializeEventListeners() {
         this.voiceBtn.addEventListener('click', () => this.toggleRecording());
         this.cancelRecordingBtn.addEventListener('click', () => this.cancelRecording());
         this.playRecordedBtn.addEventListener('click', () => this.playRecordedVoice());
         this.sendVoiceBtn.addEventListener('click', () => this.sendVoiceMessage());
-        
+
         document.addEventListener('click', (e) => {
           if (e.target.closest('.voice-play-btn')) {
             const btn = e.target.closest('.voice-play-btn');
@@ -860,7 +859,7 @@
           }
         });
       }
-      
+
       async toggleRecording() {
         if (this.isRecording) {
           this.stopRecording();
@@ -868,7 +867,7 @@
           await this.startRecording();
         }
       }
-      
+
       async startRecording() {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -878,41 +877,41 @@
               autoGainControl: true
             } 
           });
-          
+
           this.mediaRecorder = new MediaRecorder(stream, {
             mimeType: 'audio/webm;codecs=opus'
           });
-          
+
           this.audioChunks = [];
           this.recordingStartTime = Date.now();
-          
+
           this.mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
               this.audioChunks.push(event.data);
             }
           };
-          
+
           this.mediaRecorder.onstop = () => {
             this.recordedBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
             this.showPlaybackPreview();
             stream.getTracks().forEach(track => track.stop());
           };
-          
+
           this.mediaRecorder.start();
           this.isRecording = true;
           this.showRecordingPreview();
           this.startTimer();
-          
+
           this.voiceBtn.classList.remove('bg-gradient-to-r', 'from-green-500', 'to-green-600');
           this.voiceBtn.classList.add('bg-red-500');
           this.voiceBtn.innerHTML = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><rect x="6" y="6" width="8" height="8" rx="1"></rect></svg>';
-          
+
         } catch (error) {
           console.error('Error accessing microphone:', error);
           alert('Could not access microphone. Please check permissions.');
         }
       }
-      
+
       stopRecording() {
         if (this.mediaRecorder && this.isRecording) {
           this.mediaRecorder.stop();
@@ -922,7 +921,7 @@
           this.resetVoiceButton();
         }
       }
-      
+
       cancelRecording() {
         if (this.mediaRecorder && this.isRecording) {
           this.mediaRecorder.stop();
@@ -934,27 +933,27 @@
           this.resetVoiceButton();
         }
       }
-      
+
       deleteRecording() {
         this.recordedBlob = null;
         this.audioChunks = [];
         this.hidePlaybackPreview();
         this.resetVoiceButton();
       }
-      
+
       async sendVoiceMessage() {
         if (!this.recordedBlob) return;
-        
+
         try {
           const formData = new FormData();
           const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
           formData.append('media', audioFile);
-          
+
           const response = await fetch('/groupchat/' + groupId, {
             method: 'POST',
             body: formData
           });
-          
+
           if (response.ok) {
             this.deleteRecording();
           } else {
@@ -965,25 +964,25 @@
           alert('Failed to send voice message');
         }
       }
-      
+
       playRecordedVoice() {
         if (!this.recordedBlob) return;
-        
+
         const audio = new Audio(URL.createObjectURL(this.recordedBlob));
         audio.play();
-        
+
         audio.onended = () => {
           URL.revokeObjectURL(audio.src);
         };
       }
-      
+
       toggleVoicePlayback(button) {
         const audioSrc = button.dataset.audioSrc;
         const playIcon = button.querySelector('.play-icon');
         const pauseIcon = button.querySelector('.pause-icon');
         const progressBar = button.closest('.voice-message-container').querySelector('.voice-progress');
         const durationElement = button.closest('.voice-message-container').querySelector('.voice-duration');
-        
+
         if (this.playingAudio && !this.playingAudio.paused && this.playingAudio.currentSrc.includes(audioSrc)) {
           this.playingAudio.pause();
           playIcon.classList.remove('hidden');
@@ -993,62 +992,62 @@
             this.playingAudio.pause();
             this.resetAllVoiceButtons();
           }
-          
+
           this.playingAudio = new Audio(audioSrc);
           playIcon.classList.add('hidden');
           pauseIcon.classList.remove('hidden');
-          
+
           this.playingAudio.addEventListener('loadedmetadata', () => {
             durationElement.textContent = this.formatTime(this.playingAudio.duration);
           });
-          
+
           this.playingAudio.addEventListener('timeupdate', () => {
             const progress = (this.playingAudio.currentTime / this.playingAudio.duration) * 100;
             progressBar.style.width = `${progress}%`;
             durationElement.textContent = this.formatTime(this.playingAudio.currentTime);
           });
-          
+
           this.playingAudio.addEventListener('ended', () => {
             playIcon.classList.remove('hidden');
             pauseIcon.classList.add('hidden');
             progressBar.style.width = '0%';
             durationElement.textContent = this.formatTime(this.playingAudio.duration);
           });
-          
+
           this.playingAudio.play();
         }
       }
-      
+
       resetAllVoiceButtons() {
         document.querySelectorAll('.voice-play-btn').forEach(btn => {
           const playIcon = btn.querySelector('.play-icon');
           const pauseIcon = btn.querySelector('.pause-icon');
           const progressBar = btn.closest('.voice-message-container')?.querySelector('.voice-progress');
-          
+
           playIcon.classList.remove('hidden');
           pauseIcon.classList.add('hidden');
           if (progressBar) progressBar.style.width = '0%';
         });
       }
-      
+
       showRecordingPreview() {
         this.recordingPreview.classList.remove('hidden');
       }
-      
+
       hideRecordingPreview() {
         this.recordingPreview.classList.add('hidden');
       }
-      
+
       showPlaybackPreview() {
         this.recordingPreview.classList.add('hidden');
         const duration = (Date.now() - this.recordingStartTime) / 1000;
         this.recordedDurationElement.textContent = this.formatTime(duration);
       }
-      
+
       hidePlaybackPreview() {
         // No separate playback preview in this design
       }
-      
+
       resetVoiceButton() {
         this.voiceBtn.classList.remove('bg-red-500');
         this.voiceBtn.classList.add('bg-gradient-to-r', 'from-green-500', 'to-green-600');
@@ -1058,21 +1057,21 @@
           </svg>
         `;
       }
-      
+
       startTimer() {
         this.recordingTimer = setInterval(() => {
           const elapsed = (Date.now() - this.recordingStartTime) / 1000;
           this.recordingTimerElement.textContent = this.formatTime(elapsed);
         }, 100);
       }
-      
+
       stopTimer() {
         if (this.recordingTimer) {
           clearInterval(this.recordingTimer);
           this.recordingTimer = null;
         }
       }
-      
+
       formatTime(seconds) {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = Math.floor(seconds % 60);
@@ -1089,7 +1088,7 @@
         const response = await fetch('/api/users/available-for-group/<%= group._id %>');
         const users = await response.json();
         const select = document.getElementById('newMemberSelect');
-        
+
         if (select) {
           select.innerHTML = '<option value="">Select user to add...</option>';
           users.forEach(user => {
@@ -1107,7 +1106,7 @@
     async function addMember() {
       const select = document.getElementById('newMemberSelect');
       const userId = select.value;
-      
+
       if (!userId) {
         alert('Please select a user to add');
         return;

@@ -40,7 +40,7 @@ app.use(session({
         mongoUrl: process.env.MONGO_URI,
         ttl: 14 * 24 * 60 * 60
     }),
-    cookie: { 
+    cookie: {
         maxAge: 14 * 24 * 60 * 60 * 1000,
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true
@@ -71,7 +71,7 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for videos
     fileFilter: (req, file, cb) => {
@@ -91,14 +91,14 @@ const upload = multer({
 // Create specific upload instances
 const mediaUpload = upload; // This should be the main upload instance
 const avatarUpload = upload; // For avatar uploads
-const iconUpload = upload; // For icon uploads  
+const iconUpload = upload; // For icon uploads
 const groupIconUpload = upload; // For group icon uploads
 
-// ----------- AUTHROUTES -----------
+// ----------- AUTH ROUTES -----------
 app.get('/', (req, res) => res.redirect('/login'));
 
 app.get('/login', (req, res) => {
-    if (req.session.userId) return res.redirect('/dashboard'); 
+    if (req.session.userId) return res.redirect('/dashboard');
     res.render('login', { error: null });
 });
 
@@ -121,7 +121,7 @@ app.post('/login', async (req, res) => {
     }
 });
 
-app.get('/signup', (req, res) => 
+app.get('/signup', (req, res) =>
     res.render('signup', { errors: {}, username: '', email: '', profession: '', location: '' })
 );
 
@@ -146,20 +146,20 @@ app.post('/signup', avatarUpload.single('avatar'), async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const avatarPath = req.file ? `/avatars/${req.file.filename}` : null;
 
-        const newUser = new User({ 
-            username, 
-            email, 
-            password: hashedPassword, 
-            profession, 
-            location, 
-            avatar: avatarPath 
+        const newUser = new User({
+            username,
+            email,
+            password: hashedPassword,
+            profession,
+            location,
+            avatar: avatarPath
         });
 
         await newUser.save();
         res.redirect('/login');
     } catch (error) {
         console.error('Signup error:', error);
-        res.render('signup', { 
+        res.render('signup', {
             errors: { general: 'An error occurred during registration' },
             username: req.body.username,
             email: req.body.email,
@@ -184,8 +184,8 @@ app.get('/dashboard', async (req, res) => {
         const currentUser = await User.findById(req.session.userId);
         const groups = await Group.find({ members: req.session.userId });
 
-        res.render('dashboard', { 
-            users: users.map(u => u.getDecrypted()), 
+        res.render('dashboard', {
+            users: users.map(u => u.getDecrypted()),
             currentUser: currentUser.getDecrypted(),
             groups
         });
@@ -217,7 +217,7 @@ app.get('/chat/:id', async (req, res) => {
 
         if (!otherUser || !currentUser) return res.status(404).send("User not found!");
 
-        const rawChats = await Chat.find({ 
+        const rawChats = await Chat.find({
             $or: [{ from: currentUser._id, to: otherUser._id }, { from: otherUser._id, to: currentUser._id }],
             $and: [
                 { deletedForEveryone: { $ne: true } },
@@ -225,10 +225,10 @@ app.get('/chat/:id', async (req, res) => {
             ]
         }).sort({ created_at: 1 });
 
-        res.render('chat', { 
-            otherUser: otherUser.getDecrypted(), 
-            currentUser: currentUser.getDecrypted(), 
-            chats: rawChats.map(chat => chat.getDecrypted()) 
+        res.render('chat', {
+            otherUser: otherUser.getDecrypted(),
+            currentUser: currentUser.getDecrypted(),
+            chats: rawChats.map(chat => chat.getDecrypted())
         });
     } catch (error) {
         console.error('Chat error:', error);
@@ -354,11 +354,11 @@ app.get('/api/users/available-for-group/:groupId', async (req, res) => {
         }
 
         // Get users who are not already members
-        const users = await User.find({ 
-            _id: { 
+        const users = await User.find({
+            _id: {
                 $nin: group.members,
                 $ne: req.session.userId
-            } 
+            }
         }).select('username _id');
 
         res.json(users.map(user => ({ _id: user._id, username: user.username })));
@@ -377,9 +377,9 @@ app.get('/groups', async (req, res) => {
             .populate('admin')
             .populate('members');
 
-        res.render('groups_list', { 
-            groups, 
-            currentUser: await User.findById(req.session.userId) 
+        res.render('groups_list', {
+            groups,
+            currentUser: await User.findById(req.session.userId)
         });
     } catch (error) {
         console.error('Groups list error:', error);
@@ -392,9 +392,9 @@ app.get('/groups/create', async (req, res) => {
 
     try {
         const users = await User.find({ _id: { $ne: req.session.userId } });
-        res.render('group_create', { 
-            users, 
-            currentUser: await User.findById(req.session.userId) 
+        res.render('group_create', {
+            users,
+            currentUser: await User.findById(req.session.userId)
         });
     } catch (error) {
         console.error('Group create page error:', error);
@@ -436,7 +436,7 @@ app.get('/groups/:id', async (req, res) => {
             return res.status(403).send('Not authorized');
         }
 
-        const chats = await GroupChat.find({ 
+        const chats = await GroupChat.find({
             group: group._id,
             $and: [
                 { deletedForEveryone: { $ne: true } },
@@ -446,10 +446,10 @@ app.get('/groups/:id', async (req, res) => {
             .populate('from')
             .sort({ created_at: 1 });
 
-        res.render('group_chat', { 
-            group, 
-            chats, 
-            currentUser: await User.findById(req.session.userId) 
+        res.render('group_chat', {
+            group,
+            chats,
+            currentUser: await User.findById(req.session.userId)
         });
     } catch (error) {
         console.error('Group chat error:', error);
@@ -964,6 +964,7 @@ app.post('/call/initiate/group', async (req, res) => {
         });
 
         await call.save();
+        const callWithCaller = await Call.findById(call._id).populate('caller', 'username avatar');
 
         // Notify all online group members except the caller
         onlineMembers.forEach(member => {
@@ -1180,7 +1181,7 @@ app.post('/call/:callId/end', async (req, res) => {
         // Handle group calls
         if (call.groupId) {
             const group = await Group.findById(call.groupId).populate('members');
-            const isParticipant = call.caller.toString() === req.session.userId || 
+            const isParticipant = call.caller.toString() === req.session.userId ||
                                 (call.participants && call.participants.includes(req.session.userId));
 
             if (!isParticipant) {
@@ -1219,7 +1220,7 @@ app.post('/call/:callId/end', async (req, res) => {
         }
 
         // Handle personal calls
-        const isParticipant = call.caller.toString() === req.session.userId || 
+        const isParticipant = call.caller.toString() === req.session.userId ||
                             call.receiver.toString() === req.session.userId;
 
         if (!isParticipant) {
@@ -1230,8 +1231,8 @@ app.post('/call/:callId/end', async (req, res) => {
         call.endTime = new Date();
         await call.save();
 
-        const otherParticipantId = call.caller.toString() === req.session.userId 
-            ? call.receiver.toString() 
+        const otherParticipantId = call.caller.toString() === req.session.userId
+            ? call.receiver.toString()
             : call.caller.toString();
 
         io.to(otherParticipantId).emit('call-ended', {
@@ -1372,7 +1373,7 @@ io.on('connection', (socket) => {
     socket.on('messages seen', async (data) => {
         try {
             await Chat.updateMany(
-                { from: data.to, to: data.from, status: { $ne: 'seen' } }, 
+                { from: data.to, to: data.from, status: { $ne: 'seen' } },
                 { $set: { status: 'seen' } }
             );
             const roomId = [data.to, data.from].sort().join('_');
@@ -1385,36 +1386,36 @@ io.on('connection', (socket) => {
     // Typing status events
     socket.on('typing start', (data) => {
         const roomId = [data.from, data.to].sort().join('_');
-        socket.to(roomId).emit('user typing', { 
-            userId: data.from, 
+        socket.to(roomId).emit('user typing', {
+            userId: data.from,
             username: data.username,
-            isTyping: true 
+            isTyping: true
         });
     });
 
     socket.on('typing stop', (data) => {
         const roomId = [data.from, data.to].sort().join('_');
-        socket.to(roomId).emit('user typing', { 
-            userId: data.from, 
+        socket.to(roomId).emit('user typing', {
+            userId: data.from,
             username: data.username,
-            isTyping: false 
+            isTyping: false
         });
     });
 
     // Group typing events
     socket.on('group typing start', (data) => {
-        socket.to(`group_${data.groupId}`).emit('group user typing', { 
-            userId: data.from, 
+        socket.to(`group_${data.groupId}`).emit('group user typing', {
+            userId: data.from,
             username: data.username,
-            isTyping: true 
+            isTyping: true
         });
     });
 
     socket.on('group typing stop', (data) => {
-        socket.to(`group_${data.groupId}`).emit('group user typing', { 
-            userId: data.from, 
+        socket.to(`group_${data.groupId}`).emit('group user typing', {
+            userId: data.from,
             username: data.username,
-            isTyping: false 
+            isTyping: false
         });
     });
 
@@ -1497,8 +1498,8 @@ io.on('connection', (socket) => {
                     call.endTime = new Date();
                     await call.save();
 
-                    const otherUserId = call.caller.toString() === socket.userId 
-                        ? call.receiver.toString() 
+                    const otherUserId = call.caller.toString() === socket.userId
+                        ? call.receiver.toString()
                         : call.caller.toString();
 
                     io.to(otherUserId).emit('call-ended', {
@@ -1508,13 +1509,13 @@ io.on('connection', (socket) => {
                 }
 
                 // Update user status
-                await User.findByIdAndUpdate(socket.userId, { 
+                await User.findByIdAndUpdate(socket.userId, {
                     online: false,
                     lastSeen: new Date()
                 });
 
-                io.emit('userStatus', { 
-                    userId: socket.userId, 
+                io.emit('userStatus', {
+                    userId: socket.userId,
                     online: false,
                     lastSeen: new Date()
                 });

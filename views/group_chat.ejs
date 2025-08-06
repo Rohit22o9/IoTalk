@@ -213,7 +213,7 @@
             </svg>
           </button>
         </form>
-        <div class="flex items-center space-x-3 cursor-pointer group-header group-chat-container" id="groupHeader" data-group-id="<%= group._id %>" onclick="toggleGroupInfo()">
+        <div class="flex items-center space-x-3 cursor-pointer group-header" id="groupHeader" data-group-id="<%= group._id %>" onclick="toggleGroupInfo()">
           <img src="<%= group.icon || '/group_icons/default.png' %>" 
                alt="<%= group.name %>" 
                class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md">
@@ -562,10 +562,10 @@
     });
 
     function showMediaPreview(file) {
-        const mediaPreview = document.getElementById('mediaPreview');
-        const previewContainer = document.getElementById('previewContent'); // Corrected ID
+        const filePreview = document.getElementById('filePreview');
+        const previewContainer = document.getElementById('previewContent');
 
-        if (!mediaPreview || !previewContainer) {
+        if (!filePreview || !previewContainer) {
             console.error('Preview elements not found');
             return;
         }
@@ -630,13 +630,13 @@
             previewContainer.appendChild(docDiv);
         }
 
-        mediaPreview.style.display = 'block';
+        filePreview.classList.remove('hidden');
     }
 
     function hideMediaPreview() {
-        const mediaPreview = document.getElementById('mediaPreview');
-        if (mediaPreview) {
-            mediaPreview.style.display = 'none';
+        const filePreview = document.getElementById('filePreview');
+        if (filePreview) {
+            filePreview.classList.add('hidden');
         }
     }
 
@@ -894,7 +894,11 @@
       initializeEventListeners() {
         this.voiceBtn.addEventListener('click', () => {
           if (this.isRecording) {
-            this.pauseRecording();
+            this.stopRecording();
+          } else if (this.recordedBlob) {
+            // If we have a recorded message, start a new recording
+            this.deleteRecording();
+            this.startRecording();
           } else {
             this.startRecording();
           }
@@ -988,7 +992,7 @@
       }
 
       stopRecording() {
-        if (this.mediaRecorder && this.isRecording) {
+        if (this.mediaRecorder && (this.isRecording || this.isPaused)) {
           this.mediaRecorder.stop();
           console.log('Recording stopped');
         }
@@ -1106,14 +1110,21 @@
       }
 
       async sendVoiceMessage() {
-        if (!this.recordedBlob) return;
+        if (!this.recordedBlob) {
+          console.error('No recorded audio to send');
+          return;
+        }
+
+        // Stop recording if still recording
+        this.stopRecording();
 
         try {
           const formData = new FormData();
           const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
           formData.append('media', audioFile);
-          formData.append('msg', '🎤 Voice Message'); // Default message for voice
+          formData.append('msg', ''); // Empty message for voice only
 
+          console.log('Sending voice message...', audioFile);
           const response = await fetch('/groupchat/' + groupId, {
             method: 'POST',
             body: formData
@@ -1505,6 +1516,6 @@
       loadAvailableUsers();
     <% } %>
   </script>
-  <script src="/js/group-calls.js"></script>
+  <script src="/js/groupCall.js"></script>
 </body>
 </html>

@@ -1510,7 +1510,7 @@ io.on('connection', (socket) => {
                 // Update user status
                 await User.findByIdAndUpdate(socket.userId, { 
                     online: false,
-                    lastSeen: new Date() 
+                    lastSeen: new Date()
                 });
 
                 io.emit('userStatus', { 
@@ -1528,4 +1528,6 @@ io.on('connection', (socket) => {
 
 // ----------- SERVER STARTUP -----------
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+});

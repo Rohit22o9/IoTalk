@@ -466,7 +466,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
       </button>
-      <div class="voice-progress-bar-container w-32">
+      <div class="voice-progress-bar-container">
         <div class="voice-progress"></div>
       </div>
       <div class="voice-duration" id="recordedDuration">0:00</div>
@@ -495,9 +495,9 @@
         </button>
 
         <div class="flex-1 relative">
-          <input type="text" name="msg" placeholder="Type your message..." 
-                 class="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 pr-12" 
-                 autocomplete="off">
+          <textarea name="msg" placeholder="Type your message..." 
+                 class="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 pr-12 resize-none" 
+                 autocomplete="off" rows="1" style="min-height: 48px; overflow-y: hidden;"></textarea>
         </div>
         <button type="submit" class="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -527,6 +527,7 @@
     const filePreview = document.getElementById('filePreview');
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
+    const messageInput = form.querySelector('textarea[name="msg"]'); // Use textarea
 
     function scrollToBottom() { 
       chatBox.scrollTop = chatBox.scrollHeight; 
@@ -542,94 +543,14 @@
       return div.innerHTML;
     }
 
-    function showFilePreview(file) {
-      const ext = file.name.split('.').pop().toLowerCase();
-      const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
-      const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
-      const fileSize = formatFileSize(file.size);
-
-      if (isImage) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          previewContent.innerHTML = `
-            <div class="flex items-center space-x-3">
-              <img src="${e.target.result}" class="h-12 w-12 rounded-lg object-cover shadow border" alt="Preview" />
-              <div class="flex-1 min-w-0">
-                <p class="font-medium text-secondary-900 text-sm truncate">${escapeHtml(file.name)}</p>
-                <p class="text-xs text-secondary-500">Image • ${fileSize}</p>
-              </div>
-            </div>
-          `;
-        };
-        reader.readAsDataURL(file);
-      } else if (isVoice) {
-        previewContent.innerHTML = `
-          <div class="flex items-center space-x-3">
-            <div class="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
-              <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-medium text-secondary-900 text-sm truncate">${escapeHtml(file.name)}</p>
-              <p class="text-xs text-secondary-500">Audio • ${fileSize}</p>
-            </div>
-          </div>
-        `;
-      } else {
-        const extIconColor =
-          ext === 'pdf' ? 'text-red-500' :
-          ['doc','docx'].includes(ext) ? 'text-blue-600' :
-          ['xls','xlsx'].includes(ext) ? 'text-green-600' :
-          ['ppt','pptx'].includes(ext) ? 'text-orange-500' :
-          ['zip','rar'].includes(ext) ? 'text-yellow-500' : 'text-gray-600';
-
-        const extBgColor =
-          ext === 'pdf' ? 'bg-red-100' :
-          ['doc','docx'].includes(ext) ? 'bg-blue-100' :
-          ['xls','xlsx'].includes(ext) ? 'bg-green-100' :
-          ['ppt','pptx'].includes(ext) ? 'bg-orange-100' :
-          ['zip','rar'].includes(ext) ? 'bg-yellow-100' : 'bg-gray-100';
-
-        previewContent.innerHTML = `
-          <div class="flex items-center space-x-3">
-            <div class="h-12 w-12 rounded-lg ${extBgColor} flex items-center justify-center">
-              <svg class="w-6 h-6 ${extIconColor}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M12 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                <polyline points="12 2 12 8 18 8"/>
-              </svg>
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-medium text-secondary-900 text-sm truncate">${escapeHtml(file.name)}</p>
-              <p class="text-xs text-secondary-500">${ext.toUpperCase()} Document • ${fileSize}</p>
-            </div>
-          </div>
-        `;
-      }
-      filePreview.classList.remove('hidden');
-    }
-
-    function hideFilePreview() {
-      filePreview.classList.add('hidden');
-      previewContent.innerHTML = '';
-    }
-
-    function formatFileSize(bytes) {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
-
     // Media preview handler - Initialize after DOM is ready
     if (mediaInput) {
-      mediaInput.addEventListener('change', () => {
-        const file = mediaInput.files[0];
+      mediaInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
         if (file) {
-          showFilePreview(file);
+          showMediaPreview(file);
         } else {
-          hideFilePreview();
+          hideMediaPreview();
         }
       });
     }
@@ -637,15 +558,100 @@
     // Remove file handler
     removeFile.addEventListener('click', () => {
       mediaInput.value = '';
-      hideFilePreview();
+      hideMediaPreview();
     });
+
+    function showMediaPreview(file) {
+        const mediaPreview = document.getElementById('mediaPreview');
+        const previewContainer = document.getElementById('previewContent'); // Corrected ID
+
+        if (!mediaPreview || !previewContainer) {
+            console.error('Preview elements not found');
+            return;
+        }
+
+        // Clear previous preview
+        previewContainer.innerHTML = '';
+
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'max-h-40 max-w-full rounded object-contain';
+            img.alt = file.name;
+            previewContainer.appendChild(img);
+        } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.className = 'max-h-40 max-w-full rounded';
+            video.controls = true;
+            video.muted = true;
+            previewContainer.appendChild(video);
+        } else if (file.type.startsWith('audio/')) {
+            const audioDiv = document.createElement('div');
+            audioDiv.className = 'flex items-center space-x-2 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg';
+            audioDiv.innerHTML = `
+                <svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.586 14H2a1 1 0 01-1-1V7a1 1 0 011-1h2.586L8.383 3.076zM12 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4-1a1 1 0 011 1v2a1 1 0 11-2 0V8a1 1 0 011-1z"/>
+                </svg>
+                <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">${file.name}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Audio File</p>
+                </div>
+            `;
+            previewContainer.appendChild(audioDiv);
+        } else {
+            // Document preview
+            const docDiv = document.createElement('div');
+            docDiv.className = 'flex items-center space-x-2 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg';
+
+            let iconPath = "M4 18h12V6h-4V2H4v16zm-2 0V0h12l4 4v14H2z";
+            let iconColor = "text-blue-500";
+
+            // Different icons for different file types
+            if (file.type.includes('pdf')) {
+                iconColor = "text-red-500";
+            } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+                iconColor = "text-blue-600";
+            } else if (file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+                iconColor = "text-green-600";
+            } else if (file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) {
+                iconColor = "text-orange-500";
+            }
+
+            docDiv.innerHTML = `
+                <svg class="w-8 h-8 ${iconColor}" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="${iconPath}"/>
+                </svg>
+                <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">${file.name}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(file.size)}</p>
+                </div>
+            `;
+            previewContainer.appendChild(docDiv);
+        }
+
+        mediaPreview.style.display = 'block';
+    }
+
+    function hideMediaPreview() {
+        const mediaPreview = document.getElementById('mediaPreview');
+        if (mediaPreview) {
+            mediaPreview.style.display = 'none';
+        }
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
 
     scrollToBottom();
 
     // Group typing detection
-    const msgInput = form.querySelector('input[name="msg"]');
-
-    msgInput.addEventListener('input', () => {
+    messageInput.addEventListener('input', () => {
       if (!isGroupTyping) {
         isGroupTyping = true;
         socket.emit('group typing start', {
@@ -666,64 +672,85 @@
       }, 1000);
     });
 
-    msgInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { // Prevent enter from submitting the form unless shift+enter
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Send message form submission handler
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await sendMessage();
+    });
+
+    // Send button click handler
+    const sendButton = form.querySelector('button[type="submit"]');
+    if (sendButton) {
+        sendButton.addEventListener('click', async function(e) {
+            e.preventDefault();
+            await sendMessage();
+        });
+    }
+
+    async function sendMessage() {
+        const messageText = messageInput.value.trim();
+        const mediaFile = mediaInput.files[0];
+
+        if (!messageText && !mediaFile) {
+            console.log('No message or media to send');
+            return;
+        }
+
+        // Stop typing when sending message
         clearTimeout(groupTypingTimer);
         if (isGroupTyping) {
-          isGroupTyping = false;
-          socket.emit('group typing stop', {
-            from: currentUserId,
-            groupId: groupId,
-            username: "<%= currentUser.username %>"
-          });
+            isGroupTyping = false;
+            socket.emit('group typing stop', {
+                from: currentUserId,
+                groupId: groupId,
+                username: "<%= currentUser.username %>"
+            });
         }
-      }
-    });
 
-    form.addEventListener('submit', async e => {
-      e.preventDefault();
-      
-      const msg = msgInput.value.trim();
-      const file = mediaInput.files[0];
-      if (!msg && !file) return;
-
-      // Stop typing when sending message
-      clearTimeout(groupTypingTimer);
-      if (isGroupTyping) {
-        isGroupTyping = false;
-        socket.emit('group typing stop', {
-          from: currentUserId,
-          groupId: groupId,
-          username: "<%= currentUser.username %>"
-        });
-      }
-
-      try {
         const formData = new FormData();
-        if (msg) formData.append('msg', msg);
-        if (file) formData.append('media', file);
+        if (messageText) formData.append('msg', messageText);
+        if (mediaFile) formData.append('media', mediaFile);
+        // Assuming replyToMessage is handled elsewhere or not relevant for this specific send action
+        // if (replyToMessage) formData.append('replyTo', replyToMessage._id);
 
-        const response = await fetch('/groupchat/' + groupId, { 
-          method: 'POST', 
-          body: formData 
-        });
+        try {
+            console.log('Sending group message...');
+            const response = await fetch('/groupchat/' + groupId, { 
+                method: 'POST', 
+                body: formData 
+            });
 
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Group message sent successfully:', data);
-          
-          // Reset input fields and hide preview
-          msgInput.value = '';
-          mediaInput.value = '';
-          hideFilePreview();
-        } else {
-          throw new Error(`HTTP error! status: ${response.status}`);
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Group message sent successfully:', result);
+
+                // Clear form
+                messageInput.value = '';
+                mediaInput.value = '';
+                hideMediaPreview();
+                // cancelReply(); // Assuming cancelReply is handled elsewhere
+
+                // Reset input height
+                messageInput.style.height = 'auto';
+            } else {
+                console.error('Failed to send group message:', response.status);
+                const errorText = await response.text();
+                console.error('Error details:', errorText);
+                alert('Failed to send message');
+            }
+        } catch (error) {
+            console.error('Error sending group message:', error);
+            alert('Error sending message');
         }
-      } catch (error) {
-        console.error('Error sending message:', error);
-        alert('Failed to send message');
-      }
-    });
+    }
+
 
     socket.on('group message', msg => {
       const isMine = msg.from._id === currentUserId;
@@ -789,11 +816,11 @@
           <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl 
                       ${isMine ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg">
             ${mediaHTML}
-            ${msg.msg ? `<div class="message-text"><p class="text-sm leading-relaxed"><strong class="${isMine ? 'text-primary-100' : 'text-secondary-700'}">${msg.from.username}:</strong> ${msg.msg}</p></div>` : ''}
-            ${msg.edited ? '<span class="text-xs italic">(edited)</span>' : ''}
+            ${msg.msg ? `<div class="message-text"><p class="text-sm leading-relaxed"><strong class="${isMine ? 'text-primary-100' : 'text-secondary-700'}">${msg.from.username}:</strong> ${escapeHtml(msg.msg)}</p></div>` : ''}
             <div class="flex items-center justify-between mt-2">
               <span class="text-xs ${isMine ? 'text-primary-100' : 'text-secondary-500'}">
                 ${new Date(msg.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}
+                ${msg.edited ? '<span class="ml-1 italic">(edited)</span>' : ''}
               </span>
             </div>
           </div>
@@ -1085,6 +1112,7 @@
           const formData = new FormData();
           const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
           formData.append('media', audioFile);
+          formData.append('msg', '🎤 Voice Message'); // Default message for voice
 
           const response = await fetch('/groupchat/' + groupId, {
             method: 'POST',
@@ -1122,6 +1150,7 @@
         }
 
         if (audioElement.paused) {
+          // Pause any other playing audio messages
           document.querySelectorAll('.voice-play-btn').forEach(btn => {
             const otherAudioElement = btn.closest('.voice-message-container').querySelector('audio');
             if (otherAudioElement && otherAudioElement !== audioElement && !otherAudioElement.paused) {
@@ -1318,6 +1347,7 @@
         });
 
         if (response.ok) {
+          // Message will be removed via socket event
           // Close dropdown after successful deletion
           document.querySelectorAll('.dropdown-menu').forEach(menu => {
             menu.classList.remove('show');
@@ -1441,11 +1471,7 @@
       try {
         const messageElement = document.querySelector(`[data-id="${messageId}"]`);
         if (messageElement) {
-          if (deleteType === 'forEveryone') {
-            messageElement.remove();
-          } else {
-            messageElement.remove();
-          }
+          messageElement.remove(); // Simply remove the element
         }
       } catch (error) {
         console.error('Error handling group message deletion:', error);

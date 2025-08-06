@@ -273,7 +273,7 @@
                             <% if (chat.media) {
                                 const ext = chat.media.split('.').pop().toLowerCase();
                                 const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
-                                const isVoice = ['webm','ogg','mp3'].includes(ext);
+                                const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
                                 const isVideo = ['mp4','avi','mov','wmv','flv','mkv'].includes(ext);
                             %>
                                 <% if (isImage) { %>
@@ -619,7 +619,7 @@
             console.log('New message received:', data);
             addMessageToUI(data);
             scrollToBottom();
-            
+
             // Mark message as delivered if it's from the other user
             if (data.from.toString() !== currentUserId) {
                 socket.emit('message delivered', { messageId: data._id });
@@ -1027,7 +1027,7 @@
             const isImage = ext ? ['png','jpg','jpeg','gif','webp'].includes(ext) : false;
             const isVoice = ext ? ['webm','ogg','mp3','m4a','wav'].includes(ext) : false;
             const isVideo = ext ? ['mp4','avi','mov','wmv','flv','mkv'].includes(ext) : false;
-            
+
             let mediaHTML = '';
             if (chat.media) {
                 if (isImage) {
@@ -1061,9 +1061,9 @@
                             <div class="voice-duration">0:00</div>
                         </div>`;
                 } else {
-                    const extColor = ext === 'pdf' ? 'text-red-500' : 
-                                   ['doc','docx'].includes(ext) ? 'text-blue-600' : 
-                                   ['xls','xlsx'].includes(ext) ? 'text-green-600' : 
+                    const extColor = ext === 'pdf' ? 'text-red-500' :
+                                   ['doc','docx'].includes(ext) ? 'text-blue-600' :
+                                   ['xls','xlsx'].includes(ext) ? 'text-green-600' :
                                    'text-gray-600';
                     mediaHTML = `
                         <div class="bg-gray-100 rounded-md p-3 mb-2 shadow flex flex-col space-y-2">
@@ -2034,7 +2034,7 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`HTTP error! status: ${res.status}`);
                 }
 
                 const data = await response.json();

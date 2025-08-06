@@ -538,28 +538,53 @@
     }
 
     function escapeHtml(text) {
+      if (!text) return '';
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
 
-    // Media preview handler - Initialize after DOM is ready
-    if (mediaInput) {
-      mediaInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-          showMediaPreview(file);
-        } else {
-          hideMediaPreview();
-        }
-      });
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Remove file handler
-    removeFile.addEventListener('click', () => {
-      mediaInput.value = '';
-      hideMediaPreview();
-    });
+    // Initialize media input handlers
+    function initializeMediaHandlers() {
+        const mediaInput = document.getElementById('mediaInput');
+        const removeFile = document.getElementById('removeFile');
+        
+        if (mediaInput) {
+            mediaInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    console.log('File selected:', file.name, file.type);
+                    showMediaPreview(file);
+                } else {
+                    hideMediaPreview();
+                }
+            });
+        } else {
+            console.error('Media input element not found');
+        }
+
+        if (removeFile) {
+            removeFile.addEventListener('click', () => {
+                if (mediaInput) {
+                    mediaInput.value = '';
+                }
+                hideMediaPreview();
+            });
+        } else {
+            console.error('Remove file button not found');
+        }
+    }
+
+    // Initialize media handlers
+    initializeMediaHandlers();
 
     function showMediaPreview(file) {
         const filePreview = document.getElementById('filePreview');
@@ -578,6 +603,9 @@
             img.src = URL.createObjectURL(file);
             img.className = 'max-h-40 max-w-full rounded object-contain';
             img.alt = file.name;
+            img.onload = function() {
+                URL.revokeObjectURL(this.src);
+            };
             previewContainer.appendChild(img);
         } else if (file.type.startsWith('video/')) {
             const video = document.createElement('video');
@@ -585,68 +613,93 @@
             video.className = 'max-h-40 max-w-full rounded';
             video.controls = true;
             video.muted = true;
+            video.preload = 'metadata';
             previewContainer.appendChild(video);
         } else if (file.type.startsWith('audio/')) {
             const audioDiv = document.createElement('div');
-            audioDiv.className = 'flex items-center space-x-2 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg';
+            audioDiv.className = 'flex items-center space-x-3 p-3 bg-secondary-100 rounded-lg';
             audioDiv.innerHTML = `
                 <svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.586 14H2a1 1 0 01-1-1V7a1 1 0 011-1h2.586L8.383 3.076zM12 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4-1a1 1 0 011 1v2a1 1 0 11-2 0V8a1 1 0 011-1z"/>
                 </svg>
-                <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">${file.name}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Audio File</p>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
+                    <p class="text-xs text-secondary-500">Audio File • ${formatFileSize(file.size)}</p>
                 </div>
             `;
             previewContainer.appendChild(audioDiv);
         } else {
             // Document preview
             const docDiv = document.createElement('div');
-            docDiv.className = 'flex items-center space-x-2 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg';
+            docDiv.className = 'flex items-center space-x-3 p-3 bg-secondary-100 rounded-lg';
 
-            let iconPath = "M4 18h12V6h-4V2H4v16zm-2 0V0h12l4 4v14H2z";
             let iconColor = "text-blue-500";
+            let fileType = "Document";
 
             // Different icons for different file types
             if (file.type.includes('pdf')) {
                 iconColor = "text-red-500";
+                fileType = "PDF";
             } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
                 iconColor = "text-blue-600";
+                fileType = "Word Document";
             } else if (file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
                 iconColor = "text-green-600";
+                fileType = "Spreadsheet";
             } else if (file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) {
                 iconColor = "text-orange-500";
+                fileType = "Presentation";
+            } else if (file.name.endsWith('.zip') || file.name.endsWith('.rar')) {
+                iconColor = "text-yellow-500";
+                fileType = "Archive";
             }
 
             docDiv.innerHTML = `
-                <svg class="w-8 h-8 ${iconColor}" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="${iconPath}"/>
+                <svg class="w-8 h-8 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
-                <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">${file.name}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">${formatFileSize(file.size)}</p>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-secondary-900 truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
+                    <p class="text-xs text-secondary-500">${fileType} • ${formatFileSize(file.size)}</p>
                 </div>
             `;
             previewContainer.appendChild(docDiv);
         }
 
         filePreview.classList.remove('hidden');
+        scrollToBottom();
     }
 
     function hideMediaPreview() {
         const filePreview = document.getElementById('filePreview');
+        const previewContainer = document.getElementById('previewContent');
+        
         if (filePreview) {
             filePreview.classList.add('hidden');
         }
+        
+        if (previewContainer) {
+            // Clean up object URLs to prevent memory leaks
+            const images = previewContainer.querySelectorAll('img');
+            const videos = previewContainer.querySelectorAll('video');
+            
+            images.forEach(img => {
+                if (img.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(img.src);
+                }
+            });
+            
+            videos.forEach(video => {
+                if (video.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(video.src);
+                }
+            });
+            
+            previewContainer.innerHTML = '';
+        }
     }
 
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
+    
 
     scrollToBottom();
 
@@ -696,7 +749,7 @@
 
     async function sendMessage() {
         const messageText = messageInput.value.trim();
-        const mediaFile = mediaInput.files[0];
+        const mediaFile = mediaInput ? mediaInput.files[0] : null;
 
         if (!messageText && !mediaFile) {
             console.log('No message or media to send');
@@ -716,12 +769,13 @@
 
         const formData = new FormData();
         if (messageText) formData.append('msg', messageText);
-        if (mediaFile) formData.append('media', mediaFile);
-        // Assuming replyToMessage is handled elsewhere or not relevant for this specific send action
-        // if (replyToMessage) formData.append('replyTo', replyToMessage._id);
+        if (mediaFile) {
+            formData.append('media', mediaFile);
+            console.log('Attaching media file:', mediaFile.name, mediaFile.type);
+        }
 
         try {
-            console.log('Sending group message...');
+            console.log('Sending group message...', { hasText: !!messageText, hasMedia: !!mediaFile });
             const response = await fetch('/groupchat/' + groupId, { 
                 method: 'POST', 
                 body: formData 
@@ -733,21 +787,28 @@
 
                 // Clear form
                 messageInput.value = '';
-                mediaInput.value = '';
+                if (mediaInput) {
+                    mediaInput.value = '';
+                }
                 hideMediaPreview();
-                // cancelReply(); // Assuming cancelReply is handled elsewhere
 
                 // Reset input height
                 messageInput.style.height = 'auto';
             } else {
                 console.error('Failed to send group message:', response.status);
-                const errorText = await response.text();
-                console.error('Error details:', errorText);
-                alert('Failed to send message');
+                try {
+                    const errorData = await response.json();
+                    console.error('Error details:', errorData);
+                    alert('Failed to send message: ' + (errorData.error || 'Unknown error'));
+                } catch (parseError) {
+                    const errorText = await response.text();
+                    console.error('Error details (text):', errorText);
+                    alert('Failed to send message');
+                }
             }
         } catch (error) {
             console.error('Error sending group message:', error);
-            alert('Error sending message');
+            alert('Error sending message: ' + error.message);
         }
     }
 

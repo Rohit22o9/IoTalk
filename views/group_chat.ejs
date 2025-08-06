@@ -1,10 +1,196 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= group.name %> | Group Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/style.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe',
+              500: '#3b82f6', 600: '#2563eb',
+              700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            },
+            secondary: {
+              50: '#f8fafc', 100: '#f1f5f9',
+              500: '#64748b', 600: '#475569',
+              700: '#334155', 800: '#1e293b', 900: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
   <style>
+    .message-container {
+      position: relative;
+    }
+    .message-menu {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .message-container:hover .message-menu {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .dropdown-menu {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      z-index: 50;
+      min-width: 160px;
+      transform: translateY(-10px);
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+    }
+    .dropdown-menu.show {
+      transform: translateY(0);
+      opacity: 1;
+      visibility: visible;
+    }
+    .edit-input {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+      width: 100%;
+      font-size: 0.875rem;
+    }
+    .edit-buttons {
+      margin-top: 0.5rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .deleted-message {
+      opacity: 0.5;
+      font-style: italic;
+      background: #f3f4f6 !important;
+      color: #6b7280 !important;
+    }
+    body, html {
+      overflow-x: hidden;
+    }
+    .chat-messages {
+      overflow-x: hidden;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+    /* Voice message styles */
+    .voice-message-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(5px);
+      padding: 8px 12px;
+      border-radius: 1rem;
+      max-width: 70%;
+      word-break: break-word;
+    }
+    .voice-play-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #3b82f6;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      flex-shrink: 0;
+    }
+    .voice-play-btn:hover {
+      background-color: #2563eb;
+    }
+    .voice-progress-bar-container {
+      flex-grow: 1;
+      height: 6px;
+      background-color: rgba(255, 255, 255, 0.5);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    .voice-progress {
+      height: 100%;
+      background-color: #3b82f6;
+      border-radius: 3px;
+      width: 0%;
+    }
+    .voice-duration {
+      font-size: 0.75rem;
+      color: #64748b;
+      min-width: 40px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .voice-record-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background-color: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(5px);
+      border-radius: 1rem;
+    }
+    .voice-record-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-image: linear-gradient(to right, #3b82f6, #2563eb);
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .voice-record-btn:hover {
+      background-image: linear-gradient(to right, #2563eb, #1d4ed8);
+    }
+    .voice-record-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+    .voice-record-preview {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      padding: 10px;
+      background-color: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(5px);
+      border-radius: 1rem;
+    }
+    .voice-timer {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.875rem;
+      color: #64748b;
+    }
+    .voice-action-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .voice-delete-btn { background-color: #f87171; color: white; }
+    .voice-delete-btn:hover { background-color: #ef4444; }
+    .voice-play-pause-btn { background-color: #3b82f6; color: white; }
+    .voice-play-pause-btn:hover { background-color: #2563eb; }
+    .voice-send-btn { background-color: #3b82f6; color: white; }
+    .voice-send-btn:hover { background-color: #2563eb; }
     #groupInfoPanel {
       width: 0;
       transition: width 0.3s ease;
@@ -15,166 +201,1192 @@
     }
   </style>
 </head>
-<body class="flex flex-col h-screen">
-  <!-- HEADER -->
-  <header class="flex items-center justify-between p-4 bg-white shadow cursor-pointer" id="groupHeader">
-    <div class="flex items-center space-x-3">
-      <img src="<%= group.icon || '/group_icons/default.png' %>" class="w-10 h-10 rounded-full">
-      <div>
-        <h1 class="text-lg font-semibold"><%= group.name %></h1>
-        <p class="text-xs text-gray-500"><%= group.members.length %> members</p>
+
+<body class="h-screen bg-gradient-to-br from-secondary-50 via-white to-primary-50 overflow-hidden">
+  <div class="h-full flex flex-col">
+    <!-- Header -->
+    <header class="bg-white/90 backdrop-blur-lg border-b border-secondary-200 px-4 py-3 flex-shrink-0">
+      <div class="flex items-center space-x-4">
+        <form action="/dashboard" method="GET" class="inline">
+          <button type="submit" class="p-2 rounded-lg hover:bg-secondary-100 transition-colors duration-200">
+            <svg class="h-5 w-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+          </button>
+        </form>
+        <div class="flex items-center space-x-3 cursor-pointer group-header group-chat-container" id="groupHeader" data-group-id="<%= group._id %>" onclick="toggleGroupInfo()">
+          <img src="<%= group.icon || '/group_icons/default.png' %>" 
+               alt="<%= group.name %>" 
+               class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md">
+          <div>
+            <h1 class="text-lg font-semibold text-secondary-900"><%= group.name %></h1>
+            <p class="text-xs font-medium text-gray-500"><%= group.members.length %> members</p>
+          </div>
+        </div>
+        <!-- Call buttons will be added here by JavaScript -->
       </div>
-    </div>
-  </header>
+    </header>
 
-  <!-- MAIN CONTAINER -->
-  <div class="flex flex-1 overflow-hidden">
-    <!-- CHAT BOX -->
-    <main id="chatBox" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50">
-      <% chats.forEach(chat => { %>
-        <div class="<%= chat.from._id.toString() === currentUser._id.toString() ? 'text-right' : '' %>">
-          <div class="inline-block max-w-sm rounded-lg p-3 shadow <%= chat.from._id.toString() === currentUser._id.toString() ? 'bg-blue-500 text-white rounded-br-none' : 'bg-white text-gray-900 rounded-bl-none' %>">
-            <% if (chat.media) { %>
-              <% if (/\.(jpg|jpeg|png|gif)$/i.test(chat.media)) { %>
-                <img src="<%= chat.media %>" class="max-w-xs rounded mb-2" alt="image">
-              <% } else if (/\.(mp4|webm|ogg)$/i.test(chat.media)) { %>
-                <video controls class="max-w-xs rounded mb-2">
-                  <source src="<%= chat.media %>">
-                </video>
-              <% } else if (/\.(mp3|wav)$/i.test(chat.media)) { %>
-                <audio controls class="mb-2">
-                  <source src="<%= chat.media %>">
-                </audio>
-              <% } else { %>
-                <div class="flex items-center justify-between bg-gray-100 p-3 rounded mb-2">
-                  <div class="flex items-center space-x-2">
-                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <div class="text-sm text-left">
-                      <div class="font-semibold text-gray-800">Document</div>
-                      <div class="text-xs text-gray-500 break-all"><%= chat.media.split('/').pop() %></div>
-                    </div>
-                  </div>
-                  <div class="flex gap-2">
-                    <a href="<%= chat.media %>" target="_blank" class="text-blue-600 text-sm hover:underline">Open</a>
-                    <a href="<%= chat.media %>" download class="text-blue-600 text-sm hover:underline">Download</a>
-                  </div>
-                </div>
-              <% } %>
-            <% } %>
-
-            <% if(chat.msg) { %>
-              <p class="break-words"><strong><%= chat.from.username %>: </strong><%= chat.msg %></p>
-            <% } %>
-
-            <% if(chat.edited) { %>
-              <span class="text-xs italic"> (edited) </span>
-            <% } %>
-            <div class="text-right">
-              <span class="text-xs opacity-70">
-                <%= new Date(chat.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) %>
-              </span>
+    <!-- Main Container -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Chat Messages -->
+      <main class="flex-1 overflow-y-auto p-4 space-y-4 chat-messages" id="chatBox">
+        <!-- Group Typing Indicator -->
+        <div id="groupTypingIndicator" class="hidden flex justify-start">
+          <div class="bg-white/80 backdrop-blur-lg px-4 py-2 rounded-2xl rounded-bl-md border border-white/20 shadow-lg">
+            <div class="flex items-center space-x-2">
+              <div class="flex space-x-1">
+                <div class="w-2 h-2 bg-secondary-400 rounded-full animate-bounce"></div>
+                <div class="w-2 h-2 bg-secondary-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                <div class="w-2 h-2 bg-secondary-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+              </div>
+              <span class="text-xs text-secondary-500" id="groupTypingText">Someone is typing...</span>
             </div>
           </div>
         </div>
-      <% }) %>
-    </main>
+        <% chats.forEach(chat => { %>
+          <div class="flex <%= chat.from._id.toString() === currentUser._id.toString() ? 'justify-end' : 'justify-start' %>" data-id="<%= chat._id %>">
+            <div class="message-container relative">
+              <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl 
+                          <%= chat.from._id.toString() === currentUser._id.toString() 
+                              ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' 
+                              : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20' %> shadow-lg">
+                <% if (chat.media) { 
+                  const ext = chat.media.split('.').pop().toLowerCase();
+                  const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
+                  const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
+                %>
+                  <% if (isImage) { %>
+                    <div class="mb-2">
+                      <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" 
+                           alt="Media" class="rounded-md max-h-60 shadow">
+                    </div>
+                  <% } else if (isVoice) { %>
+                    <div class="voice-message-container">
+                      <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
+                        <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
+                        </svg>
+                        <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                      </button>
+                      <div class="voice-progress-bar-container">
+                        <div class="voice-progress"></div>
+                      </div>
+                      <div class="voice-duration">0:00</div>
+                    </div>
+                  <% } else { 
+                    const extColor =
+                      ext === 'pdf' ? 'text-red-500' :
+                      ['doc','docx'].includes(ext) ? 'text-blue-600' :
+                      ['xls','xlsx'].includes(ext) ? 'text-green-600' :
+                      ['ppt','pptx'].includes(ext) ? 'text-orange-500' :
+                      ['zip','rar'].includes(ext) ? 'text-yellow-500' : 'text-gray-600';
+                  %>
+                    <div class="bg-gray-100 rounded-md p-3 mb-2 shadow flex flex-col space-y-2">
+                      <div class="flex items-center space-x-3">
+                        <svg class="w-6 h-6 <%= extColor %>" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path d="M12 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                          <polyline points="12 2 12 8 18 8"/>
+                        </svg>
+                        <div>
+                          <p class="font-semibold text-gray-800 text-sm truncate max-w-xs">
+                            <%= chat.originalName || chat.media.split('/').pop() %>
+                          </p>
+                          <p class="text-xs text-gray-500 uppercase">DOCUMENT</p>
+                        </div>
+                      </div>
+                      <div class="flex space-x-3 mt-1">
+                        <a href="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" target="_blank" 
+                           class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Open</a>
+                        <a href="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" download 
+                           class="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Download</a>
+                      </div>
+                    </div>
+                  <% } %>
+                <% } %>
 
-    <!-- GROUP INFO PANEL -->
-    <aside id="groupInfoPanel" class="bg-white border-l shadow-lg">
-      <div class="p-4 flex flex-col items-center">
-        <img src="<%= group.icon || '/group_icons/default.png' %>" class="w-20 h-20 rounded-full">
-        <h2 class="text-lg font-semibold mt-2"><%= group.name %></h2>
-        <p class="text-sm text-gray-500"><%= group.members.length %> Members</p>
-        <hr class="my-4 w-full">
-        <ul class="w-full">
-          <% group.members.forEach(member => { %>
-            <li class="py-2 border-b text-center"><%= member.username %></li>
-          <% }) %>
-        </ul>
-        <% if (group.admin._id.toString() === currentUser._id.toString()) { %>
-        <form action="/groups/<%= group._id %>/update" method="POST" enctype="multipart/form-data" class="w-full mt-4 space-y-2">
-          <input type="text" name="name" placeholder="New Group Name" class="border p-2 w-full rounded">
-          <input type="file" name="icon" class="border p-2 w-full rounded">
-          <button class="w-full bg-blue-500 text-white py-2 rounded">Update</button>
-        </form>
-        <% } %>
+                <% if (chat.msg) { %>
+                  <div class="message-text">
+                    <p class="text-sm leading-relaxed">
+                      <strong class="<%= chat.from._id.toString() === currentUser._id.toString() ? 'text-primary-100' : 'text-secondary-700' %>">
+                        <%= chat.from.username %>:
+                      </strong>
+                      <%= chat.msg %>
+                    </p>
+                  </div>
+                <% } %>
+                <div class="flex items-center justify-between mt-2">
+                  <span class="text-xs <%= chat.from._id.toString() === currentUser._id.toString() ? 'text-primary-100' : 'text-secondary-500' %>">
+                    <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
+                    <% if (chat.edited) { %>
+                      <span class="ml-1 italic">(edited)</span>
+                    <% } %>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Message Menu (only show for current user's messages) -->
+              <% if (chat.from._id.toString() === currentUser._id.toString()) { %>
+                <div class="message-menu absolute -right-2 top-2">
+                  <button class="menu-trigger p-1 rounded-full hover:bg-gray-200 hover:bg-opacity-50" onclick="toggleMenu(this)">
+                    <svg class="h-4 w-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                    </svg>
+                  </button>
+                  <div class="dropdown-menu bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                    <% if (chat.msg) { %>
+                      <button onclick="editGroupMessage('<%= chat._id %>')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                        <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                        Edit Message
+                      </button>
+                    <% } %>
+                    <button onclick="deleteGroupMessage('<%= chat._id %>', 'forMe')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                      <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                      Delete for Me
+                    </button>
+                    <button onclick="deleteGroupMessage('<%= chat._id %>', 'forEveryone')" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center">
+                      <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                      Delete for Everyone
+                    </button>
+                  </div>
+                </div>
+              <% } %>
+            </div>
+          </div>
+        <% }) %>
+      </main>
+
+      <!-- Group Info Panel -->
+      <aside id="groupInfoPanel" class="bg-white/90 backdrop-blur-lg border-l border-secondary-200 shadow-lg">
+        <div class="p-4 flex flex-col items-center">
+          <img src="<%= group.icon || '/group_icons/default.png' %>" class="w-20 h-20 rounded-full object-cover border-2 border-white shadow-md">
+          <h2 class="text-lg font-semibold mt-2 text-secondary-900"><%= group.name %></h2>
+          <p class="text-sm text-secondary-500"><%= group.members.length %> Members</p>
+          <hr class="my-4 w-full border-secondary-200">
+          
+          <!-- Members List -->
+          <div class="w-full space-y-2 max-h-40 overflow-y-auto">
+            <% group.members.forEach(member => { %>
+              <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-secondary-50">
+                <img src="/avatars/<%= member.avatar || 'default-avatar.png' %>" class="w-8 h-8 rounded-full object-cover">
+                <div class="flex-1">
+                  <span class="text-sm text-secondary-700"><%= member.username %></span>
+                  <% if (group.admin._id.toString() === member._id.toString()) { %>
+                    <span class="text-xs bg-primary-100 text-primary-600 px-2 py-1 rounded-full ml-2">Admin</span>
+                  <% } %>
+                </div>
+                
+                <!-- Admin can remove members (except themselves) -->
+                <% if (group.admin._id.toString() === currentUser._id.toString() && member._id.toString() !== currentUser._id.toString()) { %>
+                  <button onclick="removeMember('<%= member._id %>', '<%= member.username %>')" 
+                          class="text-red-500 hover:text-red-700 p-1 rounded" title="Remove Member">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                  </button>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+
+          <!-- Admin Options -->
+          <% if (group.admin._id.toString() === currentUser._id.toString()) { %>
+            <hr class="my-4 w-full border-secondary-200">
+            <div class="w-full space-y-3">
+              <h3 class="text-sm font-semibold text-secondary-700">Admin Options</h3>
+              
+              <!-- Add Member -->
+              <div class="space-y-2">
+                <select id="newMemberSelect" class="w-full px-3 py-2 bg-secondary-50 border border-secondary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm">
+                  <option value="">Select user to add...</option>
+                </select>
+                <button onclick="addMember()" class="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg transition-colors text-sm font-medium">
+                  Add Member
+                </button>
+              </div>
+            </div>
+          <% } %>
+
+          <!-- Member Options (Exit Group) -->
+          <% if (group.admin._id.toString() !== currentUser._id.toString()) { %>
+            <hr class="my-4 w-full border-secondary-200">
+            <div class="w-full">
+              <button onclick="exitGroup()" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition-colors text-sm font-medium">
+                Exit Group
+              </button>
+            </div>
+          <% } %></div>
+          <% if (group.admin._id.toString() === currentUser._id.toString()) { %>
+            <form action="/groups/<%= group._id %>/update" method="POST" enctype="multipart/form-data" class="w-full mt-4 space-y-2">
+              <input type="text" name="name" placeholder="New Group Name" 
+                     class="w-full px-3 py-2 bg-secondary-50 border border-secondary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm">
+              <input type="file" name="icon" 
+                     class="w-full px-3 py-2 bg-secondary-50 border border-secondary-200 rounded-lg text-sm">
+              <button class="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white py-2 rounded-lg transition-all duration-200 text-sm font-medium">
+                Update Group
+              </button>
+            </form>
+          <% } %>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Media Preview -->
+    <div id="filePreview" class="hidden flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl mx-4 mb-2 shadow-lg">
+      <div id="previewContent" class="flex items-center space-x-3 flex-1"></div>
+      <button id="removeFile" type="button" class="ml-3 p-1 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Voice Recording Preview -->
+    <div id="voiceRecordingPreview" class="hidden voice-record-preview mx-4 mb-2">
+      <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+      <div class="voice-timer" id="recordingTimer">0:00</div>
+      <button id="playRecordedVoice" class="voice-action-btn voice-play-pause-btn">
+        <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
+        </svg>
+        <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </button>
+      <div class="voice-progress-bar-container w-32">
+        <div class="voice-progress"></div>
       </div>
-    </aside>
-  </div>
+      <div class="voice-duration" id="recordedDuration">0:00</div>
+      <button id="sendVoiceMessage" class="voice-action-btn voice-send-btn">
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+        </svg>
+      </button>
+    </div>
 
-  <!-- FOOTER -->
-  <footer class="p-4 bg-white shadow flex space-x-2">
-    <form id="chatForm" enctype="multipart/form-data" class="flex w-full space-x-2">
-      <input type="file" name="media" id="mediaInput" class="hidden">
-      <label for="mediaInput" class="bg-gray-200 p-2 rounded cursor-pointer">+</label>
-      <input type="text" name="msg" placeholder="Type message" class="flex-1 border p-2 rounded">
-      <button type="submit" class="bg-blue-600 text-white px-4 rounded">Send</button>
-    </form>
-  </footer>
+    <!-- Message Input -->
+    <footer class="bg-white/90 backdrop-blur-lg border-t border-secondary-200 p-4 flex-shrink-0">
+      <form id="chatForm" enctype="multipart/form-data" class="flex items-center space-x-3">
+        <input type="file" name="media" class="hidden" id="mediaInput">
+        <label for="mediaInput" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
+          <svg class="h-5 w-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+          </svg>
+        </label>
+        
+        <!-- Voice Message Button -->
+        <button type="button" id="voiceMessageBtn" class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+          </svg>
+        </button>
+
+        <div class="flex-1 relative">
+          <input type="text" name="msg" placeholder="Type your message..." 
+                 class="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 pr-12" 
+                 autocomplete="off">
+        </div>
+        <button type="submit" class="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+          </svg>
+        </button>
+      </form>
+    </footer>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
     const groupId = "<%= group._id %>";
+    const currentUserId = "<%= currentUser._id %>";
+    const groupTypingIndicator = document.getElementById('groupTypingIndicator');
+    const groupTypingText = document.getElementById('groupTypingText');
+    const typingUsers = new Set();
+    let groupTypingTimer;
+    let isGroupTyping = false;
+    
     socket.emit('joinGroup', groupId);
 
     const form = document.getElementById('chatForm');
     const chatBox = document.getElementById('chatBox');
+    const mediaInput = document.getElementById('mediaInput');
+    const filePreview = document.getElementById('filePreview');
+    const previewContent = document.getElementById('previewContent');
+    const removeFile = document.getElementById('removeFile');
+    
+    function scrollToBottom() { 
+      chatBox.scrollTop = chatBox.scrollHeight; 
+    }
+    
+    function toggleGroupInfo() {
+      document.getElementById('groupInfoPanel').classList.toggle('open');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function showFilePreview(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
+      const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
+      const fileSize = formatFileSize(file.size);
+
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewContent.innerHTML = `
+            <div class="flex items-center space-x-3">
+              <img src="${e.target.result}" class="h-12 w-12 rounded-lg object-cover shadow border" alt="Preview" />
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-secondary-900 text-sm truncate">${escapeHtml(file.name)}</p>
+                <p class="text-xs text-secondary-500">Image • ${fileSize}</p>
+              </div>
+            </div>
+          `;
+        };
+        reader.readAsDataURL(file);
+      } else if (isVoice) {
+        previewContent.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
+              <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-secondary-900 text-sm truncate">${escapeHtml(file.name)}</p>
+              <p class="text-xs text-secondary-500">Audio • ${fileSize}</p>
+            </div>
+          </div>
+        `;
+      } else {
+        const extIconColor =
+          ext === 'pdf' ? 'text-red-500' :
+          ['doc','docx'].includes(ext) ? 'text-blue-600' :
+          ['xls','xlsx'].includes(ext) ? 'text-green-600' :
+          ['ppt','pptx'].includes(ext) ? 'text-orange-500' :
+          ['zip','rar'].includes(ext) ? 'text-yellow-500' : 'text-gray-600';
+
+        const extBgColor =
+          ext === 'pdf' ? 'bg-red-100' :
+          ['doc','docx'].includes(ext) ? 'bg-blue-100' :
+          ['xls','xlsx'].includes(ext) ? 'bg-green-100' :
+          ['ppt','pptx'].includes(ext) ? 'bg-orange-100' :
+          ['zip','rar'].includes(ext) ? 'bg-yellow-100' : 'bg-gray-100';
+
+        previewContent.innerHTML = `
+          <div class="flex items-center space-x-3">
+            <div class="h-12 w-12 rounded-lg ${extBgColor} flex items-center justify-center">
+              <svg class="w-6 h-6 ${extIconColor}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M12 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="12 2 12 8 18 8"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-secondary-900 text-sm truncate">${escapeHtml(file.name)}</p>
+              <p class="text-xs text-secondary-500">${ext.toUpperCase()} Document • ${fileSize}</p>
+            </div>
+          </div>
+        `;
+      }
+      filePreview.classList.remove('hidden');
+    }
+
+    function hideFilePreview() {
+      filePreview.classList.add('hidden');
+      previewContent.innerHTML = '';
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // Media preview handler
+    mediaInput.addEventListener('change', () => {
+      const file = mediaInput.files[0];
+      if (file) {
+        showFilePreview(file);
+      } else {
+        hideFilePreview();
+      }
+    });
+
+    // Remove file handler
+    removeFile.addEventListener('click', () => {
+      mediaInput.value = '';
+      hideFilePreview();
+    });
+    
+    scrollToBottom();
+
+    // Group typing detection
+    const msgInput = form.querySelector('input[name="msg"]');
+    
+    msgInput.addEventListener('input', () => {
+      if (!isGroupTyping) {
+        isGroupTyping = true;
+        socket.emit('group typing start', {
+          from: currentUserId,
+          groupId: groupId,
+          username: "<%= currentUser.username %>"
+        });
+      }
+      
+      clearTimeout(groupTypingTimer);
+      groupTypingTimer = setTimeout(() => {
+        isGroupTyping = false;
+        socket.emit('group typing stop', {
+          from: currentUserId,
+          groupId: groupId,
+          username: "<%= currentUser.username %>"
+        });
+      }, 1000);
+    });
+
+    msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(groupTypingTimer);
+        if (isGroupTyping) {
+          isGroupTyping = false;
+          socket.emit('group typing stop', {
+            from: currentUserId,
+            groupId: groupId,
+            username: "<%= currentUser.username %>"
+          });
+        }
+      }
+    });
+
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const formData = new FormData(form);
-      await fetch('/groupchat/' + groupId, { method: 'POST', body: formData });
-      form.reset();
+      
+      // Stop typing when sending message
+      clearTimeout(groupTypingTimer);
+      if (isGroupTyping) {
+        isGroupTyping = false;
+        socket.emit('group typing stop', {
+          from: currentUserId,
+          groupId: groupId,
+          username: "<%= currentUser.username %>"
+        });
+      }
+      
+      try {
+        const response = await fetch('/groupchat/' + groupId, { 
+          method: 'POST', 
+          body: formData 
+        });
+        
+        if (response.ok) {
+          form.reset();
+          hideFilePreview();
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+      }
     });
 
     socket.on('group message', msg => {
-      const div = document.createElement('div');
-      const isMine = msg.from._id === "<%= currentUser._id %>";
+      const isMine = msg.from._id === currentUserId;
       let mediaHTML = '';
-      if(msg.media){
-        if(/\.(jpg|jpeg|png|gif)$/i.test(msg.media)){
-          mediaHTML = '<img src="'+msg.media+'" class="max-w-xs rounded mb-2">';
-        } else if(/\.(mp4|webm|ogg)$/i.test(msg.media)){
-          mediaHTML = '<video controls class="max-w-xs rounded mb-2"><source src="'+msg.media+'"></video>';
-        } else if(/\.(mp3|wav)$/i.test(msg.media)){
-          mediaHTML = '<audio controls class="mb-2"><source src="'+msg.media+'"></audio>';
-        } else {
+      
+      if (msg.media) {
+        const ext = msg.media.split('.').pop().toLowerCase();
+        const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
+        const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
+
+        if (isImage) {
+          mediaHTML = `<div class="mb-2"><img src="${msg.media}" class="rounded-md max-h-60 shadow" alt="image"></div>`;
+        } else if (isVoice) {
           mediaHTML = `
-            <div class='flex items-center justify-between bg-gray-100 p-3 rounded mb-2'>
-              <div class='flex items-center space-x-2'>
-                <svg class='w-6 h-6 text-gray-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                  <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 4v16m8-8H4' />
+            <div class="voice-message-container">
+              <button class="voice-play-btn" data-audio-src="${msg.media}">
+                <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
                 </svg>
-                <div class='text-sm text-left'>
-                  <div class='font-semibold text-gray-800'>Document</div>
-                  <div class='text-xs text-gray-500 break-all'>${msg.media.split('/').pop()}</div>
+                <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </button>
+              <div class="voice-progress-bar-container">
+                <div class="voice-progress"></div>
+              </div>
+              <div class="voice-duration">0:00</div>
+            </div>`;
+        } else {
+          const extColor = ext === 'pdf' ? 'text-red-500' : 
+                          ['doc','docx'].includes(ext) ? 'text-blue-600' :
+                          ['xls','xlsx'].includes(ext) ? 'text-green-600' :
+                          ['ppt','pptx'].includes(ext) ? 'text-orange-500' :
+                          ['zip','rar'].includes(ext) ? 'text-yellow-500' : 'text-gray-600';
+
+          mediaHTML = `
+            <div class="bg-gray-100 rounded-md p-3 mb-2 shadow flex flex-col space-y-2">
+              <div class="flex items-center space-x-3">
+                <svg class="w-6 h-6 ${extColor}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M12 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                  <polyline points="12 2 12 8 18 8"/>
+                </svg>
+                <div>
+                  <p class="font-semibold text-gray-800 text-sm truncate max-w-xs">${msg.originalName || msg.media.split('/').pop()}</p>
+                  <p class="text-xs text-gray-500 uppercase">DOCUMENT</p>
                 </div>
               </div>
-              <div class='flex gap-2'>
-                <a href='${msg.media}' target='_blank' class='text-blue-600 text-sm hover:underline'>Open</a>
-                <a href='${msg.media}' download class='text-blue-600 text-sm hover:underline'>Download</a>
+              <div class="flex space-x-3 mt-1">
+                <a href="${msg.media}" target="_blank" class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Open</a>
+                <a href="${msg.media}" download="${msg.originalName || msg.media.split('/').pop()}" class="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Download</a>
               </div>
             </div>`;
         }
       }
+
+      const div = document.createElement('div');
+      div.className = `flex ${isMine ? 'justify-end' : 'justify-start'}`;
+      div.setAttribute('data-id', msg._id);
+      
       div.innerHTML = `
-        <div class="${isMine ? 'text-right' : ''}">
-          <div class="inline-block max-w-sm rounded-lg p-3 shadow ${isMine ? 'bg-blue-500 text-white rounded-br-none' : 'bg-white text-gray-900 rounded-bl-none'}">
+        <div class="message-container relative">
+          <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl 
+                      ${isMine ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg">
             ${mediaHTML}
-            ${msg.msg ? '<p><strong>'+msg.from.username+':</strong> '+msg.msg+'</p>' : ''}
-            ${msg.edited ? '<span class="text-xs italic"> (edited) </span>' : ''}
-            <div class="text-right"><span class="text-xs opacity-70">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+            ${msg.msg ? `<div class="message-text"><p class="text-sm leading-relaxed"><strong class="${isMine ? 'text-primary-100' : 'text-secondary-700'}">${msg.from.username}:</strong> ${msg.msg}</p></div>` : ''}
+            ${msg.edited ? '<span class="text-xs italic">(edited)</span>' : ''}
+            <div class="flex items-center justify-between mt-2">
+              <span class="text-xs ${isMine ? 'text-primary-100' : 'text-secondary-500'}">
+                ${new Date(msg.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}
+              </span>
+            </div>
           </div>
-        </div>`;
+        </div>
+      `;
+      
       chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
+      scrollToBottom();
     });
 
-    document.getElementById('groupHeader').addEventListener('click', () => {
-      document.getElementById('groupInfoPanel').classList.toggle('open');
+    // Group typing indicators
+    socket.on('group user typing', ({ userId, username, isTyping }) => {
+      if (userId === currentUserId) return; // Don't show typing for current user
+      
+      if (isTyping) {
+        typingUsers.add(username);
+      } else {
+        typingUsers.delete(username);
+      }
+      
+      updateGroupTypingIndicator();
     });
+
+    function updateGroupTypingIndicator() {
+      if (typingUsers.size === 0) {
+        groupTypingIndicator.classList.add('hidden');
+      } else {
+        const userList = Array.from(typingUsers);
+        let typingText = '';
+        
+        if (userList.length === 1) {
+          typingText = `${userList[0]} is typing...`;
+        } else if (userList.length === 2) {
+          typingText = `${userList[0]} and ${userList[1]} are typing...`;
+        } else {
+          typingText = `${userList[0]} and ${userList.length - 1} others are typing...`;
+        }
+        
+        groupTypingText.textContent = typingText;
+        groupTypingIndicator.classList.remove('hidden');
+        scrollToBottom();
+      }
+    }
+
+    // Voice Message functionality for group chat
+    class VoiceMessageManager {
+      constructor() {
+        this.mediaRecorder = null;
+        this.audioChunks = [];
+        this.isRecording = false;
+        this.recordedBlob = null;
+        this.recordingStartTime = null;
+        this.recordingTimer = null;
+        this.playingAudio = null;
+        
+        this.initializeElements();
+        this.initializeEventListeners();
+      }
+      
+      initializeElements() {
+        this.voiceBtn = document.getElementById('voiceMessageBtn');
+        this.recordingPreview = document.getElementById('voiceRecordingPreview');
+        this.recordingTimerElement = document.getElementById('recordingTimer');
+        this.cancelRecordingBtn = document.getElementById('cancelRecording');
+        this.playRecordedBtn = document.getElementById('playRecordedVoice');
+        this.sendVoiceBtn = document.getElementById('sendVoiceMessage');
+        this.recordedDurationElement = document.getElementById('recordedDuration');
+      }
+      
+      initializeEventListeners() {
+        this.voiceBtn.addEventListener('click', () => this.toggleRecording());
+        this.cancelRecordingBtn.addEventListener('click', () => this.cancelRecording());
+        this.playRecordedBtn.addEventListener('click', () => this.playRecordedVoice());
+        this.sendVoiceBtn.addEventListener('click', () => this.sendVoiceMessage());
+        
+        document.addEventListener('click', (e) => {
+          if (e.target.closest('.voice-play-btn')) {
+            const btn = e.target.closest('.voice-play-btn');
+            this.toggleVoicePlayback(btn);
+          }
+        });
+      }
+      
+      async toggleRecording() {
+        if (this.isRecording) {
+          this.stopRecording();
+        } else {
+          await this.startRecording();
+        }
+      }
+      
+      async startRecording() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            } 
+          });
+          
+          this.mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm;codecs=opus'
+          });
+          
+          this.audioChunks = [];
+          this.recordingStartTime = Date.now();
+          
+          this.mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              this.audioChunks.push(event.data);
+            }
+          };
+          
+          this.mediaRecorder.onstop = () => {
+            this.recordedBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+            this.showPlaybackPreview();
+            stream.getTracks().forEach(track => track.stop());
+          };
+          
+          this.mediaRecorder.start();
+          this.isRecording = true;
+          this.showRecordingPreview();
+          this.startTimer();
+          
+          this.voiceBtn.classList.remove('bg-gradient-to-r', 'from-green-500', 'to-green-600');
+          this.voiceBtn.classList.add('bg-red-500');
+          this.voiceBtn.innerHTML = '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><rect x="6" y="6" width="8" height="8" rx="1"></rect></svg>';
+          
+        } catch (error) {
+          console.error('Error accessing microphone:', error);
+          alert('Could not access microphone. Please check permissions.');
+        }
+      }
+      
+      stopRecording() {
+        if (this.mediaRecorder && this.isRecording) {
+          this.mediaRecorder.stop();
+          this.isRecording = false;
+          this.stopTimer();
+          this.hideRecordingPreview();
+          this.resetVoiceButton();
+        }
+      }
+      
+      cancelRecording() {
+        if (this.mediaRecorder && this.isRecording) {
+          this.mediaRecorder.stop();
+          this.isRecording = false;
+          this.stopTimer();
+          this.hideRecordingPreview();
+          this.recordedBlob = null;
+          this.audioChunks = [];
+          this.resetVoiceButton();
+        }
+      }
+      
+      deleteRecording() {
+        this.recordedBlob = null;
+        this.audioChunks = [];
+        this.hidePlaybackPreview();
+        this.resetVoiceButton();
+      }
+      
+      async sendVoiceMessage() {
+        if (!this.recordedBlob) return;
+        
+        try {
+          const formData = new FormData();
+          const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+          formData.append('media', audioFile);
+          
+          const response = await fetch('/groupchat/' + groupId, {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (response.ok) {
+            this.deleteRecording();
+          } else {
+            throw new Error('Failed to send voice message');
+          }
+        } catch (error) {
+          console.error('Error sending voice message:', error);
+          alert('Failed to send voice message');
+        }
+      }
+      
+      playRecordedVoice() {
+        if (!this.recordedBlob) return;
+        
+        const audio = new Audio(URL.createObjectURL(this.recordedBlob));
+        audio.play();
+        
+        audio.onended = () => {
+          URL.revokeObjectURL(audio.src);
+        };
+      }
+      
+      toggleVoicePlayback(button) {
+        const audioSrc = button.dataset.audioSrc;
+        const playIcon = button.querySelector('.play-icon');
+        const pauseIcon = button.querySelector('.pause-icon');
+        const progressBar = button.closest('.voice-message-container').querySelector('.voice-progress');
+        const durationElement = button.closest('.voice-message-container').querySelector('.voice-duration');
+        
+        if (this.playingAudio && !this.playingAudio.paused && this.playingAudio.currentSrc.includes(audioSrc)) {
+          this.playingAudio.pause();
+          playIcon.classList.remove('hidden');
+          pauseIcon.classList.add('hidden');
+        } else {
+          if (this.playingAudio) {
+            this.playingAudio.pause();
+            this.resetAllVoiceButtons();
+          }
+          
+          this.playingAudio = new Audio(audioSrc);
+          playIcon.classList.add('hidden');
+          pauseIcon.classList.remove('hidden');
+          
+          this.playingAudio.addEventListener('loadedmetadata', () => {
+            durationElement.textContent = this.formatTime(this.playingAudio.duration);
+          });
+          
+          this.playingAudio.addEventListener('timeupdate', () => {
+            const progress = (this.playingAudio.currentTime / this.playingAudio.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            durationElement.textContent = this.formatTime(this.playingAudio.currentTime);
+          });
+          
+          this.playingAudio.addEventListener('ended', () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            progressBar.style.width = '0%';
+            durationElement.textContent = this.formatTime(this.playingAudio.duration);
+          });
+          
+          this.playingAudio.play();
+        }
+      }
+      
+      resetAllVoiceButtons() {
+        document.querySelectorAll('.voice-play-btn').forEach(btn => {
+          const playIcon = btn.querySelector('.play-icon');
+          const pauseIcon = btn.querySelector('.pause-icon');
+          const progressBar = btn.closest('.voice-message-container')?.querySelector('.voice-progress');
+          
+          playIcon.classList.remove('hidden');
+          pauseIcon.classList.add('hidden');
+          if (progressBar) progressBar.style.width = '0%';
+        });
+      }
+      
+      showRecordingPreview() {
+        this.recordingPreview.classList.remove('hidden');
+      }
+      
+      hideRecordingPreview() {
+        this.recordingPreview.classList.add('hidden');
+      }
+      
+      showPlaybackPreview() {
+        this.recordingPreview.classList.add('hidden');
+        const duration = (Date.now() - this.recordingStartTime) / 1000;
+        this.recordedDurationElement.textContent = this.formatTime(duration);
+      }
+      
+      hidePlaybackPreview() {
+        // No separate playback preview in this design
+      }
+      
+      resetVoiceButton() {
+        this.voiceBtn.classList.remove('bg-red-500');
+        this.voiceBtn.classList.add('bg-gradient-to-r', 'from-green-500', 'to-green-600');
+        this.voiceBtn.innerHTML = `
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+          </svg>
+        `;
+      }
+      
+      startTimer() {
+        this.recordingTimer = setInterval(() => {
+          const elapsed = (Date.now() - this.recordingStartTime) / 1000;
+          this.recordingTimerElement.textContent = this.formatTime(elapsed);
+        }, 100);
+      }
+      
+      stopTimer() {
+        if (this.recordingTimer) {
+          clearInterval(this.recordingTimer);
+          this.recordingTimer = null;
+        }
+      }
+      
+      formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+      }
+    }
+
+    // Initialize voice message manager
+    const voiceManager = new VoiceMessageManager();
+
+    // Group Management Functions
+    async function loadAvailableUsers() {
+      try {
+        const response = await fetch('/api/users/available-for-group/<%= group._id %>');
+        const users = await response.json();
+        const select = document.getElementById('newMemberSelect');
+        
+        if (select) {
+          select.innerHTML = '<option value="">Select user to add...</option>';
+          users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user._id;
+            option.textContent = user.username;
+            select.appendChild(option);
+          });
+        }
+      } catch (error) {
+        console.error('Error loading users:', error);
+      }
+    }
+
+    async function addMember() {
+      const select = document.getElementById('newMemberSelect');
+      const userId = select.value;
+      
+      if (!userId) {
+        alert('Please select a user to add');
+        return;
+      }
+
+      try {
+        const response = await fetch('/groups/<%= group._id %>/add', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId })
+        });
+
+        if (response.ok) {
+          location.reload();
+        } else {
+          const error = await response.text();
+          alert('Error adding member: ' + error);
+        }
+      } catch (error) {
+        console.error('Error adding member:', error);
+        alert('Error adding member');
+      }
+    }
+
+    async function removeMember(userId, username) {
+      if (!confirm(`Are you sure you want to remove ${username} from the group?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/groups/<%= group._id %>/remove', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId })
+        });
+
+        if (response.ok) {
+          location.reload();
+        } else {
+          const error = await response.text();
+          alert('Error removing member: ' + error);
+        }
+      } catch (error) {
+        console.error('Error removing member:', error);
+        alert('Error removing member');
+      }
+    }
+
+    async function exitGroup() {
+      if (!confirm('Are you sure you want to exit this group? You will no longer receive messages from this group.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/groups/<%= group._id %>/exit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (response.ok) {
+          window.location.href = '/dashboard';
+        } else {
+          const error = await response.text();
+          alert('Error exiting group: ' + error);
+        }
+      } catch (error) {
+        console.error('Error exiting group:', error);
+        alert('Error exiting group');
+      }
+    }
+
+    // Group Message Management Functions
+    function toggleMenu(button) {
+      const dropdown = button.nextElementSibling;
+      const isShown = dropdown.classList.contains('show');
+
+      // Close all other dropdowns
+      document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        menu.classList.remove('show');
+      });
+
+      // Toggle current dropdown
+      if (!isShown) {
+        dropdown.classList.add('show');
+      }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.message-menu')) {
+        document.querySelectorAll('.dropdown-menu').forEach(menu => {
+          menu.classList.remove('show');
+        });
+      }
+    });
+
+    async function deleteGroupMessage(messageId, deleteType) {
+      if (!messageId) {
+        console.error('Message ID is required');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/groupmessage/${messageId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ deleteType })
+        });
+
+        if (response.ok) {
+          // Close dropdown after successful deletion
+          document.querySelectorAll('.dropdown-menu').forEach(menu => {
+            menu.classList.remove('show');
+          });
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.error || 'Failed to delete message'));
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete message');
+      }
+    }
+
+    function editGroupMessage(messageId) {
+      if (!messageId) {
+        console.error('Message ID is required');
+        return;
+      }
+
+      const messageContainer = document.querySelector(`[data-id="${messageId}"]`);
+      if (!messageContainer) {
+        console.error('Message not found');
+        return;
+      }
+
+      const messageTextDiv = messageContainer.querySelector('.message-text');
+      if (!messageTextDiv) {
+        console.error('Message text not found');
+        return;
+      }
+
+      const currentText = messageTextDiv.querySelector('p').textContent.split(': ')[1] || '';
+
+      // Replace message text with input
+      messageTextDiv.innerHTML = `
+        <input type="text" class="edit-input" value="${escapeHtml(currentText)}" onkeypress="handleGroupEditKeypress(event, '${messageId}')" />
+        <div class="edit-buttons">
+          <button onclick="saveGroupEdit('${messageId}')" class="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">Save</button>
+          <button onclick="cancelGroupEdit('${messageId}', '${escapeHtml(currentText)}')" class="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600">Cancel</button>
+        </div>
+      `;
+
+      // Focus on input and close dropdown
+      const input = messageTextDiv.querySelector('.edit-input');
+      input.focus();
+      input.select();
+
+      // Close dropdown
+      document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        menu.classList.remove('show');
+      });
+    }
+
+    function handleGroupEditKeypress(event, messageId) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        saveGroupEdit(messageId);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        const messageContainer = document.querySelector(`[data-id="${messageId}"]`);
+        const messageTextDiv = messageContainer.querySelector('.message-text');
+        const input = messageTextDiv.querySelector('.edit-input');
+        const originalText = input.defaultValue;
+        cancelGroupEdit(messageId, originalText);
+      }
+    }
+
+    async function saveGroupEdit(messageId) {
+      if (!messageId) {
+        console.error('Message ID is required');
+        return;
+      }
+
+      const messageContainer = document.querySelector(`[data-id="${messageId}"]`);
+      const messageTextDiv = messageContainer.querySelector('.message-text');
+      const input = messageTextDiv.querySelector('.edit-input');
+      const newText = input.value.trim();
+
+      if (!newText) {
+        alert('Message cannot be empty');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/groupmessage/${messageId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ newMessage: newText })
+        });
+
+        if (response.ok) {
+          // Message will be updated via socket event
+        } else {
+          const error = await response.json();
+          alert('Error: ' + (error.error || 'Failed to edit message'));
+          // Restore original text
+          const originalText = input.defaultValue;
+          cancelGroupEdit(messageId, originalText);
+        }
+      } catch (error) {
+        console.error('Edit error:', error);
+        alert('Failed to edit message');
+        // Restore original text
+        const originalText = input.defaultValue;
+        cancelGroupEdit(messageId, originalText);
+      }
+    }
+
+    function cancelGroupEdit(messageId, originalText) {
+      const messageContainer = document.querySelector(`[data-id="${messageId}"]`);
+      const messageTextDiv = messageContainer.querySelector('.message-text');
+      const username = "<%= currentUser.username %>";
+      messageTextDiv.innerHTML = `<p class="text-sm leading-relaxed"><strong class="text-primary-100">${username}:</strong> ${escapeHtml(originalText)}</p>`;
+    }
+
+    // Handle group message deletion via socket
+    socket.on('group message deleted', ({ messageId, deleteType }) => {
+      try {
+        const messageElement = document.querySelector(`[data-id="${messageId}"]`);
+        if (messageElement) {
+          if (deleteType === 'forEveryone') {
+            messageElement.remove();
+          } else {
+            messageElement.remove();
+          }
+        }
+      } catch (error) {
+        console.error('Error handling group message deletion:', error);
+      }
+    });
+
+    // Handle group message editing via socket
+    socket.on('group message edited', (updatedMessage) => {
+      try {
+        const messageElement = document.querySelector(`[data-id="${updatedMessage._id}"]`);
+        if (messageElement) {
+          const messageTextDiv = messageElement.querySelector('.message-text');
+          const timeSpan = messageElement.querySelector('.text-xs');
+
+          if (messageTextDiv) {
+            messageTextDiv.innerHTML = `<p class="text-sm leading-relaxed"><strong class="text-primary-100">${updatedMessage.from.username}:</strong> ${escapeHtml(updatedMessage.msg)}</p>`;
+          }
+
+          // Update timestamp to show edited
+          if (timeSpan && !timeSpan.innerHTML.includes('(edited)')) {
+            timeSpan.innerHTML += ' <span class="ml-1 italic">(edited)</span>';
+          }
+        }
+      } catch (error) {
+        console.error('Error handling group message edit:', error);
+      }
+    });
+
+    // Load available users when panel opens (only for admins)
+    <% if (group.admin._id.toString() === currentUser._id.toString()) { %>
+      loadAvailableUsers();
+    <% } %>
   </script>
+  <script src="/js/group-calls.js"></script>
 </body>
 </html>

@@ -6,13 +6,21 @@ const chatSchema = new mongoose.Schema({
     to: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     msg: { type: String, required: false },
     media: String,
+    originalName: { type: String, default: null },
     status: { type: String, enum: ['sent', 'delivered', 'seen'], default: 'sent' },
     created_at: { type: Date, default: Date.now },
     // New fields for delete and edit functionality
     deletedFor: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Array of user IDs who deleted this message for themselves
     deletedForEveryone: { type: Boolean, default: false }, // True if message is deleted for everyone
     edited: { type: Boolean, default: false },
-    editedAt: { type: Date }
+    editedAt: { type: Date },
+    // Reactions field
+    reactions: [{
+        emoji: { type: String, required: true },
+        users: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
+    }],
+    // Reply functionality
+    replyTo: { type: mongoose.Schema.Types.ObjectId, ref: "Chat", default: null }
 });
 
 chatSchema.pre('save', function (next) {

@@ -614,6 +614,64 @@
             }, 3000);
         }
 
+        // Socket event handlers for real-time messaging
+        socket.on('chat message', (data) => {
+            console.log('New message received:', data);
+            addMessageToUI(data);
+            scrollToBottom();
+            
+            // Mark message as delivered if it's from the other user
+            if (data.from.toString() !== currentUserId) {
+                socket.emit('message delivered', { messageId: data._id });
+            }
+        });
+
+        socket.on('message deleted', (data) => {
+            console.log('Message deleted:', data);
+            const messageElement = document.querySelector(`[data-id="${data.messageId}"]`);
+            if (messageElement) {
+                if (data.deleteType === 'forEveryone') {
+                    messageElement.querySelector('.message-text').innerHTML = '<p class="text-sm leading-relaxed italic text-gray-500">This message was deleted</p>';
+                    messageElement.classList.add('deleted-message');
+                } else {
+                    messageElement.remove();
+                }
+            }
+        });
+
+        socket.on('message edited', (data) => {
+            console.log('Message edited:', data);
+            const messageElement = document.querySelector(`[data-id="${data._id}"]`);
+            if (messageElement) {
+                const messageTextDiv = messageElement.querySelector('.message-text');
+                if (messageTextDiv) {
+                    messageTextDiv.innerHTML = `<p class="text-sm leading-relaxed">${escapeHtml(data.msg)}</p>`;
+                    // Add edited indicator
+                    const timeElement = messageElement.querySelector('.text-xs');
+                    if (timeElement && !timeElement.textContent.includes('edited')) {
+                        timeElement.innerHTML = timeElement.innerHTML.replace(')', ' - edited)');
+                    }
+                }
+            }
+        });
+
+        socket.on('user typing', (data) => {
+            if (data.userId !== currentUserId) {
+                if (data.isTyping) {
+                    typingIndicator.classList.remove('hidden');
+                } else {
+                    typingIndicator.classList.add('hidden');
+                }
+            }
+        });
+
+        socket.on('userStatus', (data) => {
+            if (data.userId === otherUserId) {
+                statusElem.textContent = data.online ? 'Online' : 'Offline';
+                statusElem.className = `text-xs font-medium ${data.online ? 'text-green-600' : 'text-gray-500'}`;
+            }
+        });
+
         // Initialize socket events
         socket.emit('userOnline', currentUserId);
         socket.emit('joinRoom', roomId);
@@ -922,12 +980,23 @@
             const file = mediaInput.files[0];
             if (!msg && !file) return;
 
+            // Stop typing indicator
+            clearTimeout(typingTimer);
+            if (isTyping) {
+                isTyping = false;
+                socket.emit('typing stop', {
+                    from: currentUserId,
+                    to: otherUserId,
+                    username: "<%= currentUser.username %>"
+                });
+            }
+
             try {
                 const formData = new FormData();
                 if (msg) formData.append('msg', msg);
                 if (file) formData.append('media', file);
 
-                const res = await fetch(`/chat/${otherUserId}`, {
+                const res = await fetch(`/chat/<%= otherUser._id %>`, {
                     method: 'POST',
                     body: formData
                 });
@@ -937,6 +1006,7 @@
                 }
 
                 const data = await res.json();
+                console.log('Message sent successfully:', data);
 
                 // Reset input fields and hide preview
                 msgInput.value = '';
@@ -949,6 +1019,132 @@
                 showNotification('Failed to send message', 'error');
             }
         });
+
+        // Function to add new messages to the UI
+        function addMessageToUI(chat) {
+            const isCurrentUser = chat.from.toString() === currentUserId;
+            const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : null;
+            const isImage = ext ? ['png','jpg','jpeg','gif','webp'].includes(ext) : false;
+            const isVoice = ext ? ['webm','ogg','mp3','m4a','wav'].includes(ext) : false;
+            const isVideo = ext ? ['mp4','avi','mov','wmv','flv','mkv'].includes(ext) : false;
+            
+            let mediaHTML = '';
+            if (chat.media) {
+                if (isImage) {
+                    mediaHTML = `
+                        <div class="mb-2">
+                            <img src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}"
+                                 alt="Media" class="rounded-md max-h-60 shadow">
+                        </div>`;
+                } else if (isVideo) {
+                    mediaHTML = `
+                        <div class="mb-2">
+                            <video controls class="rounded-md max-h-60 shadow" style="max-width: 100%;">
+                                <source src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}" type="video/${ext}">
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>`;
+                } else if (isVoice) {
+                    mediaHTML = `
+                        <div class="voice-message-container">
+                            <button class="voice-play-btn" data-audio-src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}">
+                                <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
+                                </svg>
+                                <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </button>
+                            <div class="voice-progress-bar-container">
+                                <div class="voice-progress"></div>
+                            </div>
+                            <div class="voice-duration">0:00</div>
+                        </div>`;
+                } else {
+                    const extColor = ext === 'pdf' ? 'text-red-500' : 
+                                   ['doc','docx'].includes(ext) ? 'text-blue-600' : 
+                                   ['xls','xlsx'].includes(ext) ? 'text-green-600' : 
+                                   'text-gray-600';
+                    mediaHTML = `
+                        <div class="bg-gray-100 rounded-md p-3 mb-2 shadow flex flex-col space-y-2">
+                            <div class="flex items-center space-x-3">
+                                <svg class="w-6 h-6 ${extColor}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path d="M12 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                    <polyline points="12 2 12 8 18 8"/>
+                                </svg>
+                                <div>
+                                    <p class="font-semibold text-gray-800 text-sm truncate max-w-xs">
+                                        ${chat.originalName || chat.media.split('/').pop()}
+                                    </p>
+                                    <p class="text-xs text-gray-500 uppercase">DOCUMENT</p>
+                                </div>
+                            </div>
+                            <div class="flex space-x-3 mt-1">
+                                <a href="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}" target="_blank"
+                                   class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Open</a>
+                                <a href="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}" download
+                                   class="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Download</a>
+                            </div>
+                        </div>`;
+                }
+            }
+
+            const messageHTML = `
+                <div class="flex ${isCurrentUser ? 'justify-end' : 'justify-start'}" data-id="${chat._id}">
+                    <div class="message-container relative">
+                        <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl
+                                    ${isCurrentUser
+                                        ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md'
+                                        : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg">
+                            ${mediaHTML}
+                            ${chat.msg ? `<div class="message-text"><p class="text-sm leading-relaxed">${escapeHtml(chat.msg)}</p></div>` : ''}
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs ${isCurrentUser ? 'text-primary-100' : 'text-secondary-500'}">
+                                    ${new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                    ${chat.edited ? '<span class="ml-1 italic">(edited)</span>' : ''}
+                                </span>
+                                ${isCurrentUser ? getMessageStatusIcon(chat.status) : ''}
+                            </div>
+                        </div>
+                        ${isCurrentUser ? `
+                            <div class="message-menu absolute -right-2 top-2">
+                                <button class="menu-trigger p-1 rounded-full hover:bg-gray-200 hover:bg-opacity-50" onclick="toggleMenu(this)">
+                                    <svg class="h-4 w-4 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                                    </svg>
+                                </button>
+                                <div class="dropdown-menu bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                                    ${chat.msg ? `
+                                        <button onclick="editMessage('${chat._id}')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                            <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                            Edit Message
+                                        </button>` : ''}
+                                    <button onclick="deleteMessage('${chat._id}', 'forMe')" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                        <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                        Delete for Me
+                                    </button>
+                                    <button onclick="deleteMessage('${chat._id}', 'forEveryone')" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center">
+                                        <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                        Delete for Everyone
+                                    </button>
+                                </div>
+                            </div>` : ''}
+                    </div>
+                </div>
+            `;
+
+            // Remove typing indicator before adding new message
+            typingIndicator.classList.add('hidden');
+
+            // Add the message to the chat
+            chatBox.insertAdjacentHTML('beforeend', messageHTML);
+        }
 
         // Helper function for message status icons
         function getMessageStatusIcon(status) {
@@ -1787,19 +1983,21 @@
                     const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
                     formData.append('media', audioFile);
 
-                    const response = await fetch(`/chat/${otherUserId}`, {
+                    const response = await fetch(`/chat/<%= otherUser._id %>`, {
                         method: 'POST',
                         body: formData
                     });
 
                     if (response.ok) {
+                        const data = await response.json();
+                        console.log('Voice message sent successfully:', data);
                         this.deleteRecording();
                     } else {
                         throw new Error('Failed to send voice message');
                     }
                 } catch (error) {
                     console.error('Error sending voice message:', error);
-                    alert('Failed to send voice message');
+                    showNotification('Failed to send voice message', 'error');
                 }
             }
         }

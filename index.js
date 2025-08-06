@@ -487,9 +487,6 @@ app.post('/groupchat/:groupId', mediaUpload.single('media'), async (req, res) =>
             .populate('replyTo');
 
         io.to(`group_${groupId}`).emit('group message', populatedMessage);
-        res.json(populatedMessage);
-
-        io.to(`group_${groupId}`).emit('group message', populatedMessage);
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
         console.error('Send group message error:', error);

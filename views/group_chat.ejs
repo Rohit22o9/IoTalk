@@ -622,15 +622,17 @@
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
-    // Media preview handler
-    mediaInput.addEventListener('change', () => {
-      const file = mediaInput.files[0];
-      if (file) {
-        showFilePreview(file);
-      } else {
-        hideFilePreview();
-      }
-    });
+    // Media preview handler - Initialize after DOM is ready
+    if (mediaInput) {
+      mediaInput.addEventListener('change', () => {
+        const file = mediaInput.files[0];
+        if (file) {
+          showFilePreview(file);
+        } else {
+          hideFilePreview();
+        }
+      });
+    }
 
     // Remove file handler
     removeFile.addEventListener('click', () => {
@@ -1090,8 +1092,11 @@
           });
 
           if (response.ok) {
-            console.log('Voice message sent successfully');
+            const data = await response.json();
+            console.log('Voice message sent successfully:', data);
             this.deleteRecording();
+            // Hide the recording preview
+            this.recordingPreview.classList.add('hidden');
           } else {
             throw new Error('Failed to send voice message');
           }

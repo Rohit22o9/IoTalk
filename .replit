@@ -6,3 +6,15 @@ channel = "stable-25_05"
 [[ports]]
 localPort = 3000
 externalPort = 80
+
+[workflows]
+runButton = "Start Chat App"
+
+[[workflows.workflow]]
+name = "Start Chat App"
+author = 46064688
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"

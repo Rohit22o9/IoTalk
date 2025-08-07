@@ -95,7 +95,7 @@ const avatarUpload = upload; // For avatar uploads
 const iconUpload = upload; // For icon uploads
 const groupIconUpload = upload; // For group icon uploads
 
-// ----------- AUTH ROUTES -----------
+// ----------- AUTHROUTES -----------
 app.get('/', (req, res) => res.redirect('/login'));
 
 app.get('/login', (req, res) => {
@@ -1186,7 +1186,7 @@ app.post('/call/initiate/group', async (req, res) => {
                 callCheck.endTime = new Date();
                 await callCheck.save();
 
-                io.to(`group_${groupId}`).emit('group-call-timeout', { callId: call._id });
+                io.to(`group_${groupId}`).emit('group-call-ended', { callId: call._id, reason: 'No participants joined' });
             }
         }, 30000);
 
@@ -1258,7 +1258,15 @@ app.post('/call/initiate', async (req, res) => {
                 await callCheck.save();
 
                 io.to(req.session.userId).emit('call-timeout', { callId: call._id });
-                io.to(receiverId).emit('call-missed', { callId: call._id });
+                io.to(receiverId).emit('call-missed', { 
+                    callId: call._id,
+                    caller: {
+                        id: caller._id,
+                        username: caller.username,
+                        avatar: caller.avatar
+                    },
+                    type: type
+                });
             }
         }, 30000);
 

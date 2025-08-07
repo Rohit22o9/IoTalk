@@ -225,15 +225,136 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/notifications.js"></script>
     <script>
+        // Initialize Socket.IO
         const socket = io();
-        const userId = "<%= currentUser._id %>";
-        socket.emit('userOnline', userId);
-        socket.on('onlineUsers', (users) => {
-            users.forEach(user => {
-                const indicator = document.querySelector(`#user-${user._id} .status-dot`);
-                if (indicator) indicator.style.backgroundColor = user.online ? 'green' : 'gray';
-            });
+        const currentUserId = "<%= currentUser._id %>";
+
+        socket.emit('userOnline', currentUserId);
+
+        // Initialize notification manager
+        if (window.notificationManager) {
+            window.notificationManager.setSocket(socket, currentUserId);
+        }
+
+        // Global call handling
+        socket.on('incoming-call', (data) => {
+            showIncomingCallModal(data);
+        });
+
+        socket.on('incoming-group-call', (data) => {
+            showIncomingGroupCallModal(data);
+        });
+
+        function showIncomingCallModal(callData) {
+            // Create call modal if it doesn't exist
+            let callModal = document.getElementById('global-call-modal');
+            if (!callModal) {
+                callModal = document.createElement('div');
+                callModal.id = 'global-call-modal';
+                callModal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+                callModal.innerHTML = `
+                    <div class="bg-white rounded-lg max-w-md w-full mx-4 p-6 text-center">
+                        <img id="modal-caller-avatar" src="" class="w-24 h-24 rounded-full mx-auto mb-4 object-cover">
+                        <h3 id="modal-caller-name" class="text-xl font-semibold mb-2"></h3>
+                        <p id="modal-call-type" class="text-gray-600 mb-6"></p>
+                        <div class="flex justify-center space-x-4">
+                            <button onclick="declineGlobalCall()" class="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+                                </svg>
+                            </button>
+                            <button onclick="acceptGlobalCall()" class="bg-green-500 hover:bg-green-600 text-white p-4 rounded-full">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(callModal);
+            }
+
+            // Update modal content
+            document.getElementById('modal-caller-avatar').src = '/avatars/' + (callData.caller.avatar || 'default-avatar.png');
+            document.getElementById('modal-caller-name').textContent = callData.caller.username;
+            document.getElementById('modal-call-type').textContent = `Incoming ${callData.type} call...`;
+
+            // Store call data globally
+            window.currentIncomingCall = callData;
+            callModal.style.display = 'flex';
+        }
+
+        function showIncomingGroupCallModal(callData) {
+            // Similar implementation for group calls
+            let callModal = document.getElementById('global-call-modal');
+            if (!callModal) {
+                // Create modal similar to above
+                showIncomingCallModal(callData);
+                return;
+            }
+
+            document.getElementById('modal-caller-avatar').src = '/group_icons/' + (callData.groupIcon || 'default.png');
+            document.getElementById('modal-caller-name').textContent = callData.groupName;
+            document.getElementById('modal-call-type').textContent = `${callData.caller.username} started a ${callData.type} call`;
+
+            window.currentIncomingCall = callData;
+            callModal.style.display = 'flex';
+        }
+
+        window.acceptGlobalCall = async function() {
+            if (!window.currentIncomingCall) return;
+
+            const callData = window.currentIncomingCall;
+            if (callData.groupId) {
+                // Redirect to group chat for group calls
+                window.location.href = `/groups/${callData.groupId}`;
+            } else {
+                // Redirect to personal chat for individual calls
+                window.location.href = `/chat/${callData.caller.id}`;
+            }
+        };
+
+        window.declineGlobalCall = async function() {
+            if (!window.currentIncomingCall) return;
+
+            const callData = window.currentIncomingCall;
+            try {
+                await fetch(`/call/${callData.callId}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'decline' })
+                });
+            } catch (error) {
+                console.error('Error declining call:', error);
+            }
+
+            hideGlobalCallModal();
+        };
+
+        window.hideGlobalCallModal = function() {
+            const modal = document.getElementById('global-call-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            window.currentIncomingCall = null;
+        };
+
+        // Hide modal when calls end or are cancelled
+        socket.on('call-ended', () => hideGlobalCallModal());
+        socket.on('call-cancelled', () => hideGlobalCallModal());
+        socket.on('group-call-ended', () => hideGlobalCallModal());
+
+        socket.on('userStatus', (data) => {
+          const userElement = document.querySelector(`[data-user-id="${data.userId}"]`);
+          if (userElement) {
+            const statusElement = userElement.querySelector('.user-status');
+            if (statusElement) {
+              statusElement.textContent = data.online ? 'Online' : 'Offline';
+              statusElement.className = `user-status text-xs ${data.online ? 'text-green-600' : 'text-gray-500'}`;
+            }
+          }
         });
     </script>
 </body>

@@ -531,6 +531,14 @@
                             </svg>
                         </button>
 
+                        <button id="screenShareBtn" onclick="toggleScreenShare()"
+                                class="bg-gray-800 bg-opacity-75 text-white p-3 rounded-full hover:bg-opacity-100 transition-all">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                        </button>
+
                         <button onclick="endCall()"
                                 class="bg-red-600 text-white p-3 rounded-full hover:bg-red-700 transition-colors">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -557,6 +565,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/notifications.js"></script>
     <script>
         // Global variables
         const socket = io();
@@ -677,6 +686,11 @@
         socket.emit('joinRoom', roomId);
         socket.emit('messages seen', { from: otherUserId, to: currentUserId });
         scrollToBottom();
+
+        // Initialize notification manager
+        if (window.notificationManager) {
+            window.notificationManager.setSocket(socket, currentUserId);
+        }
 
         // Typing detection
         msgInput.addEventListener('input', () => {
@@ -1188,6 +1202,7 @@
                 this.isInitiator = false;
                 this.isMuted = false;
                 this.isVideoOff = false;
+                this.isScreenSharing = false;
                 this.ringtone = null;
 
                 // WebRTC configuration - Added more STUN servers and TURN servers
@@ -1657,6 +1672,110 @@
                 }
             }
 
+            async toggleScreenShare() {
+                const screenShareBtn = document.getElementById('screenShareBtn');
+                if (!screenShareBtn || !this.peerConnection) return;
+
+                try {
+                    if (this.isScreenSharing) {
+                        // Stop screen sharing and return to camera
+                        const constraints = {
+                            audio: true,
+                            video: this.currentCall?.type === 'video'
+                        };
+
+                        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                        
+                        // Replace screen share track with camera track
+                        const videoTrack = newStream.getVideoTracks()[0];
+                        if (videoTrack && this.peerConnection) {
+                            const sender = this.peerConnection.getSenders().find(s => 
+                                s.track && s.track.kind === 'video'
+                            );
+                            if (sender) {
+                                await sender.replaceTrack(videoTrack);
+                            }
+                        }
+
+                        // Update local stream
+                        if (this.localStream) {
+                            this.localStream.getTracks().forEach(track => track.stop());
+                        }
+                        this.localStream = newStream;
+
+                        // Update local video
+                        const localVideo = document.getElementById('localVideo');
+                        if (localVideo) {
+                            localVideo.srcObject = this.localStream;
+                        }
+
+                        this.isScreenSharing = false;
+                        this.updateScreenShareButton();
+                        this.showNotification('Screen sharing stopped', 'info');
+                    } else {
+                        // Start screen sharing
+                        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                            video: true,
+                            audio: true
+                        });
+
+                        // Replace camera track with screen track
+                        const videoTrack = screenStream.getVideoTracks()[0];
+                        if (videoTrack && this.peerConnection) {
+                            const sender = this.peerConnection.getSenders().find(s => 
+                                s.track && s.track.kind === 'video'
+                            );
+                            if (sender) {
+                                await sender.replaceTrack(videoTrack);
+                            }
+                        }
+
+                        // Handle screen share end event
+                        videoTrack.onended = () => {
+                            this.toggleScreenShare(); // Stop screen sharing when user ends it
+                        };
+
+                        // Update local video
+                        const localVideo = document.getElementById('localVideo');
+                        if (localVideo) {
+                            localVideo.srcObject = screenStream;
+                        }
+
+                        this.isScreenSharing = true;
+                        this.updateScreenShareButton();
+                        this.showNotification('Screen sharing started', 'success');
+                    }
+                } catch (error) {
+                    console.error('Screen share error:', error);
+                    this.showError('Failed to ' + (this.isScreenSharing ? 'stop' : 'start') + ' screen sharing');
+                }
+            }
+
+            updateScreenShareButton() {
+                const screenShareBtn = document.getElementById('screenShareBtn');
+                if (!screenShareBtn) return;
+
+                if (this.isScreenSharing) {
+                    screenShareBtn.classList.add('bg-blue-600');
+                    screenShareBtn.classList.remove('bg-gray-800');
+                    screenShareBtn.innerHTML = `
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    `;
+                } else {
+                    screenShareBtn.classList.remove('bg-blue-600');
+                    screenShareBtn.classList.add('bg-gray-800');
+                    screenShareBtn.innerHTML = `
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    `;
+                }
+            }
+
             cleanup() {
                 // Stop local stream
                 if (this.localStream) {
@@ -1677,6 +1796,7 @@
                 this.isInitiator = false;
                 this.isMuted = false;
                 this.isVideoOff = false;
+                this.isScreenSharing = false;
                 this.remoteStream = null;
 
                 // Clear video elements
@@ -1976,13 +2096,21 @@
             }
 
             async sendVoiceMessage() {
-                if (!this.recordedBlob) return;
+                if (!this.recordedBlob) {
+                    console.error('No recorded audio to send');
+                    return;
+                }
+
+                // Stop recording if still recording
+                this.stopRecording();
 
                 try {
                     const formData = new FormData();
                     const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
                     formData.append('media', audioFile);
+                    formData.append('msg', ''); // Empty message for voice only
 
+                    console.log('Sending voice message...', audioFile);
                     const response = await fetch(`/chat/<%= otherUser._id %>`, {
                         method: 'POST',
                         body: formData
@@ -2079,6 +2207,10 @@
 
         function toggleVideo() {
             callManager.toggleVideo();
+        }
+
+        function toggleScreenShare() {
+            callManager.toggleScreenShare();
         }
 
         // Handle page unload - cleanup calls

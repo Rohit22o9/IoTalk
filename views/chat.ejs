@@ -407,14 +407,23 @@
 
     // Initialize socket only if not already initialized
     let socket;
-    if (typeof io !== 'undefined') {
+    if (typeof io !== 'undefined' && !window.chatSocket) {
       socket = io();
+      window.chatSocket = socket;
+    } else if (window.chatSocket) {
+      socket = window.chatSocket;
     }
 
     const currentUserId = '<%= currentUser._id %>';
     const otherUserId = '<%= otherUser._id %>';
     const currentUsername = '<%= currentUser.username %>';
     const roomId = [currentUserId, otherUserId].sort().join('_');
+
+    // Join room and set user online when socket connects
+    if (socket) {
+        socket.emit('userOnline', currentUserId);
+        socket.emit('joinRoom', roomId);
+    }
 
     // Personal call functionality
     let currentCall = null;
@@ -682,6 +691,181 @@
 
         currentCall = null;
     }
+
+    // Voice recording functionality
+    let mediaRecorder;
+    let audioChunks = [];
+
+    async function startVoiceRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const fileName = `voice_${Date.now()}.webm`;
+                const file = new File([audioBlob], fileName, { type: 'audio/webm' });
+                
+                // Create FormData and send
+                const formData = new FormData();
+                formData.append('media', file);
+                
+                try {
+                    const response = await fetch(`/chat/${otherUserId}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        console.log('Voice message sent successfully:', result);
+                    } else {
+                        console.error('Failed to send voice message:', result.error);
+                    }
+                } catch (error) {
+                    console.error('Error sending voice message:', error);
+                }
+                
+                // Clean up
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            document.getElementById('voice-recording-modal').classList.remove('hidden');
+        } catch (error) {
+            console.error('Error starting voice recording:', error);
+            alert('Could not access microphone');
+        }
+    }
+
+    function stopVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+        document.getElementById('voice-recording-modal').classList.add('hidden');
+    }
+
+    function cancelVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+        audioChunks = [];
+        document.getElementById('voice-recording-modal').classList.add('hidden');
+    }
+
+    // Voice message playback functionality
+    document.addEventListener('click', function(event) {
+        if (event.target.closest('.voice-play-btn')) {
+            const button = event.target.closest('.voice-play-btn');
+            const audioSrc = button.getAttribute('data-audio-src');
+            const container = button.closest('.voice-message-container');
+            const progressBar = container.querySelector('.voice-progress');
+            const durationEl = container.querySelector('.voice-duration');
+            const playIcon = button.querySelector('.play-icon');
+            const pauseIcon = button.querySelector('.pause-icon');
+            
+            if (!button.audio) {
+                button.audio = new Audio(audioSrc);
+                button.audio.addEventListener('timeupdate', () => {
+                    const progress = (button.audio.currentTime / button.audio.duration) * 100;
+                    progressBar.style.width = progress + '%';
+                    
+                    const minutes = Math.floor(button.audio.currentTime / 60);
+                    const seconds = Math.floor(button.audio.currentTime % 60);
+                    durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                });
+                
+                button.audio.addEventListener('ended', () => {
+                    playIcon.classList.remove('hidden');
+                    pauseIcon.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                    const duration = Math.floor(button.audio.duration);
+                    const minutes = Math.floor(duration / 60);
+                    const seconds = duration % 60;
+                    durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                });
+            }
+            
+            if (button.audio.paused) {
+                button.audio.play();
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            } else {
+                button.audio.pause();
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            }
+        }
+    });
+
+    // Auto-scroll to bottom when new messages arrive
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Listen for new messages and scroll
+    if (socket) {
+        socket.on('chat message', function(msg) {
+            // Add the new message to the chat
+            const messageHtml = createMessageElement(msg);
+            messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+            scrollToBottom();
+        });
+    }
+
+    function createMessageElement(chat) {
+        const isOwn = chat.from._id === currentUserId;
+        const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : '';
+        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+        const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext);
+        const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
+        
+        let mediaContent = '';
+        if (chat.media) {
+            if (isAudio) {
+                mediaContent = `
+                    <div class="voice-message-container relative group">
+                        <button class="voice-play-btn" data-audio-src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}">
+                            <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
+                            </svg>
+                            <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                            </svg>
+                        </button>
+                        <div class="voice-progress-bar-container">
+                            <div class="voice-progress"></div>
+                        </div>
+                        <div class="voice-duration">0:00</div>
+                    </div>
+                `;
+            }
+        }
+        
+        return `
+            <div class="flex ${isOwn ? 'justify-end' : 'justify-start'}">
+                <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg">
+                    ${mediaContent}
+                    ${chat.msg ? `<p class="text-sm leading-relaxed">${chat.msg}</p>` : ''}
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs ${isOwn ? 'text-primary-100' : 'text-secondary-500'}">
+                            ${new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Initialize auto-scroll on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        scrollToBottom();
+    });
   </script>
 </body>
 </html>

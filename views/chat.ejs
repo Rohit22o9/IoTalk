@@ -249,6 +249,31 @@
       </div>
     </div>
 
+    <!-- Voice Recording Modal -->
+    <div id="voice-recording-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full">
+        <div class="text-center">
+          <div class="mb-4">
+            <div class="w-20 h-20 bg-red-500 rounded-full mx-auto flex items-center justify-center animate-pulse">
+              <svg class="h-10 w-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Recording Voice Message</h3>
+          <p class="text-sm text-gray-500 mb-4">Tap to stop recording</p>
+          <div class="flex space-x-3 justify-center">
+            <button onclick="stopVoiceRecording()" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
+              Stop & Send
+            </button>
+            <button onclick="cancelVoiceRecording()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Message Input -->
     <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200" style="z-index: 1;">
       <div class="p-4">
@@ -259,6 +284,13 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
             </svg>
           </label>
+          
+          <!-- Voice Message Button -->
+          <button type="button" id="voice-message-btn" onclick="startVoiceRecording()" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
+            <svg class="h-5 w-5 text-secondary-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+            </svg>
+          </button>
           
           <div class="flex-1 relative">
             <textarea name="msg" id="message-input" placeholder="Type your message..."
@@ -863,6 +895,76 @@
             closeMediaPreview();
         }
     });
+
+    // Voice Recording Functions
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let voiceStream = null;
+
+    async function startVoiceRecording() {
+        try {
+            voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(voiceStream);
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+                
+                // Show preview and send
+                selectedFile = audioFile;
+                showMediaPreview(audioFile);
+                
+                // Auto-send voice message
+                setTimeout(() => {
+                    messageForm.dispatchEvent(new Event('submit'));
+                }, 500);
+            };
+
+            mediaRecorder.start();
+            document.getElementById('voice-recording-modal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+
+        } catch (error) {
+            console.error('Error starting voice recording:', error);
+            alert('Could not access microphone. Please check permissions.');
+        }
+    }
+
+    function stopVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+        
+        if (voiceStream) {
+            voiceStream.getTracks().forEach(track => track.stop());
+            voiceStream = null;
+        }
+        
+        document.getElementById('voice-recording-modal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    function cancelVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+        
+        if (voiceStream) {
+            voiceStream.getTracks().forEach(track => track.stop());
+            voiceStream = null;
+        }
+        
+        audioChunks = [];
+        document.getElementById('voice-recording-modal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
 
     // Call functions
     function initiateCall(type) {

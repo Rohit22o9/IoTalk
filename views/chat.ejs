@@ -411,46 +411,47 @@
             <% }) %>
         </main>
 
-        <!-- Media Preview -->
-        <div id="filePreview" class="hidden flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl mx-4 mb-2 shadow-lg">
-            <div id="previewContent" class="flex items-center space-x-3 flex-1"></div>
-            <button id="removeFile" type="button" class="ml-3 p-1 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Voice Message Preview -->
-        <div id="voiceRecordingPreview" class="hidden voice-record-preview mx-4 mb-2">
-            <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-            <div class="voice-timer" id="recordingTimer">0:00</div>
-            <button id="playRecordedVoice" class="voice-action-btn voice-play-pause-btn">
-                <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
-                </svg>
-                <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-            </button>
-            <div class="voice-progress-bar-container w-32">
-                <div class="voice-progress"></div>
-            </div>
-            <div class="voice-duration" id="recordedDuration">0:00</div>
-            <button id="sendVoiceMessage" class="voice-action-btn voice-send-btn">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                </svg>
-            </button>
-        </div>
-
         <!-- Message Input -->
-        <footer class="bg-white/90 backdrop-blur-lg border-t border-secondary-200 p-4 flex-shrink-0">
+        <footer class="bg-white/90 backdrop-blur-lg border-t border-secondary-200 flex-shrink-0">
+            <!-- Media Preview -->
+            <div id="filePreview" class="hidden flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl mx-4 mt-2 shadow-lg">
+                <div id="previewContent" class="flex items-center space-x-3 flex-1"></div>
+                <button id="removeFile" type="button" class="ml-3 p-1 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Voice Message Preview -->
+            <div id="voiceRecordingPreview" class="hidden voice-record-preview mx-4 mt-2">
+                <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <div class="voice-timer" id="recordingTimer">0:00</div>
+                <button id="playRecordedVoice" class="voice-action-btn voice-play-pause-btn">
+                    <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
+                    </svg>
+                    <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </button>
+                <div class="voice-progress-bar-container w-32">
+                    <div class="voice-progress"></div>
+                </div>
+                <div class="voice-duration" id="recordedDuration">0:00</div>
+                <button id="sendVoiceMessage" class="voice-action-btn voice-send-btn">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-4">
             <form id="chatForm" enctype="multipart/form-data" class="flex items-center space-x-3">
                 <input type="file" name="media" class="hidden" id="mediaInput">
                 <label for="mediaInput" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
@@ -477,6 +478,7 @@
                     </svg>
                 </button>
             </form>
+            </div>
         </footer>
     </div>
 

@@ -251,20 +251,20 @@
                               ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md'
                               : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20' %> shadow-lg">
                 <% if (chat.media) {
-                  const ext = chat.media.split('.').pop().toLowerCase();
+                  const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : '';
                   const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
-                  const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
+                  const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
                 %>
                   <% if (isImage) { %>
                     <div class="mb-2">
                       <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
-                           alt="Media" 
+                           alt="Media"
                            class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
                            onclick="openMediaPreview(this.src, 'image', '<%= chat.originalName || chat.media.split('/').pop() %>')">
                     </div>
                   <% } else if (['mp4','avi','mov','wmv','flv','mkv'].includes(ext)) { %>
                     <div class="mb-2">
-                      <div class="relative cursor-pointer group" 
+                      <div class="relative cursor-pointer group"
                            onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= chat.originalName || chat.media.split('/').pop() %>')">
                           <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
                               <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
@@ -478,7 +478,7 @@
     </div>
 
     <!-- Voice Recording Preview (positioned above the footer) -->
-    <div id="voiceRecordingPreview" class="hidden fixed bottom-20 left-0 right-0 z-10 mx-4 mb-2">
+    <div id="voiceRecordingPreview" class="hidden fixed bottom-24 left-0 right-0 z-20 mx-4 mb-2">
       <div class="voice-record-preview">
         <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
           <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -544,20 +544,20 @@
   <div id="mediaPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
       <div class="relative max-w-screen-lg max-h-screen-lg w-full h-full flex items-center justify-center p-4">
           <!-- Close Button -->
-          <button onclick="closeMediaPreview()" 
+          <button onclick="closeMediaPreview()"
                   class="absolute top-4 right-4 z-60 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-colors">
               <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
               </svg>
           </button>
-          
+
           <!-- Media Content Container -->
           <div id="previewMediaContainer" class="flex items-center justify-center w-full h-full">
               <!-- Content will be dynamically inserted here -->
           </div>
-          
+
           <!-- Download Button -->
-          <button id="downloadMediaBtn" onclick="downloadMedia()" 
+          <button id="downloadMediaBtn" onclick="downloadMedia()"
                   class="absolute bottom-4 right-4 z-60 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
@@ -893,7 +893,7 @@
         if (messageText) formData.append('msg', messageText);
         if (mediaFile) {
             formData.append('media', mediaFile);
-            console.log('Attaching media file:', mediaFile.name, mediaFile.type);
+            console.log('Sending media file:', mediaFile.name, mediaFile.type);
         }
 
         try {
@@ -940,18 +940,18 @@
       let mediaHTML = '';
 
       if (msg.media) {
-        const ext = msg.media.split('.').pop().toLowerCase();
+        const ext = msg.media ? msg.media.split('.').pop().toLowerCase() : '';
         const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
-        const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
+        const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext) || (msg.originalName && msg.originalName.startsWith('voice_')) || (msg.media && msg.media.includes('voice_'));
 
         if (isImage) {
-          mediaHTML = `<div class="mb-2"><img src="${msg.media}" class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity" alt="image" onclick="openMediaPreview('${msg.media}', 'image', '${msg.originalName || msg.media.split('/').pop()}')"></div>`;
+          mediaHTML = `<div class="mb-2"><img src="${msg.media.startsWith('/') ? msg.media : '/' + msg.media}" class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity" alt="image" onclick="openMediaPreview('${msg.media.startsWith('/') ? msg.media : '/' + msg.media}', 'image', '${msg.originalName || msg.media.split('/').pop()}')"></div>`;
         } else if (['mp4','avi','mov','wmv','flv','mkv'].includes(ext)) {
           mediaHTML = `
             <div class="mb-2">
-              <div class="relative cursor-pointer group" onclick="openMediaPreview('${msg.media}', 'video', '${msg.originalName || msg.media.split('/').pop()}')">
+              <div class="relative cursor-pointer group" onclick="openMediaPreview('${msg.media.startsWith('/') ? msg.media : '/' + msg.media}', 'video', '${msg.originalName || msg.media.split('/').pop()}')">
                   <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
-                      <source src="${msg.media}" type="video/${ext}">
+                      <source src="${msg.media.startsWith('/') ? msg.media : '/' + msg.media}" type="video/${ext}">
                       Your browser does not support the video tag.
                   </video>
                   <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
@@ -966,7 +966,7 @@
         } else if (isVoice) {
           mediaHTML = `
             <div class="voice-message-container">
-              <button class="voice-play-btn" data-audio-src="${msg.media}">
+              <button class="voice-play-btn" data-audio-src="${msg.media.startsWith('/') ? msg.media : '/' + msg.media}">
                 <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
@@ -1000,8 +1000,8 @@
                 </div>
               </div>
               <div class="flex space-x-3 mt-1">
-                <a href="${msg.media}" target="_blank" class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Open</a>
-                <a href="${msg.media}" download="${msg.originalName || msg.media.split('/').pop()}" class="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Download</a>
+                <a href="${msg.media.startsWith('/') ? msg.media : '/' + msg.media}" target="_blank" class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Open</a>
+                <a href="${msg.media.startsWith('/') ? msg.media : '/' + msg.media}" download="${msg.originalName || msg.media.split('/').pop()}" class="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Download</a>
               </div>
             </div>`;
         }
@@ -1762,12 +1762,12 @@
     function openMediaPreview(src, type, name) {
         const modal = document.getElementById('mediaPreviewModal');
         const container = document.getElementById('previewMediaContainer');
-        
+
         currentMediaSrc = src;
         currentMediaName = name || 'media';
-        
+
         container.innerHTML = '';
-        
+
         if (type === 'image') {
             const img = document.createElement('img');
             img.src = src;
@@ -1783,7 +1783,7 @@
             video.preload = 'metadata';
             container.appendChild(video);
         }
-        
+
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden'; // Prevent background scrolling
     }
@@ -1791,14 +1791,14 @@
     function closeMediaPreview() {
         const modal = document.getElementById('mediaPreviewModal');
         const container = document.getElementById('previewMediaContainer');
-        
+
         // Stop any playing video
         const video = container.querySelector('video');
         if (video) {
             video.pause();
             video.currentTime = 0;
         }
-        
+
         modal.classList.add('hidden');
         document.body.style.overflow = 'auto'; // Restore scrolling
         container.innerHTML = '';

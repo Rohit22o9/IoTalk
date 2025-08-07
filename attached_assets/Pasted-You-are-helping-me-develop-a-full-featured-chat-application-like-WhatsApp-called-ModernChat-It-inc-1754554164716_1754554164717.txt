@@ -1,0 +1,46 @@
+You are helping me develop a full-featured chat application like WhatsApp, called ModernChat. It includes personal chats, group chats, and communities. The codebase is using Node.js, Express, MongoDB, EJS, and Socket.IO, with TailwindCSS for styling.
+
+Here’s what’s already done:
+- Login/Signup system with sessions.
+- Personal chat with media sharing (image/video/doc).
+- Group chat creation and messaging with multiple members.
+- Communities feature to group several chats together.
+- WebRTC integration for both personal and group voice calls (UI and basic functionality done).
+- Chat interface styled to look like WhatsApp.
+
+---
+
+Now I want you to help me implement the following AI features in this existing app:
+
+### 🔹 1. AI Moderation Agent (for personal, group, and community chats)
+- Detect inappropriate, harmful, or illegal content.
+- Detect profanity and hate speech in any message.
+- Detect if media (image/video) contains violent or sensitive content.
+- Automatically delete or flag such messages.
+
+### 🔹 2. AI Summarization Agent
+- When users send a large block of text or media (video/audio), provide an automatic summary of it.
+- Summarize YouTube links or uploaded videos using speech-to-text and summarization models.
+- Summarized messages should appear below the original message with an “AI Summary” label.
+
+### 🔹 3. AI Auto-Responder
+- In personal chats, allow an AI auto-responder bot to reply based on conversation context.
+- In group/community chats, the AI should be able to assist when tagged (`@ModernBot`) or when someone asks a question.
+- The AI should answer questions, perform sentiment analysis, and optionally generate replies in a natural tone.
+
+---
+
+### 💡 Technical Preferences
+- Use OpenAI’s GPT APIs or any free/affordable AI APIs where possible.
+- For content moderation, use OpenAI Moderation API or free alternatives like Perspective API.
+- For media analysis (image/video), use tools like Google Cloud Vision or open-source models if needed.
+- For speech-to-text, use OpenAI Whisper or any free API for voice/video message processing.
+
+---
+
+### 🎯 Goals
+- Provide a clean and seamless user experience with real-time moderation and AI assistance.
+- Keep the code modular and clean.
+- Ensure performance is good even with large chats.
+
+Please guide step-by-step what files I need to create or modify, and generate full working code for each feature with proper integration in my existing structure.

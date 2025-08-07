@@ -1,0 +1,87 @@
+You are helping me develop a full-featured chat application like WhatsApp, called ModernChat. It includes personal chats, group chats, and communities. The codebase is built with:
+
+Backend: Node.js, Express, MongoDB
+
+Frontend: EJS templates, TailwindCSS
+
+Real-time: Socket.IO
+
+✅ Current Functionality Already Implemented:
+Login/Signup with sessions
+
+Personal messaging with media sharing (image, video, document)
+
+Group chats with multiple members
+
+Communities for organizing chats
+
+WebRTC-based voice calling (group & personal) — basic UI and logic are functional
+
+WhatsApp-like chat UI using TailwindCSS
+
+🧠 Now I need your help to implement the following AI features:
+🔹 1. AI Moderation Agent (for all chats: personal, group, community)
+Detect and flag/remove:
+
+Inappropriate, harmful, or illegal text messages
+
+Profanity and hate speech
+
+Media (images/videos) with violent, explicit, or unsafe content
+
+Show a notice if a message was flagged/deleted
+
+Use either:
+
+OpenAI Moderation API
+
+Or alternatives like Perspective API
+
+For media content, use Google Vision API or open-source alternatives
+
+🔹 2. AI Summarization Agent
+Automatically summarize:
+
+Long text messages
+
+Uploaded videos/audio using speech-to-text + summarization
+
+YouTube links (fetch transcript if possible)
+
+On hover over any long message or video/audio, show a "Summarize" button.
+
+When clicked, it should open a popup panel (modal or drawer) showing the AI-generated summary.
+
+Label it as "AI Summary"
+
+Use:
+
+OpenAI GPT (with text-davinci-003 or gpt-3.5-turbo)
+
+OpenAI Whisper or other free speech-to-text APIs for voice/video
+
+🔹 3. AI Auto-Responder
+In personal chats, allow auto-generated replies from the AI based on conversation context (like Gmail Smart Reply).
+
+In group or community chats:
+
+The AI should respond only when tagged (@ModernBot) or when a user asks a clear question
+
+Responses should include:
+
+Context-aware answers
+
+Sentiment detection if needed
+
+Replies in a natural, conversational tone
+
+Backend should allow toggling auto-responder for each user or group
+
+⚙️ Technical Notes / Preferences:
+Prefer OpenAI APIs (Moderation, GPT, Whisper) or use free/community alternatives
+
+Keep the code modular and scalable
+
+Do not disturb the existing app structure or UI unless required
+
+Reuse existing Socket.IO and EJS architecture for real-time handling

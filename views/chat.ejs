@@ -422,10 +422,9 @@
             <% }) %>
         </main>
 
-        <!-- Message Input -->
-        <footer class="bg-white/90 backdrop-blur-lg border-t border-secondary-200 flex-shrink-0">
-            <!-- Media Preview -->
-            <div id="filePreview" class="hidden flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl mx-4 mt-2 shadow-lg">
+        <!-- Media Preview (positioned above the message input) -->
+        <div id="filePreview" class="hidden absolute bottom-full left-0 right-0 mx-4 mb-2 z-10">
+            <div class="flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl shadow-lg">
                 <div id="previewContent" class="flex items-center space-x-3 flex-1"></div>
                 <button id="removeFile" type="button" class="ml-3 p-1 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -433,9 +432,11 @@
                     </svg>
                 </button>
             </div>
+        </div>
 
-            <!-- Voice Message Preview -->
-            <div id="voiceRecordingPreview" class="hidden voice-record-preview mx-4 mt-2">
+        <!-- Voice Message Preview (positioned above the message input) -->
+        <div id="voiceRecordingPreview" class="hidden absolute bottom-full left-0 right-0 mx-4 mb-2 z-10">
+            <div class="voice-record-preview">
                 <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -460,7 +461,10 @@
                     </svg>
                 </button>
             </div>
+        </div>
 
+        <!-- Message Input -->
+        <footer class="bg-white/90 backdrop-blur-lg border-t border-secondary-200 flex-shrink-0 relative">
             <div class="p-4">
             <form id="chatForm" enctype="multipart/form-data" class="flex items-center space-x-3">
                 <input type="file" name="media" class="hidden" id="mediaInput">

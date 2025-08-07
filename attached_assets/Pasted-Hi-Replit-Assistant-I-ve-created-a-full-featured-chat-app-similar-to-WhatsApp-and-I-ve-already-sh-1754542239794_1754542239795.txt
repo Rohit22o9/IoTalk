@@ -1,0 +1,54 @@
+Hi Replit Assistant,
+
+I’ve created a full-featured chat app similar to WhatsApp, and I’ve already shared all the code files with you. The app includes personal chats, group chats, media sharing, voice messages, and video calls using Node.js, Express, MongoDB, Socket.IO, WebRTC, and EJS.
+
+Now, I need your help with fixing the following issues and implementing a few new features.
+
+🔒 Important Instruction:
+Do not disturb the existing working functionalities and UI of the project. All fixes and additions should be smooth and non-breaking.
+
+🔧 Issues to Fix
+Media Preview in Group Chat
+
+Media/document preview doesn’t appear after selection in group chats.
+
+This works fine in personal chats — group chat should behave the same way.
+
+Voice Message Preview in Group Chat
+
+Voice recording preview is missing in group chats.
+
+It should behave exactly like personal chats where preview is shown before sending.
+
+Voice Message Not Sending in Personal Chat
+
+Recording and preview work fine in personal chats, but after sending, the voice message does not appear in the chat screen.
+
+Group Delete Option for Admins
+
+Add a “Delete Group” option in the left sidebar, visible only to group admins.
+
+This should not affect other users or UI structure.
+
+🚀 Features to Add
+Screen Sharing in Video Calls
+
+Implement screen sharing in both 1-on-1 and group video calls using WebRTC, similar to WhatsApp.
+
+Chat and Call Notifications
+
+Add real-time notifications for new messages and incoming calls, even if the user is not on the current chat screen.
+
+Call Notification Bug Fix
+
+Right now, calls only connect if the receiver is already on the chat screen.
+
+Fix it so that:
+
+Notifications appear regardless of user location in the app.
+
+Missed calls are recorded and indicated visibly.
+
+✅ The core structure and UI of the project should remain untouched. Please provide clean and complete code updates or suggest modular fixes that won't break existing flows.
+
+Let me know if you need me to test or verify any of the changes step-by-step.

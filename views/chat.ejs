@@ -416,7 +416,9 @@
     let selectedFile = null;
 
     // Join the chat room
-    socket.emit('join', currentUserId);
+    socket.emit('userOnline', currentUserId);
+    const roomId = [currentUserId, otherUserId].sort().join('_');
+    socket.emit('joinRoom', roomId);
 
     // Initialize notification manager
     if (window.notificationManager) {
@@ -1120,45 +1122,10 @@
         panel.classList.add('hidden');
     }
 
-    // Auto-responder toggle function
-    async function toggleAutoResponder(enabled, groupId = null) {
-        try {
-            const response = await fetch('/ai/auto-responder/toggle', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    enabled: enabled,
-                    groupId: groupId
-                })
-            });
-
-            const data = await response.json();
-            
-            if (data.success) {
-                console.log('Auto-responder toggled:', data.enabled);
-            }
-        } catch (error) {
-            console.error('Auto-responder toggle error:', error);
-        }
-    }
-
     // Listen for smart replies from AI
     socket.on('smart replies', (data) => {
         if (data.replies && data.replies.length > 0) {
             showSmartReplies(data.replies);
-        }
-    });
-
-    // Detect YouTube links and offer summarization
-    msgInput.addEventListener('input', (e) => {
-        const message = e.target.value;
-        const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
-        
-        if (youtubeRegex.test(message)) {
-            // Could add a small indicator that YouTube summarization is available
-            console.log('YouTube link detected');
         }
     });
 

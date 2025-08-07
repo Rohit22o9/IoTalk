@@ -264,21 +264,56 @@ footer {
       transition: width 0.3s ease;
       overflow: hidden;
       height: calc(100vh - 64px);
+      position: fixed;
+      top: 64px;
+      right: 0;
+      z-index: 30;
     }
     #groupInfoPanel.open {
       width: 320px;
-      overflow-y: auto;
+      overflow: visible;
     }
     
     .group-info-content {
-      height: 100%;
+      height: calc(100vh - 64px);
       overflow-y: auto;
+      padding: 1rem;
       padding-bottom: 2rem;
+      display: flex;
+      flex-direction: column;
     }
     
     .members-list-container {
-      max-height: 40vh;
+      flex: 1;
+      max-height: calc(50vh - 200px);
       overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    /* Ensure proper scrollbar styling for group info */
+    .group-info-content::-webkit-scrollbar,
+    .members-list-container::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .group-info-content::-webkit-scrollbar-track,
+    .members-list-container::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+
+    .group-info-content::-webkit-scrollbar-thumb,
+    .members-list-container::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+
+    .group-info-content::-webkit-scrollbar-thumb:hover,
+    .members-list-container::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
 
     /* Fixed header spacing */

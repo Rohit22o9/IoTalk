@@ -50,6 +50,8 @@ class NotificationManager {
         this.socket.on('chat message', (data) => {
             if (data.from._id !== this.currentUserId) {
                 this.showMessageNotification(data);
+                // Play notification sound
+                this.playNotificationSound();
             }
         });
 

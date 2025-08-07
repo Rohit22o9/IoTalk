@@ -243,20 +243,43 @@ app.post('/chat/:id', mediaUpload.single('media'), async (req, res) => {
     try {
         if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
 
-        const from = req.session.userId;
-        const to = req.params.id;
-        const msg = req.body.msg || '';
-        const media = req.file ? `/media/${req.file.filename}` : null;
-        const originalName = req.file ? req.file.originalname : null;
+        const { msg } = req.body;
+        const receiverId = req.params.id;
+        const senderId = req.session.userId;
 
-        const newChat = await Chat.create({ from, to, msg, media, originalName, status: 'sent' });
-        const decryptedChat = newChat.getDecrypted();
+        if (!msg && !req.file) {
+            return res.status(400).json({ error: 'Message or media required' });
+        }
 
-        io.to([from, to].sort().join('_')).emit('chat message', decryptedChat);
-        res.json(decryptedChat);
+        // Fix media path to ensure proper serving
+        let mediaPath = null;
+        if (req.file) {
+            mediaPath = req.file.path.replace('public', '').replace(/\\/g, '/');
+            if (!mediaPath.startsWith('/')) {
+                mediaPath = '/' + mediaPath;
+            }
+        }
+
+        const newChat = new Chat({
+            from: senderId,
+            to: receiverId,
+            msg: msg || '',
+            media: mediaPath,
+            originalName: req.file ? req.file.originalname : null
+        });
+
+        await newChat.save();
+        const savedChat = await Chat.findById(newChat._id).populate('from to');
+        const decryptedChat = savedChat.getDecrypted();
+
+        // Emit to both users
+        io.to(senderId).emit('chat message', decryptedChat);
+        io.to(receiverId).emit('chat message', decryptedChat);
+
+        res.json({ success: true, message: decryptedChat });
     } catch (error) {
-        console.error('Send message error:', error);
-        res.status(500).json({ error: "Failed to send message" });
+        console.error('Chat message error:', error);
+        res.status(500).json({ error: 'Error sending message' });
     }
 });
 
@@ -1002,9 +1025,9 @@ app.get('/communities/:id', async (req, res) => {
             return res.status(403).send('Not authorized');
         }
 
-        const groups = await Group.find({ 
+        const groups = await Group.find({
             community: community._id,
-            members: req.session.userId 
+            members: req.session.userId
         }).populate('members');
 
         res.render('community_detail', {
@@ -1064,11 +1087,11 @@ app.get('/communities/:id/create-group', async (req, res) => {
             return res.status(403).send('Not authorized to create groups');
         }
 
-        const users = await User.find({ 
-            _id: { 
+        const users = await User.find({
+            _id: {
                 $in: community.members,
-                $ne: req.session.userId 
-            } 
+                $ne: req.session.userId
+            }
         });
 
         res.render('group_create', {
@@ -1258,7 +1281,7 @@ app.post('/call/initiate', async (req, res) => {
                 await callCheck.save();
 
                 io.to(req.session.userId).emit('call-timeout', { callId: call._id });
-                io.to(receiverId).emit('call-missed', { 
+                io.to(receiverId).emit('call-missed', {
                     callId: call._id,
                     caller: {
                         id: caller._id,

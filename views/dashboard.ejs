@@ -358,6 +358,24 @@
         });
     </script>
     <script>
+        // Initialize socket connection
+        const socket = io();
+        const currentUserId = '<%= currentUser._id %>';
+
+        socket.emit('join', currentUserId);
+
+        // Handle chat navigation
+        function handleChatNavigation(userId) {
+            try {
+                window.location.href = `/chat/${userId}`;
+                return false;
+            } catch (error) {
+                console.error('Navigation error:', error);
+                return true; // Allow default navigation
+            }
+        }
+    </script>
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize socket connection for notifications
             const socket = io();

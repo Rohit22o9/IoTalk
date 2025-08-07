@@ -23,11 +23,15 @@ const aiModeration = require('./utils/aiModeration');
 const aiAutoResponder = require('./utils/aiAutoResponder');
 
 // ----------- DATABASE CONNECTION -----------
-mongoose.connect(process.env.MONGO_URI, {
+const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/modernchat';
+mongoose.connect(mongoUri, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-}).then(() => console.log("MongoDB Atlas connected successfully!"))
-  .catch((err) => console.error("MongoDB connection error:", err));
+}).then(() => console.log("MongoDB connected successfully!"))
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    console.log("Make sure MongoDB is running or check your MONGO_URI environment variable");
+  });
 
 // ----------- MIDDLEWARE -----------
 app.use(express.urlencoded({ extended: true }));
@@ -38,7 +42,7 @@ app.set('view engine', 'ejs');
 
 // ----------- SESSION STORE -----------
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'mini-whatsapp-secret',
+    secret: process.env.SESSION_SECRET || 'modernchat-fallback-secret-key',
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({

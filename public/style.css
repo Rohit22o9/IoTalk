@@ -215,6 +215,7 @@ html {
 
 body, html {
   overflow-x: hidden;
+  height: 100%;
 }
 
 .chat-container, .chat-messages {
@@ -222,6 +223,21 @@ body, html {
   overflow-x: hidden;
   word-wrap: break-word;
   word-break: break-word;
+}
+
+/* Ensure messages don't overlap with footer */
+#messages-container {
+  padding-bottom: 120px !important;
+  margin-bottom: 0;
+}
+
+/* Fixed footer positioning */
+footer {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1000 !important;
 }
 
 .document-message {

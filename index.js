@@ -215,14 +215,19 @@ app.post('/startchat', async (req, res) => {
     }
 });
 
-app.get('/chat/:id', async (req, res) => {
-    if (!req.session.userId) return res.redirect('/login');
-
+app.get('/chat/:userId', async (req, res) => {
     try {
-        const otherUser = await User.findById(req.params.id);
+        if (!req.session.userId) return res.redirect('/login');
+
         const currentUser = await User.findById(req.session.userId);
 
-        if (!otherUser || !currentUser) return res.status(404).send("User not found!");
+        // Validate ObjectId format before querying
+        if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+            return res.status(400).send('Invalid user ID');
+        }
+
+        const otherUser = await User.findById(req.params.userId);
+        if (!otherUser) return res.status(404).send("User not found!");
 
         const rawChats = await Chat.find({
             $or: [{ from: currentUser._id, to: otherUser._id }, { from: otherUser._id, to: currentUser._id }],

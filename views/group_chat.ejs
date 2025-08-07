@@ -385,14 +385,14 @@
 
       <!-- Group Info Panel -->
       <aside id="groupInfoPanel" class="bg-white/90 backdrop-blur-lg border-l border-secondary-200 shadow-lg fixed top-0 right-0 h-full">
-        <div class="p-4 flex flex-col items-center">
+        <div class="group-info-content p-4 flex flex-col items-center">
           <img src="<%= group.icon || '/group_icons/default.png' %>" class="w-20 h-20 rounded-full object-cover border-2 border-white shadow-md">
           <h2 class="text-lg font-semibold mt-2 text-secondary-900"><%= group.name %></h2>
           <p class="text-sm text-secondary-500"><%= group.members.length %> Members</p>
           <hr class="my-4 w-full border-secondary-200">
 
           <!-- Members List -->
-          <div class="w-full space-y-2 max-h-40 overflow-y-auto">
+          <div class="w-full space-y-2 members-list-container">
             <% group.members.forEach(member => { %>
               <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-secondary-50">
                 <img src="/avatars/<%= member.avatar || 'default-avatar.png' %>" class="w-8 h-8 rounded-full object-cover">

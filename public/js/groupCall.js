@@ -333,23 +333,28 @@ document.addEventListener('DOMContentLoaded', function() {
         if (groupId) {
             // Add call buttons to group header
             const callButtons = document.createElement('div');
-            callButtons.className = 'flex space-x-2 ml-auto';
+            callButtons.className = 'flex space-x-2';
             callButtons.innerHTML = `
                 <button onclick="groupCallManager.initiateGroupCall('${groupId}', 'audio')" 
-                        class="bg-green-500 text-white p-2 rounded-full hover:bg-green-600" title="Audio Call">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl" title="Audio Call">
+                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
                     </svg>
                 </button>
                 <button onclick="groupCallManager.initiateGroupCall('${groupId}', 'video')" 
-                        class="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600" title="Video Call">
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        class="p-3 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl" title="Video Call">
+                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
                     </svg>
                 </button>
             `;
             
-            groupHeader.appendChild(callButtons);
+            const callButtonsContainer = document.getElementById('group-call-buttons-container');
+            if (callButtonsContainer) {
+                callButtonsContainer.appendChild(callButtons);
+            } else {
+                groupHeader.parentElement.appendChild(callButtons);
+            }
             console.log('Call buttons added to group header');
         } else {
             console.error('Group ID not found');

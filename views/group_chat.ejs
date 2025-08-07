@@ -213,7 +213,7 @@
             </svg>
           </button>
         </form>
-        <div class="flex items-center space-x-3 cursor-pointer group-header" id="groupHeader" data-group-id="<%= group._id %>" onclick="toggleGroupInfo()">
+        <div class="flex items-center space-x-3 cursor-pointer group-header flex-1" id="groupHeader" data-group-id="<%= group._id %>" onclick="toggleGroupInfo()">
           <img src="<%= group.icon || '/group_icons/default.png' %>"
                alt="<%= group.name %>"
                class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md">
@@ -223,6 +223,7 @@
           </div>
         </div>
         <!-- Call buttons will be added here by JavaScript -->
+        <div id="group-call-buttons-container"></div>
       </div>
     </header>
 

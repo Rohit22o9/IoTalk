@@ -281,12 +281,12 @@
                                         <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
                                              alt="Media" 
                                              class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
-                                             onclick="openMediaPreview(this.src, 'image', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                                             onclick="openMediaPreview(this.src, 'image', '<%= escapeHtml(chat.originalName || chat.media.split('/').pop()) %>')">
                                     </div>
                                 <% } else if (isVideo) { %>
                                     <div class="mb-2">
                                         <div class="relative cursor-pointer group" 
-                                             onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                                             onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= escapeHtml(chat.originalName || chat.media.split('/').pop()) %>')">
                                             <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
                                                 <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
                                                 Your browser does not support the video tag.
@@ -451,7 +451,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </button>
-                <div class="voice-progress-bar-container w-32">
+                <div class="voice-progress-bar-container">
                     <div class="voice-progress"></div>
                 </div>
                 <div class="voice-duration" id="recordedDuration">0:00</div>
@@ -1136,13 +1136,13 @@
                             <img src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}"
                                  alt="Media" 
                                  class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
-                                 onclick="openMediaPreview(this.src, 'image', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                                 onclick="openMediaPreview(this.src, 'image', '${escapeHtml(chat.originalName || chat.media.split('/').pop())}')">
                         </div>`;
                 } else if (isVideo) {
                     mediaHTML = `
                         <div class="mb-2">
                             <div class="relative cursor-pointer group" 
-                                 onclick="openMediaPreview('${chat.media.startsWith('/') ? chat.media : '/' + chat.media}', 'video', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                                 onclick="openMediaPreview('${chat.media.startsWith('/') ? chat.media : '/' + chat.media}', 'video', '${escapeHtml(chat.originalName || chat.media.split('/').pop())}')">
                                 <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
                                     <source src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}" type="video/${ext}">
                                     Your browser does not support the video tag.
@@ -2172,10 +2172,32 @@
                 if (!audioElement) {
                     audioElement = document.createElement('audio');
                     audioElement.src = URL.createObjectURL(this.recordedBlob);
+                    audioElement.dataset.messageId = voiceRecordingPreview.closest('.message-container').getAttribute('data-id');
                     voiceRecordingPreview.appendChild(audioElement); // Append to preview for scope
                 }
 
                 if (audioElement.paused) {
+                    // Stop any other playing voice messages
+                    document.querySelectorAll('.voice-play-btn').forEach(btn => {
+                        const otherAudioElement = btn.closest('.voice-message-container').querySelector('audio');
+                        if (otherAudioElement && otherAudioElement !== audioElement && !otherAudioElement.paused) {
+                            otherAudioElement.pause();
+                            const otherPlayBtn = btn;
+                            const otherPauseIcon = otherPlayBtn.querySelector('.pause-icon');
+                            const otherPlayIcon = otherPlayBtn.querySelector('.play-icon');
+                            otherPlayIcon.classList.remove('hidden');
+                            otherPauseIcon.classList.add('hidden');
+                            otherPlayBtn.classList.add('bg-primary-500');
+                            otherPlayBtn.classList.remove('bg-gray-600');
+                            otherPlayBtn.setAttribute('title', 'Play');
+                            // Reset progress bar and duration for others
+                            const otherProgressBar = btn.closest('.voice-message-container').querySelector('.voice-progress');
+                            const otherDurationDisplay = btn.closest('.voice-message-container').querySelector('.voice-duration');
+                            otherProgressBar.style.width = '0%';
+                            otherDurationDisplay.textContent = '0:00';
+                        }
+                    });
+
                     audioElement.play();
                     playIcon.classList.add('hidden');
                     pauseIcon.classList.remove('hidden');
@@ -2464,9 +2486,9 @@
                         playBtn.classList.add('bg-primary-500');
                         playBtn.classList.remove('bg-gray-600');
                         playBtn.setAttribute('title', 'Play');
-                        progressBar.style.width = '0%';
-                        durationDisplay.textContent = '0:00';
+                        this.resetProgressAndTimer(); // Reset timer and progress on completion
                     };
+
                 } else {
                     audioElement.pause();
                     playIcon.classList.remove('hidden');
@@ -2476,6 +2498,14 @@
                     playBtn.setAttribute('title', 'Play');
                 }
             }
+        });
+
+        // Cleanup for voice message player when component unmounts or page unloads
+        window.addEventListener('beforeunload', () => {
+            document.querySelectorAll('audio[data-message-id]').forEach(audio => {
+                audio.pause();
+                URL.revokeObjectURL(audio.src);
+            });
         });
 
         console.log('Chat application initialized successfully');

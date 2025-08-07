@@ -434,7 +434,7 @@
                 Update Group
               </button>
             </form>
-            
+
             <!-- Delete Group Option -->
             <div class="w-full mt-4">
               <button onclick="deleteGroup()" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition-colors text-sm font-medium">
@@ -560,14 +560,6 @@
       return div.innerHTML;
     }
 
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
     // Format file size utility
     function formatFileSize(bytes) {
         if (bytes === 0) return '0 Bytes';
@@ -600,11 +592,11 @@
                 img.onload = function() {
                     URL.revokeObjectURL(this.src);
                 };
-                
+
                 const imgContainer = document.createElement('div');
                 imgContainer.className = 'flex items-center space-x-3';
                 imgContainer.appendChild(img);
-                
+
                 const textDiv = document.createElement('div');
                 textDiv.innerHTML = `
                     <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
@@ -612,7 +604,7 @@
                 `;
                 imgContainer.appendChild(textDiv);
                 previewContainer.appendChild(imgContainer);
-                
+
             } else if (file.type.startsWith('video/')) {
                 const video = document.createElement('video');
                 video.src = URL.createObjectURL(file);
@@ -620,11 +612,11 @@
                 video.controls = true;
                 video.muted = true;
                 video.preload = 'metadata';
-                
+
                 const videoContainer = document.createElement('div');
                 videoContainer.className = 'flex items-center space-x-3';
                 videoContainer.appendChild(video);
-                
+
                 const textDiv = document.createElement('div');
                 textDiv.innerHTML = `
                     <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
@@ -632,7 +624,7 @@
                 `;
                 videoContainer.appendChild(textDiv);
                 previewContainer.appendChild(videoContainer);
-                
+
             } else if (file.type.startsWith('audio/')) {
                 const audioDiv = document.createElement('div');
                 audioDiv.className = 'flex items-center space-x-3 p-2 bg-secondary-50 rounded-lg w-full';
@@ -646,7 +638,7 @@
                     </div>
                 `;
                 previewContainer.appendChild(audioDiv);
-                
+
             } else {
                 // Document preview
                 const docDiv = document.createElement('div');
@@ -687,12 +679,12 @@
 
             filePreview.classList.remove('hidden');
             console.log('Media preview shown successfully');
-            
+
             // Scroll to show the preview
             setTimeout(() => {
                 filePreview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }, 100);
-            
+
         } catch (error) {
             console.error('Error creating media preview:', error);
             hideMediaPreview();
@@ -703,28 +695,28 @@
     function hideMediaPreview() {
         const filePreview = document.getElementById('filePreview');
         const previewContainer = document.getElementById('previewContent');
-        
+
         if (filePreview) {
             filePreview.classList.add('hidden');
         }
-        
+
         if (previewContainer) {
             // Clean up object URLs to prevent memory leaks
             const images = previewContainer.querySelectorAll('img');
             const videos = previewContainer.querySelectorAll('video');
-            
+
             images.forEach(img => {
                 if (img.src.startsWith('blob:')) {
                     URL.revokeObjectURL(img.src);
                 }
             });
-            
+
             videos.forEach(video => {
                 if (video.src.startsWith('blob:')) {
                     URL.revokeObjectURL(video.src);
                 }
             });
-            
+
             previewContainer.innerHTML = '';
         }
     }
@@ -733,7 +725,7 @@
     function initializeMediaHandlers() {
         const mediaInput = document.getElementById('mediaInput');
         const removeFile = document.getElementById('removeFile');
-        
+
         if (mediaInput) {
             mediaInput.addEventListener('change', function(e) {
                 const file = e.target.files[0];
@@ -773,7 +765,7 @@
         initializeMediaHandlers();
     }
 
-    
+
 
     scrollToBottom();
 
@@ -1138,6 +1130,8 @@
         this.recordedBlob = null;
         this.recordingPreview.classList.add('hidden');
         this.resetProgressAndTimer();
+        // Also reset the voice button
+        this.toggleRecordingUI(false);
         console.log('Recording deleted');
       }
 
@@ -1247,6 +1241,7 @@
       async sendVoiceMessage() {
         if (!this.recordedBlob) {
           console.error('No recorded audio to send');
+          alert('No voice recording found. Please record a message first.');
           return;
         }
 
@@ -1259,7 +1254,7 @@
           formData.append('media', audioFile);
           formData.append('msg', ''); // Empty message for voice only
 
-          console.log('Sending voice message...', audioFile.name, audioFile.type);
+          console.log('Sending voice message...', audioFile.name, audioFile.type, 'Size:', audioFile.size);
           const response = await fetch(`/groupchat/${groupId}`, {
             method: 'POST',
             body: formData
@@ -1271,7 +1266,7 @@
             this.deleteRecording();
             // Hide the recording preview
             this.recordingPreview.classList.add('hidden');
-            
+
             // Stop typing when sending voice message
             clearTimeout(groupTypingTimer);
             if (isGroupTyping) {
@@ -1282,6 +1277,8 @@
                     username: "<%= currentUser.username %>"
                 });
             }
+
+            alert('Voice message sent successfully!');
           } else {
             const errorText = await response.text();
             console.error('Voice message send failed:', response.status, errorText);

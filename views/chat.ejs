@@ -2002,6 +2002,8 @@
                 this.recordedBlob = null;
                 this.recordingPreview.classList.add('hidden');
                 this.resetProgressAndTimer();
+                // Also reset the voice button
+                this.toggleRecordingUI(false);
                 console.log('Recording deleted');
             }
 
@@ -2131,6 +2133,7 @@
             async sendVoiceMessage() {
                 if (!this.recordedBlob) {
                   console.error('No recorded audio to send');
+                  showNotification('No voice recording found', 'error');
                   return;
                 }
 
@@ -2143,7 +2146,7 @@
                   formData.append('media', audioFile);
                   formData.append('msg', ''); // Empty message for voice only
 
-                  console.log('Sending voice message...', audioFile.name, audioFile.type);
+                  console.log('Sending voice message...', audioFile.name, audioFile.type, 'Size:', audioFile.size);
                   const response = await fetch(`/chat/${otherUserId}`, {
                     method: 'POST',
                     body: formData
@@ -2166,6 +2169,8 @@
                             username: "<%= currentUser.username %>"
                         });
                     }
+                    
+                    showNotification('Voice message sent!', 'success');
                   } else {
                     const errorText = await response.text();
                     console.error('Voice message send failed:', response.status, errorText);
@@ -2173,7 +2178,7 @@
                   }
                 } catch (error) {
                   console.error('Error sending voice message:', error);
-                  alert('Failed to send voice message: ' + error.message);
+                  showNotification('Failed to send voice message: ' + error.message, 'error');
                 }
               }
         }

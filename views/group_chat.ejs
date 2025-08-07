@@ -447,9 +447,9 @@
     </div>
 
     <!-- Media Preview -->
-    <div id="filePreview" class="hidden flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl mx-4 mb-2 shadow-lg">
-      <div id="previewContent" class="flex items-center space-x-3 flex-1"></div>
-      <button id="removeFile" type="button" class="ml-3 p-1 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors">
+    <div id="filePreview" class="hidden flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl mx-4 mb-2 shadow-lg" style="position: relative; z-index: 5;">
+      <div id="previewContent" class="flex items-center space-x-3 flex-1 overflow-hidden"></div>
+      <button id="removeFile" type="button" class="ml-3 p-2 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors flex-shrink-0">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
@@ -457,7 +457,7 @@
     </div>
 
     <!-- Voice Recording Preview -->
-    <div id="voiceRecordingPreview" class="hidden voice-record-preview mx-4 mb-2">
+    <div id="voiceRecordingPreview" class="hidden voice-record-preview mx-4 mb-2" style="position: relative; z-index: 5;">
       <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -485,7 +485,7 @@
     </div>
 
     <!-- Message Input -->
-    <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200 p-4 z-10" style="z-index: 10;">
+    <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200 p-4" style="z-index: 1;">
       <form id="chatForm" enctype="multipart/form-data" class="flex items-center space-x-3">
         <input type="file" name="media" class="hidden" id="mediaInput">
         <label for="mediaInput" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
@@ -576,87 +576,124 @@
 
     // Show media preview function
     function showMediaPreview(file) {
+        console.log('Showing media preview for:', file.name, file.type);
         const filePreview = document.getElementById('filePreview');
         const previewContainer = document.getElementById('previewContent');
 
         if (!filePreview || !previewContainer) {
-            console.error('Preview elements not found');
+            console.error('Preview elements not found:', { filePreview: !!filePreview, previewContainer: !!previewContainer });
             return;
         }
 
         // Clear previous preview
         previewContainer.innerHTML = '';
 
-        if (file.type.startsWith('image/')) {
-            const img = document.createElement('img');
-            img.src = URL.createObjectURL(file);
-            img.className = 'max-h-40 max-w-full rounded object-contain';
-            img.alt = file.name;
-            img.onload = function() {
-                URL.revokeObjectURL(this.src);
-            };
-            previewContainer.appendChild(img);
-        } else if (file.type.startsWith('video/')) {
-            const video = document.createElement('video');
-            video.src = URL.createObjectURL(file);
-            video.className = 'max-h-40 max-w-full rounded';
-            video.controls = true;
-            video.muted = true;
-            video.preload = 'metadata';
-            previewContainer.appendChild(video);
-        } else if (file.type.startsWith('audio/')) {
-            const audioDiv = document.createElement('div');
-            audioDiv.className = 'flex items-center space-x-3 p-3 bg-secondary-100 rounded-lg';
-            audioDiv.innerHTML = `
-                <svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.586 14H2a1 1 0 01-1-1V7a1 1 0 011-1h2.586L8.383 3.076zM12 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4-1a1 1 0 011 1v2a1 1 0 11-2 0V8a1 1 0 011-1z"/>
-                </svg>
-                <div class="flex-1">
+        try {
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'max-h-32 max-w-full rounded object-contain border border-secondary-200';
+                img.alt = file.name;
+                img.onload = function() {
+                    URL.revokeObjectURL(this.src);
+                };
+                
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'flex items-center space-x-3';
+                imgContainer.appendChild(img);
+                
+                const textDiv = document.createElement('div');
+                textDiv.innerHTML = `
                     <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
-                    <p class="text-xs text-secondary-500">Audio File • ${formatFileSize(file.size)}</p>
-                </div>
-            `;
-            previewContainer.appendChild(audioDiv);
-        } else {
-            // Document preview
-            const docDiv = document.createElement('div');
-            docDiv.className = 'flex items-center space-x-3 p-3 bg-secondary-100 rounded-lg';
+                    <p class="text-xs text-secondary-500">Image • ${formatFileSize(file.size)}</p>
+                `;
+                imgContainer.appendChild(textDiv);
+                previewContainer.appendChild(imgContainer);
+                
+            } else if (file.type.startsWith('video/')) {
+                const video = document.createElement('video');
+                video.src = URL.createObjectURL(file);
+                video.className = 'max-h-32 max-w-40 rounded border border-secondary-200';
+                video.controls = true;
+                video.muted = true;
+                video.preload = 'metadata';
+                
+                const videoContainer = document.createElement('div');
+                videoContainer.className = 'flex items-center space-x-3';
+                videoContainer.appendChild(video);
+                
+                const textDiv = document.createElement('div');
+                textDiv.innerHTML = `
+                    <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
+                    <p class="text-xs text-secondary-500">Video • ${formatFileSize(file.size)}</p>
+                `;
+                videoContainer.appendChild(textDiv);
+                previewContainer.appendChild(videoContainer);
+                
+            } else if (file.type.startsWith('audio/')) {
+                const audioDiv = document.createElement('div');
+                audioDiv.className = 'flex items-center space-x-3 p-2 bg-secondary-50 rounded-lg w-full';
+                audioDiv.innerHTML = `
+                    <svg class="w-8 h-8 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.586 14H2a1 1 0 01-1-1V7a1 1 0 011-1h2.586L8.383 3.076zM12 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4-1a1 1 0 011 1v2a1 1 0 11-2 0V8a1 1 0 011-1z"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-secondary-900 truncate">${escapeHtml(file.name)}</p>
+                        <p class="text-xs text-secondary-500">Audio File • ${formatFileSize(file.size)}</p>
+                    </div>
+                `;
+                previewContainer.appendChild(audioDiv);
+                
+            } else {
+                // Document preview
+                const docDiv = document.createElement('div');
+                docDiv.className = 'flex items-center space-x-3 p-2 bg-secondary-50 rounded-lg w-full';
 
-            let iconColor = "text-blue-500";
-            let fileType = "Document";
+                let iconColor = "text-blue-500";
+                let fileType = "Document";
 
-            // Different icons for different file types
-            if (file.type.includes('pdf')) {
-                iconColor = "text-red-500";
-                fileType = "PDF";
-            } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
-                iconColor = "text-blue-600";
-                fileType = "Word Document";
-            } else if (file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
-                iconColor = "text-green-600";
-                fileType = "Spreadsheet";
-            } else if (file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) {
-                iconColor = "text-orange-500";
-                fileType = "Presentation";
-            } else if (file.name.endsWith('.zip') || file.name.endsWith('.rar')) {
-                iconColor = "text-yellow-500";
-                fileType = "Archive";
+                // Different icons for different file types
+                if (file.type.includes('pdf') || file.name.endsWith('.pdf')) {
+                    iconColor = "text-red-500";
+                    fileType = "PDF";
+                } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
+                    iconColor = "text-blue-600";
+                    fileType = "Word Document";
+                } else if (file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+                    iconColor = "text-green-600";
+                    fileType = "Spreadsheet";
+                } else if (file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) {
+                    iconColor = "text-orange-500";
+                    fileType = "Presentation";
+                } else if (file.name.endsWith('.zip') || file.name.endsWith('.rar')) {
+                    iconColor = "text-yellow-500";
+                    fileType = "Archive";
+                }
+
+                docDiv.innerHTML = `
+                    <svg class="w-8 h-8 ${iconColor} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-secondary-900 truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
+                        <p class="text-xs text-secondary-500">${fileType} • ${formatFileSize(file.size)}</p>
+                    </div>
+                `;
+                previewContainer.appendChild(docDiv);
             }
 
-            docDiv.innerHTML = `
-                <svg class="w-8 h-8 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <div class="flex-1">
-                    <p class="text-sm font-medium text-secondary-900 truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
-                    <p class="text-xs text-secondary-500">${fileType} • ${formatFileSize(file.size)}</p>
-                </div>
-            `;
-            previewContainer.appendChild(docDiv);
+            filePreview.classList.remove('hidden');
+            console.log('Media preview shown successfully');
+            
+            // Scroll to show the preview
+            setTimeout(() => {
+                filePreview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+            
+        } catch (error) {
+            console.error('Error creating media preview:', error);
+            hideMediaPreview();
         }
-
-        filePreview.classList.remove('hidden');
-        scrollToBottom();
     }
 
     // Hide media preview function
@@ -720,8 +757,18 @@
         }
     }
 
-    // Initialize media handlers immediately
-    initializeMediaHandlers();
+    // Initialize media handlers when DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeMediaHandlers();
+        console.log('Media handlers initialized');
+    });
+
+    // Also initialize immediately if DOM is already loaded
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeMediaHandlers);
+    } else {
+        initializeMediaHandlers();
+    }
 
     
 
@@ -1209,7 +1256,7 @@
           formData.append('media', audioFile);
           formData.append('msg', ''); // Empty message for voice only
 
-          console.log('Sending voice message...', audioFile);
+          console.log('Sending voice message...', audioFile.name, audioFile.type);
           const response = await fetch('/groupchat/' + groupId, {
             method: 'POST',
             body: formData
@@ -1222,11 +1269,13 @@
             // Hide the recording preview
             this.recordingPreview.classList.add('hidden');
           } else {
-            throw new Error('Failed to send voice message');
+            const errorText = await response.text();
+            console.error('Voice message send failed:', response.status, errorText);
+            throw new Error('Failed to send voice message: ' + response.status);
           }
         } catch (error) {
           console.error('Error sending voice message:', error);
-          alert('Failed to send voice message');
+          alert('Failed to send voice message: ' + error.message);
         }
       }
 

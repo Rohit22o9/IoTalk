@@ -570,21 +570,23 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
   <script>
-    // Initialize socket
+    // Initialize socket and group chat variables
     const socket = io();
     const groupId = "<%= group._id %>";
     const currentUserId = "<%= currentUser._id %>";
+    const currentUsername = "<%= currentUser.username %>";
     const groupTypingIndicator = document.getElementById('groupTypingIndicator');
     const groupTypingText = document.getElementById('groupTypingText');
     const typingUsers = new Set();
     let groupTypingTimer;
     let isGroupTyping = false;
+    let selectedFile = null;
 
     socket.emit('joinGroup', groupId);
 
     // Initialize notification manager
     if (window.notificationManager) {
-        window.notificationManager.setSocket(socket, '<%= currentUser._id %>');
+        window.notificationManager.setSocket(socket, currentUserId);
     }
 
     // Request notification permission explicitly
@@ -596,23 +598,11 @@
 
     const form = document.getElementById('chatForm');
     const chatBox = document.getElementById('chatBox');
-    let mediaInput = document.getElementById('mediaInput');
+    const mediaInput = document.getElementById('mediaInput');
     const filePreview = document.getElementById('filePreview');
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
-    const messageInput = form.querySelector('textarea[name="msg"]'); // Use textarea
-
-    // Ensure media input is properly initialized
-    if (!mediaInput) {
-        console.error('Media input not found, attempting to re-select...');
-        setTimeout(() => {
-            mediaInput = document.getElementById('mediaInput');
-            if (mediaInput) {
-                console.log('Media input found on retry');
-                initializeMediaHandlers();
-            }
-        }, 100);
-    }
+    const messageInput = form.querySelector('textarea[name="msg"]');
 
     function scrollToBottom() {
       chatBox.scrollTop = chatBox.scrollHeight;
@@ -638,19 +628,17 @@
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
-    // Show media preview function
+    // Show media preview function (fixed from personal chat)
     function showMediaPreview(file) {
         console.log('Showing media preview for:', file.name, file.type);
-        const filePreview = document.getElementById('filePreview');
-        const previewContainer = document.getElementById('previewContent');
-
-        if (!filePreview || !previewContainer) {
-            console.error('Preview elements not found:', { filePreview: !!filePreview, previewContainer: !!previewContainer });
+        
+        if (!filePreview || !previewContent) {
+            console.error('Preview elements not found');
             return;
         }
 
         // Clear previous preview
-        previewContainer.innerHTML = '';
+        previewContent.innerHTML = '';
 
         try {
             if (file.type.startsWith('image/')) {
@@ -672,7 +660,7 @@
                     <p class="text-xs text-secondary-500">Image • ${formatFileSize(file.size)}</p>
                 `;
                 imgContainer.appendChild(textDiv);
-                previewContainer.appendChild(imgContainer);
+                previewContent.appendChild(imgContainer);
 
             } else if (file.type.startsWith('video/')) {
                 const video = document.createElement('video');
@@ -692,7 +680,7 @@
                     <p class="text-xs text-secondary-500">Video • ${formatFileSize(file.size)}</p>
                 `;
                 videoContainer.appendChild(textDiv);
-                previewContainer.appendChild(videoContainer);
+                previewContent.appendChild(videoContainer);
 
             } else if (file.type.startsWith('audio/')) {
                 const audioDiv = document.createElement('div');
@@ -706,7 +694,7 @@
                         <p class="text-xs text-secondary-500">Audio File • ${formatFileSize(file.size)}</p>
                     </div>
                 `;
-                previewContainer.appendChild(audioDiv);
+                previewContent.appendChild(audioDiv);
 
             } else {
                 // Document preview
@@ -743,7 +731,7 @@
                         <p class="text-xs text-secondary-500">${fileType} • ${formatFileSize(file.size)}</p>
                     </div>
                 `;
-                previewContainer.appendChild(docDiv);
+                previewContent.appendChild(docDiv);
             }
 
             filePreview.classList.remove('hidden');
@@ -762,17 +750,14 @@
 
     // Hide media preview function
     function hideMediaPreview() {
-        const filePreview = document.getElementById('filePreview');
-        const previewContainer = document.getElementById('previewContent');
-
         if (filePreview) {
             filePreview.classList.add('hidden');
         }
 
-        if (previewContainer) {
+        if (previewContent) {
             // Clean up object URLs to prevent memory leaks
-            const images = previewContainer.querySelectorAll('img');
-            const videos = previewContainer.querySelectorAll('video');
+            const images = previewContent.querySelectorAll('img');
+            const videos = previewContent.querySelectorAll('video');
 
             images.forEach(img => {
                 if (img.src.startsWith('blob:')) {
@@ -786,68 +771,31 @@
                 }
             });
 
-            previewContainer.innerHTML = '';
+            previewContent.innerHTML = '';
         }
     }
-
-    // Initialize media input handlers
-    function initializeMediaHandlers() {
-        const mediaInput = document.getElementById('mediaInput');
-        const removeFile = document.getElementById('removeFile');
-
-        if (mediaInput && !mediaInput.hasAttribute('data-initialized')) {
-            mediaInput.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    console.log('File selected:', file.name, file.type);
-                    showMediaPreview(file);
-                } else {
-                    hideMediaPreview();
-                }
-            });
-            mediaInput.setAttribute('data-initialized', 'true');
-            console.log('Media input handler attached');
-        } else if (!mediaInput) {
-            console.error('Media input element not found');
-        }
-
-        if (removeFile && !removeFile.hasAttribute('data-initialized')) {
-            removeFile.addEventListener('click', () => {
-                if (mediaInput) {
-                    mediaInput.value = '';
-                }
-                hideMediaPreview();
-            });
-            removeFile.setAttribute('data-initialized', 'true');
-            console.log('Remove file handler attached');
-        } else if (!removeFile) {
-            console.error('Remove file button not found');
-        }
-    }
-
-    // Initialize media input handlers when DOM is fully loaded
-    document.addEventListener('DOMContentLoaded', function() {
-        initializeMediaHandlers();
-        console.log('Media handlers initialized');
-    });
-
-    // Also initialize immediately if DOM is already loaded
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeMediaHandlers);
-    } else {
-        initializeMediaHandlers();
-    }
-
-    // Ensure media handlers are initialized on page load
-    window.addEventListener('load', function() {
-        if (!mediaInput.hasAttribute('data-initialized')) {
-            initializeMediaHandlers();
-        }
-    });
 
 
 
     scrollToBottom();
+
+    // File input change
+    mediaInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            selectedFile = file;
+            showMediaPreview(file);
+        } else {
+            hideMediaPreview();
+        }
+    });
+
+    // Remove file preview
+    removeFile.addEventListener('click', () => {
+        selectedFile = null;
+        hideMediaPreview();
+        mediaInput.value = '';
+    });
 
     // Group typing detection
     messageInput.addEventListener('input', () => {
@@ -856,7 +804,7 @@
         socket.emit('group typing start', {
           from: currentUserId,
           groupId: groupId,
-          username: "<%= currentUser.username %>"
+          username: currentUsername
         });
       }
 
@@ -866,102 +814,72 @@
         socket.emit('group typing stop', {
           from: currentUserId,
           groupId: groupId,
-          username: "<%= currentUser.username %>"
+          username: currentUsername
         });
       }, 1000);
     });
 
     messageInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { // Prevent enter from submitting the form unless shift+enter
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        form.dispatchEvent(new Event('submit'));
       }
     });
 
-    // Send message form submission handler
-    form.addEventListener('submit', async function(e) {
+    // Message form submission
+    form.addEventListener('submit', function(e) {
         e.preventDefault();
-        await sendMessage();
-    });
-
-    // Send button click handler
-    const sendButton = form.querySelector('button[type="submit"]');
-    if (sendButton) {
-        sendButton.addEventListener('click', async function(e) {
-            e.preventDefault();
-            await sendMessage();
-        });
-    }
-
-    async function sendMessage() {
-        const messageText = messageInput.value.trim();
-        const mediaFile = mediaInput ? mediaInput.files[0] : null;
-
-        if (!messageText && !mediaFile) {
-            console.log('No message or media to send');
-            return;
-        }
-
-        // Stop typing when sending message
-        clearTimeout(groupTypingTimer);
-        if (isGroupTyping) {
-            isGroupTyping = false;
-            socket.emit('group typing stop', {
-                from: currentUserId,
-                groupId: groupId,
-                username: "<%= currentUser.username %>"
-            });
-        }
+        
+        const message = messageInput.value.trim();
+        if (!message && !selectedFile) return;
 
         const formData = new FormData();
-        if (messageText) formData.append('msg', messageText);
-        if (mediaFile) {
-            formData.append('media', mediaFile);
-            console.log('Sending media file:', mediaFile.name, mediaFile.type, 'Size:', mediaFile.size);
-        }
+        if (message) formData.append('msg', message);
+        if (selectedFile) formData.append('media', selectedFile);
 
-        try {
-            console.log('Sending group message...', { hasText: !!messageText, hasMedia: !!mediaFile });
-            const response = await fetch('/groupchat/' + groupId, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (response.ok) {
-                const result = await response.json();
+        fetch(`/groupchat/${groupId}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
                 console.log('Group message sent successfully:', result);
-
-                // Clear form
+                
                 messageInput.value = '';
-                if (mediaInput) {
-                    mediaInput.value = '';
-                }
+                selectedFile = null;
                 hideMediaPreview();
+                mediaInput.value = '';
+                
+                // Stop typing indicator
+                if (socket) {
+                    socket.emit('group typing stop', {
+                        from: currentUserId,
+                        groupId: groupId,
+                        username: currentUsername
+                    });
+                }
+                isGroupTyping = false;
 
                 // Reset input height
                 messageInput.style.height = 'auto';
-
+                
                 // Scroll to bottom to show new message
                 setTimeout(() => {
                     scrollToBottom();
                 }, 100);
             } else {
-                console.error('Failed to send group message:', response.status);
-                try {
-                    const errorData = await response.json();
-                    console.error('Error details:', errorData);
-                    alert('Failed to send message: ' + (errorData.error || 'Unknown error'));
-                } catch (parseError) {
-                    const errorText = await response.text();
-                    console.error('Error details (text):', errorText);
-                    alert('Failed to send message');
-                }
+                console.error('Failed to send group message:', result);
+                alert('Failed to send message: ' + (result.error || 'Unknown error'));
             }
-        } catch (error) {
+        })
+        .catch(error => {
             console.error('Error sending group message:', error);
-            alert('Error sending message: ' + error.message);
-        }
-    }
+            alert('Failed to send message');
+        });
+    });
+
+    
 
 
     socket.on('group message', msg => {
@@ -1340,7 +1258,7 @@
         }
       }
 
-      sendVoiceMessage() {
+      async sendVoiceMessage() {
         if (!this.recordedBlob) {
           console.error('No recorded audio to send');
           alert('No voice recording found. Please record a message first.');
@@ -1376,11 +1294,14 @@
                 socket.emit('group typing stop', {
                     from: currentUserId,
                     groupId: groupId,
-                    username: "<%= currentUser.username %>"
+                    username: currentUsername
                 });
             }
 
-            alert('Voice message sent successfully!');
+            // Scroll to bottom
+            setTimeout(() => {
+                scrollToBottom();
+            }, 100);
           } else {
             const errorText = await response.text();
             console.error('Voice message send failed:', response.status, errorText);

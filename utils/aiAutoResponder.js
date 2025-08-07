@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+// Note: using dynamic import for node-fetch in functions below
 
 class AIAutoResponder {
     constructor() {
@@ -56,7 +56,7 @@ class AIAutoResponder {
                         },
                         {
                             role: 'user',
-                            content: `Based on this conversation context, generate ${maxReplies} possible replies:\n${context}`
+                            content: `Based on this conversation context, generate ${maxReplies} possible replies:\n${conversationHistory.map(c => `${c.from}: ${c.message}`).join('\n')}`
                         }
                     ],
                     max_tokens: 100,
@@ -105,7 +105,7 @@ class AIAutoResponder {
                             content: `You are ModernBot, a helpful assistant in a group chat. 
                                     Provide helpful, concise responses. Be friendly but not overly chatty.
                                     Current user context: The message is from ${username}.
-                                    Group conversation context: ${context}`
+                                    Group conversation context: ${conversationHistory.map(c => `${c.from}: ${c.message}`).join('\n')}`
                         },
                         {
                             role: 'user',

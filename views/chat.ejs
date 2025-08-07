@@ -281,12 +281,12 @@
                                         <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
                                              alt="Media" 
                                              class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
-                                             onclick="openMediaPreview(this.src, 'image', '<%= escapeHtml(chat.originalName || chat.media.split('/').pop()) %>')">
+                                             onclick="openMediaPreview(this.src, 'image', '<%= (chat.originalName || chat.media.split('/').pop()).replace(/'/g, '&apos;') %>')">
                                     </div>
                                 <% } else if (isVideo) { %>
                                     <div class="mb-2">
                                         <div class="relative cursor-pointer group" 
-                                             onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= escapeHtml(chat.originalName || chat.media.split('/').pop()) %>')">
+                                             onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= (chat.originalName || chat.media.split('/').pop()).replace(/'/g, '&apos;') %>')">
                                             <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
                                                 <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
                                                 Your browser does not support the video tag.
@@ -636,6 +636,7 @@
 
         // Utility functions
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -773,6 +774,7 @@
                 console.log('Notification permission:', permission);
             });
         }
+
         // Typing detection
         msgInput.addEventListener('input', () => {
             if (!isTyping) {

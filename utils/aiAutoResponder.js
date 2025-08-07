@@ -1,4 +1,3 @@
-
 const fetch = require('node-fetch');
 
 class AIAutoResponder {
@@ -41,11 +40,7 @@ class AIAutoResponder {
         }
 
         try {
-            const context = conversationHistory
-                .slice(-5) // Last 5 messages for context
-                .map(msg => `${msg.from}: ${msg.message}`)
-                .join('\n');
-
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -70,17 +65,17 @@ class AIAutoResponder {
             });
 
             const data = await response.json();
-            
+
             if (data.choices && data.choices[0]) {
                 const replies = data.choices[0].message.content
                     .trim()
                     .split('\n')
                     .filter(reply => reply.trim().length > 0)
                     .slice(0, maxReplies);
-                
+
                 return replies;
             }
-            
+
             return [];
         } catch (error) {
             console.error('Smart replies generation error:', error);
@@ -95,11 +90,7 @@ class AIAutoResponder {
         }
 
         try {
-            const context = conversationHistory
-                .slice(-8) // More context for group chats
-                .map(msg => `${msg.from}: ${msg.message}`)
-                .join('\n');
-
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -111,11 +102,14 @@ class AIAutoResponder {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are ModernBot, a helpful AI assistant in a group chat. Respond naturally and conversationally. Keep responses concise and friendly. You're responding to ${username}.`
+                            content: `You are ModernBot, a helpful assistant in a group chat. 
+                                    Provide helpful, concise responses. Be friendly but not overly chatty.
+                                    Current user context: The message is from ${username}.
+                                    Group conversation context: ${context}`
                         },
                         {
                             role: 'user',
-                            content: `Group conversation context:\n${context}\n\nLatest message: ${message}\n\nGenerate an appropriate response:`
+                            content: message
                         }
                     ],
                     max_tokens: 150,
@@ -124,11 +118,11 @@ class AIAutoResponder {
             });
 
             const data = await response.json();
-            
+
             if (data.choices && data.choices[0]) {
                 return data.choices[0].message.content.trim();
             }
-            
+
             return null;
         } catch (error) {
             console.error('Group response generation error:', error);
@@ -139,7 +133,7 @@ class AIAutoResponder {
     // Check if message should trigger group AI response
     shouldRespondInGroup(message) {
         const lowerMessage = message.toLowerCase();
-        
+
         // Respond if tagged
         if (lowerMessage.includes('@modernbot') || lowerMessage.includes('modernbot')) {
             return true;
@@ -163,11 +157,11 @@ class AIAutoResponder {
     detectSentiment(message) {
         const positiveWords = ['happy', 'good', 'great', 'awesome', 'amazing', 'love', 'like', 'thanks', 'thank you'];
         const negativeWords = ['sad', 'bad', 'hate', 'angry', 'upset', 'terrible', 'awful', 'disappointed'];
-        
+
         const words = message.toLowerCase().split(/\s+/);
         const positiveCount = words.filter(word => positiveWords.includes(word)).length;
         const negativeCount = words.filter(word => negativeWords.includes(word)).length;
-        
+
         if (positiveCount > negativeCount) return 'positive';
         if (negativeCount > positiveCount) return 'negative';
         return 'neutral';

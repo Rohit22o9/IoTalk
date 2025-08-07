@@ -184,12 +184,11 @@
               <% } else if (isAudio) { %>
                 <div class="voice-message-container relative group">
                   <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
-                    <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
+                    <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
                     </svg>
-                    <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
                     </svg>
                   </button>
                   <div class="voice-progress-bar-container">
@@ -667,9 +666,13 @@
             });
 
             if (response.ok) {
+                const result = await response.json();
+                console.log('Message sent successfully:', result);
+                
                 msgInput.value = '';
                 selectedFile = null;
                 hideMediaPreview();
+                mediaInput.value = '';
                 
                 // Stop typing indicator
                 socket.emit('typing stop', {
@@ -681,8 +684,15 @@
 
                 // Reset input height
                 msgInput.style.height = 'auto';
+                
+                // Scroll to bottom to show new message
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 100);
             } else {
-                alert('Failed to send message');
+                const errorData = await response.json();
+                console.error('Failed to send message:', errorData);
+                alert('Failed to send message: ' + (errorData.error || 'Unknown error'));
             }
         } catch (error) {
             console.error('Error sending message:', error);
@@ -750,12 +760,11 @@
                 mediaContent = `
                     <div class="voice-message-container">
                         <button class="voice-play-btn" data-audio-src="${data.media}">
-                            <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
+                            <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
                             </svg>
-                            <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
                             </svg>
                         </button>
                         <div class="voice-progress-bar-container">

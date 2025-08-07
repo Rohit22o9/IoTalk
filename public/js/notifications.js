@@ -49,19 +49,25 @@ class NotificationManager {
         // Listen for new messages
         this.socket.on('chat message', (data) => {
             if (data.from._id !== this.currentUserId) {
-                this.showMessageNotification(data);
-                // Play notification sound
-                this.playNotificationSound();
+                // Only show notification if not on the current chat page
+                if (!this.isOnChatPage(data.from._id)) {
+                    this.showMessageNotification(data);
+                    // Play notification sound
+                    this.playNotificationSound();
+                }
             }
         });
 
         this.socket.on('group message', (data) => {
             if (data.from._id !== this.currentUserId) {
-                this.showGroupMessageNotification(data);
+                // Only show notification if not on the current group chat page
+                if (!this.isOnGroupChatPage(data.group._id)) {
+                    this.showGroupMessageNotification(data);
+                }
             }
         });
 
-        // Listen for calls
+        // Listen for calls - always show these regardless of page
         this.socket.on('incoming-call', (data) => {
             this.showCallNotification(data);
         });
@@ -176,7 +182,10 @@ class NotificationManager {
     }
 
     showBrowserNotification(title, body, options = {}) {
-        if (Notification.permission === 'granted' && document.hidden) {
+        // Show browser notifications only if page is hidden OR user is on dashboard
+        const shouldShowBrowserNotification = document.hidden || this.isOnDashboard();
+        
+        if (Notification.permission === 'granted' && shouldShowBrowserNotification) {
             const notification = new Notification(title, {
                 body: body,
                 icon: options.icon || '/favicon.ico',
@@ -201,6 +210,14 @@ class NotificationManager {
     showToastNotification(title, body, type, options = {}) {
         const container = document.getElementById('toast-container');
         if (!container) return;
+
+        // For calls, always show toast notifications regardless of page
+        const isCallNotification = type === 'call' || type === 'group-call';
+        
+        // For messages, only show if on dashboard or if it's a call notification
+        if (!isCallNotification && !this.isOnDashboard()) {
+            return;
+        }
 
         const toast = document.createElement('div');
         toast.className = `
@@ -405,6 +422,24 @@ class NotificationManager {
         if ('vibrate' in navigator) {
             navigator.vibrate([200, 100, 200]);
         }
+    }
+
+    // Check if user is currently on a specific chat page
+    isOnChatPage(userId) {
+        const currentPath = window.location.pathname;
+        return currentPath === `/chat/${userId}`;
+    }
+
+    // Check if user is currently on a specific group chat page
+    isOnGroupChatPage(groupId) {
+        const currentPath = window.location.pathname;
+        return currentPath === `/groups/${groupId}`;
+    }
+
+    // Check if user is on dashboard
+    isOnDashboard() {
+        const currentPath = window.location.pathname;
+        return currentPath === '/dashboard' || currentPath === '/';
     }
 }
 

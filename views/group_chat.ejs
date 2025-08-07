@@ -595,11 +595,23 @@
 
     const form = document.getElementById('chatForm');
     const chatBox = document.getElementById('chatBox');
-    const mediaInput = document.getElementById('mediaInput');
+    let mediaInput = document.getElementById('mediaInput');
     const filePreview = document.getElementById('filePreview');
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
     const messageInput = form.querySelector('textarea[name="msg"]'); // Use textarea
+    
+    // Ensure media input is properly initialized
+    if (!mediaInput) {
+        console.error('Media input not found, attempting to re-select...');
+        setTimeout(() => {
+            mediaInput = document.getElementById('mediaInput');
+            if (mediaInput) {
+                console.log('Media input found on retry');
+                initializeMediaHandlers();
+            }
+        }, 100);
+    }
 
     function scrollToBottom() {
       chatBox.scrollTop = chatBox.scrollHeight;
@@ -782,7 +794,7 @@
         const mediaInput = document.getElementById('mediaInput');
         const removeFile = document.getElementById('removeFile');
 
-        if (mediaInput) {
+        if (mediaInput && !mediaInput.hasAttribute('data-initialized')) {
             mediaInput.addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (file) {
@@ -792,18 +804,22 @@
                     hideMediaPreview();
                 }
             });
-        } else {
+            mediaInput.setAttribute('data-initialized', 'true');
+            console.log('Media input handler attached');
+        } else if (!mediaInput) {
             console.error('Media input element not found');
         }
 
-        if (removeFile) {
+        if (removeFile && !removeFile.hasAttribute('data-initialized')) {
             removeFile.addEventListener('click', () => {
                 if (mediaInput) {
                     mediaInput.value = '';
                 }
                 hideMediaPreview();
             });
-        } else {
+            removeFile.setAttribute('data-initialized', 'true');
+            console.log('Remove file handler attached');
+        } else if (!removeFile) {
             console.error('Remove file button not found');
         }
     }
@@ -820,6 +836,13 @@
     } else {
         initializeMediaHandlers();
     }
+
+    // Ensure media handlers are initialized on page load
+    window.addEventListener('load', function() {
+        if (!mediaInput.hasAttribute('data-initialized')) {
+            initializeMediaHandlers();
+        }
+    });
 
 
 
@@ -893,7 +916,7 @@
         if (messageText) formData.append('msg', messageText);
         if (mediaFile) {
             formData.append('media', mediaFile);
-            console.log('Sending media file:', mediaFile.name, mediaFile.type);
+            console.log('Sending media file:', mediaFile.name, mediaFile.type, 'Size:', mediaFile.size);
         }
 
         try {
@@ -916,6 +939,11 @@
 
                 // Reset input height
                 messageInput.style.height = 'auto';
+                
+                // Scroll to bottom to show new message
+                setTimeout(() => {
+                    scrollToBottom();
+                }, 100);
             } else {
                 console.error('Failed to send group message:', response.status);
                 try {

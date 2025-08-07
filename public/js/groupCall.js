@@ -317,10 +317,14 @@ class GroupCallManager {
 }
 
 // Initialize group call manager
-const groupCallManager = new GroupCallManager();
+let groupCallManager;
 
 // Add group call buttons to group chat interface
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize group call manager after DOM is loaded
+    if (typeof io !== 'undefined') {
+        groupCallManager = new GroupCallManager();
+    }
     console.log('Group calls script loaded');
     
     const groupHeader = document.querySelector('.group-header');

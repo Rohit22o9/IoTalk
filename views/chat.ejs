@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -147,11 +146,11 @@
         <% const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext); %>
         <% const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext); %>
         <% const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_')); %>
-        
+
         <div class="flex <%= isOwn ? 'justify-end' : 'justify-start' %>">
           <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl
                       <%= isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20' %> shadow-lg">
-            
+
             <% if (chat.media) { %>
               <% if (isImage) { %>
                 <div class="mb-2">
@@ -229,7 +228,7 @@
                 </div>
               <% } %>
             <% } %>
-            
+
             <% if (chat.msg) { %>
               <div class="relative group">
                 <p class="text-sm leading-relaxed"><%= chat.msg %></p>
@@ -241,7 +240,7 @@
                 <% } %>
               </div>
             <% } %>
-            
+
             <div class="flex items-center justify-between mt-2">
               <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
                 <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
@@ -340,20 +339,20 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
             </svg>
           </label>
-          
+
           <!-- Voice Message Button -->
           <button type="button" id="voice-message-btn" onclick="startVoiceRecording()" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
             <svg class="h-5 w-5 text-secondary-600" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
             </svg>
           </button>
-          
+
           <div class="flex-1 relative">
             <textarea name="msg" id="message-input" placeholder="Type your message..."
                    class="w-full px-4 py-3 bg-secondary-50 border border-secondary-200 rounded-2xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 pr-12 resize-none"
                    autocomplete="off" rows="1" style="min-height: 48px; overflow-y: hidden;"></textarea>
           </div>
-          
+
           <button type="submit" class="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -374,12 +373,12 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </button>
-      
+
       <!-- Media Content Container -->
       <div id="previewMediaContainer" class="flex items-center justify-center w-full h-full">
         <!-- Content will be dynamically inserted here -->
       </div>
-      
+
       <!-- Download Button -->
       <button id="downloadMediaBtn" onclick="downloadMedia()" 
               class="absolute bottom-4 right-4 z-60 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
@@ -405,750 +404,283 @@
     const filePreview = document.getElementById('filePreview');
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
-    
+
     // Initialize socket only if not already initialized
     let socket;
     if (typeof io !== 'undefined') {
       socket = io();
     }
-    
+
     const currentUserId = '<%= currentUser._id %>';
     const otherUserId = '<%= otherUser._id %>';
     const currentUsername = '<%= currentUser.username %>';
-    
-    let isTyping = false;
-    let typingTimer;
-    let selectedFile = null;
-
-    // Join the chat room
-    socket.emit('userOnline', currentUserId);
     const roomId = [currentUserId, otherUserId].sort().join('_');
-    socket.emit('joinRoom', roomId);
 
-    // Initialize notification manager
-    if (window.notificationManager) {
-        window.notificationManager.setSocket(socket, currentUserId);
-    }
+    // Personal call functionality
+    let currentCall = null;
+    let localStream = null;
+    let peerConnection = null;
 
-    // Request notification permission explicitly
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-            console.log('Notification permission:', permission);
-        });
-    }
-
-    // Scroll to bottom
-    function scrollToBottom() {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    scrollToBottom();
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    // Format file size utility
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    // Show media preview function
-    function showMediaPreview(file) {
-        console.log('Showing media preview for:', file.name, file.type);
-        
-        if (!filePreview || !previewContent) {
-            console.error('Preview elements not found');
-            return;
-        }
-
-        // Clear previous preview
-        previewContent.innerHTML = '';
-
-        try {
-            if (file.type.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
-                img.className = 'max-h-32 max-w-full rounded object-contain border border-secondary-200';
-                img.alt = file.name;
-                img.onload = function() {
-                    URL.revokeObjectURL(this.src);
-                };
-
-                const imgContainer = document.createElement('div');
-                imgContainer.className = 'flex items-center space-x-3';
-                imgContainer.appendChild(img);
-
-                const textDiv = document.createElement('div');
-                textDiv.innerHTML = `
-                    <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
-                    <p class="text-xs text-secondary-500">Image • ${formatFileSize(file.size)}</p>
-                `;
-                imgContainer.appendChild(textDiv);
-                previewContent.appendChild(imgContainer);
-
-            } else if (file.type.startsWith('video/')) {
-                const video = document.createElement('video');
-                video.src = URL.createObjectURL(file);
-                video.className = 'max-h-32 max-w-40 rounded border border-secondary-200';
-                video.controls = true;
-                video.muted = true;
-                video.preload = 'metadata';
-
-                const videoContainer = document.createElement('div');
-                videoContainer.className = 'flex items-center space-x-3';
-                videoContainer.appendChild(video);
-
-                const textDiv = document.createElement('div');
-                textDiv.innerHTML = `
-                    <p class="text-sm font-medium text-secondary-900">${escapeHtml(file.name)}</p>
-                    <p class="text-xs text-secondary-500">Video • ${formatFileSize(file.size)}</p>
-                `;
-                videoContainer.appendChild(textDiv);
-                previewContent.appendChild(videoContainer);
-
-            } else if (file.type.startsWith('audio/')) {
-                const audioDiv = document.createElement('div');
-                audioDiv.className = 'flex items-center space-x-3 p-2 bg-secondary-50 rounded-lg w-full';
-                audioDiv.innerHTML = `
-                    <svg class="w-8 h-8 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.586 14H2a1 1 0 01-1-1V7a1 1 0 011-1h2.586L8.383 3.076zM12 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm4-1a1 1 0 011 1v2a1 1 0 11-2 0V8a1 1 0 011-1z"/>
-                    </svg>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-secondary-900 truncate">${escapeHtml(file.name)}</p>
-                        <p class="text-xs text-secondary-500">Audio File • ${formatFileSize(file.size)}</p>
-                    </div>
-                `;
-                previewContent.appendChild(audioDiv);
-
-            } else {
-                // Document preview
-                const docDiv = document.createElement('div');
-                docDiv.className = 'flex items-center space-x-3 p-2 bg-secondary-50 rounded-lg w-full';
-
-                let iconColor = "text-blue-500";
-                let fileType = "Document";
-
-                // Different icons for different file types
-                if (file.type.includes('pdf') || file.name.endsWith('.pdf')) {
-                    iconColor = "text-red-500";
-                    fileType = "PDF";
-                } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
-                    iconColor = "text-blue-600";
-                    fileType = "Word Document";
-                } else if (file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
-                    iconColor = "text-green-600";
-                    fileType = "Spreadsheet";
-                } else if (file.type.includes('presentation') || file.name.endsWith('.ppt') || file.name.endsWith('.pptx')) {
-                    iconColor = "text-orange-500";
-                    fileType = "Presentation";
-                } else if (file.name.endsWith('.zip') || file.name.endsWith('.rar')) {
-                    iconColor = "text-yellow-500";
-                    fileType = "Archive";
-                }
-
-                docDiv.innerHTML = `
-                    <svg class="w-8 h-8 ${iconColor} flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-secondary-900 truncate" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</p>
-                        <p class="text-xs text-secondary-500">${fileType} • ${formatFileSize(file.size)}</p>
-                    </div>
-                `;
-                previewContent.appendChild(docDiv);
-            }
-
-            filePreview.classList.remove('hidden');
-            console.log('Media preview shown successfully');
-
-            // Scroll to show the preview
-            setTimeout(() => {
-                filePreview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
-
-        } catch (error) {
-            console.error('Error creating media preview:', error);
-            hideMediaPreview();
-        }
-    }
-
-    // Hide media preview function
-    function hideMediaPreview() {
-        if (filePreview) {
-            filePreview.classList.add('hidden');
-        }
-
-        if (previewContent) {
-            // Clean up object URLs to prevent memory leaks
-            const images = previewContent.querySelectorAll('img');
-            const videos = previewContent.querySelectorAll('video');
-
-            images.forEach(img => {
-                if (img.src.startsWith('blob:')) {
-                    URL.revokeObjectURL(img.src);
-                }
-            });
-
-            videos.forEach(video => {
-                if (video.src.startsWith('blob:')) {
-                    URL.revokeObjectURL(video.src);
-                }
-            });
-
-            previewContent.innerHTML = '';
-        }
-    }
-
-    // File input change
-    mediaInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            selectedFile = file;
-            showMediaPreview(file);
-        } else {
-            hideMediaPreview();
-        }
-    });
-
-    // Remove file preview
-    removeFile.addEventListener('click', () => {
-        selectedFile = null;
-        hideMediaPreview();
-        mediaInput.value = '';
-    });
-
-    // Typing detection
-    msgInput.addEventListener('input', () => {
-        if (!isTyping) {
-            isTyping = true;
-            socket.emit('typing start', {
-                to: otherUserId,
-                from: currentUserId,
-                username: currentUsername
-            });
-        }
-        
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => {
-            isTyping = false;
-            socket.emit('typing stop', {
-                to: otherUserId,
-                from: currentUserId,
-                username: currentUsername
-            });
-        }, 3000);
-    });
-
-    // Enter key handling
-    msgInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        messageForm.dispatchEvent(new Event('submit'));
-      }
-    });
-
-    // Message form submission
-    messageForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const message = msgInput.value.trim();
-        if (!message && !selectedFile) return;
-
-        const formData = new FormData();
-        if (message) formData.append('msg', message);
-        if (selectedFile) formData.append('media', selectedFile);
-
-        fetch(`/chat/${otherUserId}`, {
+    // Initialize call functionality
+    function initiateCall(type) {
+        fetch('/call/initiate', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                receiverId: otherUserId,
+                type: type
+            })
         })
         .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                console.log('Message sent successfully:', result);
-                
-                msgInput.value = '';
-                selectedFile = null;
-                hideMediaPreview();
-                mediaInput.value = '';
-                
-                // Stop typing indicator
-                if (socket) {
-                    socket.emit('typing stop', {
-                        to: otherUserId,
-                        from: currentUserId,
-                        username: currentUsername
-                    });
-                }
-                isTyping = false;
-
-                // Reset input height
-                msgInput.style.height = 'auto';
-                
-                // Scroll to bottom to show new message
-                setTimeout(() => {
-                    scrollToBottom();
-                }, 100);
+        .then(data => {
+            if (data.success) {
+                currentCall = {
+                    callId: data.callId,
+                    type: type,
+                    isInitiator: true
+                };
+                showCallInterface(type);
             } else {
-                console.error('Failed to send message:', result);
-                alert('Failed to send message: ' + (result.error || 'Unknown error'));
+                alert(data.error || 'Failed to initiate call');
             }
         })
         .catch(error => {
-            console.error('Error sending message:', error);
-            alert('Failed to send message');
+            console.error('Error initiating call:', error);
+            alert('Failed to initiate call');
         });
+    }
+
+    // Listen for incoming calls
+    socket.on('incoming-call', (data) => {
+        showIncomingCallNotification(data);
     });
 
-    // Socket event listeners
-    socket.on('chat message', (data) => {
-        if (data.to._id === currentUserId || data.from._id === currentUserId) {
-            addMessageToChat(data);
-            scrollToBottom();
+    // Listen for call responses
+    socket.on('call-accepted', (data) => {
+        if (currentCall && currentCall.callId === data.callId) {
+            console.log('Call accepted by', data.receiver.username);
         }
     });
 
-    socket.on('user typing', (data) => {
-        if (data.isTyping && data.userId !== currentUserId) {
-            typingIndicator.textContent = `${data.username} is typing...`;
-            typingText.textContent = `${data.username} is typing...`;
-            typingIndicatorContainer.classList.remove('hidden');
-            scrollToBottom();
-        } else {
-            typingIndicator.textContent = '';
-            typingIndicatorContainer.classList.add('hidden');
+    socket.on('call-declined', (data) => {
+        if (currentCall && currentCall.callId === data.callId) {
+            alert('Call declined');
+            endCall();
         }
     });
 
-    // Add message to chat
-    function addMessageToChat(data) {
-        const isOwn = data.from._id === currentUserId;
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `flex ${isOwn ? 'justify-end' : 'justify-start'}`;
-        
-        let mediaContent = '';
-        if (data.media) {
-            const ext = data.media.split('.').pop().toLowerCase();
-            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-            const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(ext);
-            const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || data.originalName?.startsWith('voice_') || (data.media && data.media.includes('voice_'));
-            
-            if (isImage) {
-                mediaContent = `
-                    <div class="mb-2">
-                        <img src="${data.media}" alt="Media" class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity" onclick="openMediaPreview('${data.media}', 'image', '${data.originalName || data.media.split('/').pop()}')">
-                    </div>
-                `;
-            } else if (isVideo && !isAudio) {
-                mediaContent = `
-                    <div class="mb-2">
-                        <div class="relative cursor-pointer group" onclick="openMediaPreview('${data.media}', 'video', '${data.originalName || data.media.split('/').pop()}')">
-                            <video class="rounded-md max-h-60 shadow w-full" preload="metadata">
-                                <source src="${data.media}" type="video/${ext}">
-                            </video>
-                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 group-hover:bg-opacity-50 transition-all rounded-md">
-                                <div class="bg-white bg-opacity-80 rounded-full p-3">
-                                    <svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M8 5v14l11-7z"/>
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } else if (isAudio) {
-                mediaContent = `
-                    <div class="voice-message-container">
-                        <button class="voice-play-btn" data-audio-src="${data.media}">
-                            <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
-                            </svg>
-                            <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
-                            </svg>
-                        </button>
-                        <div class="voice-progress-bar-container">
-                            <div class="voice-progress"></div>
-                        </div>
-                        <div class="voice-duration">0:00</div>
-                    </div>
-                `;
-            } else {
-                const extColor = ext === 'pdf' ? 'text-red-500' :
-                    ['doc','docx'].includes(ext) ? 'text-blue-600' :
-                    ['xls','xlsx'].includes(ext) ? 'text-green-600' :
-                    ['ppt','pptx'].includes(ext) ? 'text-orange-500' :
-                    ['zip','rar'].includes(ext) ? 'text-yellow-500' : 'text-gray-600';
-
-                mediaContent = `
-                    <div class="bg-gray-100 rounded-md p-3 mb-2 shadow flex flex-col space-y-2">
-                        <div class="flex items-center space-x-3">
-                            <svg class="w-6 h-6 ${extColor}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path d="M12 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                                <polyline points="12 2 12 8 18 8"/>
-                            </svg>
-                            <div>
-                                <p class="font-semibold text-gray-800 text-sm truncate max-w-xs">${data.originalName || data.media.split('/').pop()}</p>
-                                <p class="text-xs text-gray-500 uppercase">DOCUMENT</p>
-                            </div>
-                        </div>
-                        <div class="flex space-x-3 mt-1">
-                            <a href="${data.media}" target="_blank" class="text-xs px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Open</a>
-                            <a href="${data.media}" download="${data.originalName || data.media.split('/').pop()}" class="text-xs px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Download</a>
-                        </div>
-                    </div>
-                `;
-            }
+    socket.on('call-ended', (data) => {
+        if (currentCall && currentCall.callId === data.callId) {
+            endCall();
         }
-        
-        messageDiv.innerHTML = `
-            <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg">
-                ${mediaContent}
-                ${data.msg ? `<p class="text-sm leading-relaxed">${escapeHtml(data.msg)}</p>` : ''}
-                <div class="flex items-center justify-between mt-2">
-                    <span class="text-xs ${isOwn ? 'text-primary-100' : 'text-secondary-500'}">
-                        ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+    });
+
+    socket.on('call-timeout', (data) => {
+        if (currentCall && currentCall.callId === data.callId) {
+            alert('Call timeout - no response');
+            endCall();
+        }
+    });
+
+    socket.on('call-cancelled', (data) => {
+        hideCallNotification();
+    });
+
+    function showIncomingCallNotification(data) {
+        const notification = document.createElement('div');
+        notification.id = 'incoming-call-notification';
+        notification.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-white p-6 rounded-lg shadow-xl border z-50 max-w-md';
+
+        notification.innerHTML = `
+            <div class="text-center">
+                <div class="mb-4">
+                    <img src="${data.caller.avatar || '/avatars/default-avatar.png'}" alt="${data.caller.username}" class="w-16 h-16 rounded-full mx-auto mb-2">
+                    <h3 class="text-lg font-semibold">${data.caller.username}</h3>
+                    <p class="text-gray-600">Incoming ${data.type} call</p>
+                </div>
+                <div class="flex justify-center space-x-4">
+                    <button onclick="acceptCall('${data.callId}', '${data.type}')" 
+                            class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600">
+                        Accept
+                    </button>
+                    <button onclick="declineCall('${data.callId}')" 
+                            class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600">
+                        Decline
+                    </button>
                 </div>
             </div>
         `;
-        
-        messagesContainer.appendChild(messageDiv);
-        scrollToBottom();
+
+        document.body.appendChild(notification);
     }
 
-    // Voice message playback
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('.voice-play-btn')) {
-            const btn = e.target.closest('.voice-play-btn');
-            toggleVoicePlayback(btn);
-        }
-    });
-
-    function toggleVoicePlayback(button) {
-        const audioSrc = button.dataset.audioSrc;
-        const playIcon = button.querySelector('.play-icon');
-        const pauseIcon = button.querySelector('.pause-icon');
-        const progressBar = button.closest('.voice-message-container').querySelector('.voice-progress');
-        const durationElement = button.closest('.voice-message-container').querySelector('.voice-duration');
-
-        let audioElement = button.closest('.voice-message-container').querySelector('audio');
-        if (!audioElement) {
-            audioElement = document.createElement('audio');
-            audioElement.src = audioSrc;
-            button.closest('.voice-message-container').appendChild(audioElement);
-        }
-
-        if (audioElement.paused) {
-            // Pause any other playing audio messages
-            document.querySelectorAll('.voice-play-btn').forEach(btn => {
-                const otherAudioElement = btn.closest('.voice-message-container').querySelector('audio');
-                if (otherAudioElement && otherAudioElement !== audioElement && !otherAudioElement.paused) {
-                    otherAudioElement.pause();
-                    const otherPlayIcon = btn.querySelector('.play-icon');
-                    const otherPauseIcon = btn.querySelector('.pause-icon');
-                    if (otherPlayIcon) otherPlayIcon.classList.remove('hidden');
-                    if (otherPauseIcon) otherPauseIcon.classList.add('hidden');
-                    btn.classList.add('bg-primary-500');
-                    btn.classList.remove('bg-gray-600');
-                    btn.setAttribute('title', 'Play');
-                }
-            });
-
-            audioElement.play();
-            if (playIcon) playIcon.classList.add('hidden');
-            if (pauseIcon) pauseIcon.classList.remove('hidden');
-            button.classList.add('bg-gray-600');
-            button.classList.remove('bg-primary-500');
-            button.setAttribute('title', 'Pause');
-
-            audioElement.ontimeupdate = () => {
-                const progressWidth = (audioElement.currentTime / audioElement.duration) * 100;
-                progressBar.style.width = `${progressWidth}%`;
-                const currentTimeMinutes = Math.floor(audioElement.currentTime / 60);
-                const currentTimeSeconds = Math.floor(audioElement.currentTime % 60);
-                durationElement.textContent = `${currentTimeMinutes}:${currentTimeSeconds < 10 ? '0' : ''}${currentTimeSeconds}`;
-            };
-
-            audioElement.onended = () => {
-                if (playIcon) playIcon.classList.remove('hidden');
-                if (pauseIcon) pauseIcon.classList.add('hidden');
-                button.classList.add('bg-primary-500');
-                button.classList.remove('bg-gray-600');
-                button.setAttribute('title', 'Play');
-                progressBar.style.width = '0%';
-                durationElement.textContent = '0:00';
-            };
-        } else {
-            audioElement.pause();
-            if (playIcon) playIcon.classList.remove('hidden');
-            if (pauseIcon) pauseIcon.classList.add('hidden');
-            button.classList.add('bg-primary-500');
-            button.classList.remove('bg-gray-600');
-            button.setAttribute('title', 'Play');
-        }
-    }
-
-    // Media Preview Functions
-    let currentMediaSrc = '';
-    let currentMediaName = '';
-
-    function openMediaPreview(src, type, name) {
-        const modal = document.getElementById('mediaPreviewModal');
-        const container = document.getElementById('previewMediaContainer');
-        
-        currentMediaSrc = src;
-        currentMediaName = name || 'media';
-        
-        container.innerHTML = '';
-        
-        if (type === 'image') {
-            const img = document.createElement('img');
-            img.src = src;
-            img.className = 'max-w-full max-h-full object-contain rounded-lg shadow-2xl';
-            img.alt = name;
-            container.appendChild(img);
-        } else if (type === 'video') {
-            const video = document.createElement('video');
-            video.src = src;
-            video.className = 'max-w-full max-h-full rounded-lg shadow-2xl';
-            video.controls = true;
-            video.autoplay = true;
-            video.preload = 'metadata';
-            container.appendChild(video);
-        }
-        
-        modal.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeMediaPreview() {
-        const modal = document.getElementById('mediaPreviewModal');
-        const container = document.getElementById('previewMediaContainer');
-        
-        const video = container.querySelector('video');
-        if (video) {
-            video.pause();
-            video.currentTime = 0;
-        }
-        
-        modal.classList.add('hidden');
-        document.body.style.overflow = 'auto';
-        container.innerHTML = '';
-        currentMediaSrc = '';
-        currentMediaName = '';
-    }
-
-    function downloadMedia() {
-        if (currentMediaSrc) {
-            const link = document.createElement('a');
-            link.href = currentMediaSrc;
-            link.download = currentMediaName;
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    }
-
-    // Close modal when clicking outside the media or pressing Escape
-    document.getElementById('mediaPreviewModal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeMediaPreview();
-        }
-    });
-
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            closeMediaPreview();
-        }
-    });
-
-    // Voice Recording Functions
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let voiceStream = null;
-
-    async function startVoiceRecording() {
-        try {
-            voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(voiceStream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    audioChunks.push(event.data);
-                }
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-                
-                // Show preview and send
-                selectedFile = audioFile;
-                showMediaPreview(audioFile);
-                
-                // Auto-send voice message
-                setTimeout(() => {
-                    messageForm.dispatchEvent(new Event('submit'));
-                }, 500);
-            };
-
-            mediaRecorder.start();
-            document.getElementById('voice-recording-modal').classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-
-        } catch (error) {
-            console.error('Error starting voice recording:', error);
-            alert('Could not access microphone. Please check permissions.');
-        }
-    }
-
-    function stopVoiceRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-        }
-        
-        if (voiceStream) {
-            voiceStream.getTracks().forEach(track => track.stop());
-            voiceStream = null;
-        }
-        
-        document.getElementById('voice-recording-modal').classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    function cancelVoiceRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-        }
-        
-        if (voiceStream) {
-            voiceStream.getTracks().forEach(track => track.stop());
-            voiceStream = null;
-        }
-        
-        audioChunks = [];
-        document.getElementById('voice-recording-modal').classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    // AI Summarization Functions
-    async function summarizeContent(messageId, type, content) {
-        try {
-            showAISummary();
-            
-            const response = await fetch('/ai/summarize', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    messageId: messageId,
-                    type: type,
-                    content: content
-                })
-            });
-
-            const data = await response.json();
-            
+    function acceptCall(callId, type) {
+        fetch(`/call/${callId}/respond`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: 'accept' })
+        })
+        .then(response => response.json())
+        .then(data => {
             if (data.success) {
-                displayAISummary(data.summary);
-            } else {
-                displayAISummary('Unable to generate summary for this content.');
+                currentCall = {
+                    callId: callId,
+                    type: type,
+                    isInitiator: false
+                };
+                showCallInterface(type);
+                hideCallNotification();
             }
-        } catch (error) {
-            console.error('Summarization error:', error);
-            displayAISummary('Error generating summary. Please try again.');
+        })
+        .catch(error => {
+            console.error('Error accepting call:', error);
+        });
+    }
+
+    function declineCall(callId) {
+        fetch(`/call/${callId}/respond`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: 'decline' })
+        })
+        .then(() => {
+            hideCallNotification();
+        })
+        .catch(error => {
+            console.error('Error declining call:', error);
+        });
+    }
+
+    function hideCallNotification() {
+        const notification = document.getElementById('incoming-call-notification');
+        if (notification) {
+            notification.remove();
         }
     }
 
-    function showAISummary() {
-        const modal = document.getElementById('ai-summary-modal');
-        const loading = document.getElementById('ai-summary-loading');
-        const content = document.getElementById('ai-summary-content');
-        
-        modal.classList.remove('hidden');
-        loading.classList.remove('hidden');
-        content.classList.add('hidden');
-        document.body.style.overflow = 'hidden';
-    }
+    async function showCallInterface(type) {
+        try {
+            // Get user media
+            const constraints = {
+                audio: true,
+                video: type === 'video'
+            };
+            localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-    function displayAISummary(summary) {
-        const loading = document.getElementById('ai-summary-loading');
-        const content = document.getElementById('ai-summary-content');
-        
-        loading.classList.add('hidden');
-        content.classList.remove('hidden');
-        
-        if (typeof summary === 'object') {
-            // For audio/video with transcript and summary
-            content.innerHTML = `
-                <div class="space-y-4">
-                    ${summary.summary ? `<div><h4 class="font-semibold text-gray-900 mb-2">Summary:</h4><p>${summary.summary}</p></div>` : ''}
-                    ${summary.transcript ? `<div><h4 class="font-semibold text-gray-900 mb-2">Full Transcript:</h4><p class="text-sm text-gray-600">${summary.transcript}</p></div>` : ''}
-                    ${summary.note ? `<div class="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">${summary.note}</div>` : ''}
+            const callInterface = document.createElement('div');
+            callInterface.id = 'call-interface';
+            callInterface.className = 'fixed inset-0 bg-gray-900 z-50 flex flex-col';
+
+            callInterface.innerHTML = `
+                <div class="flex-1 flex justify-center items-center p-4">
+                    <div class="text-center text-white">
+                        <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>" alt="<%= otherUser.username %>" class="w-32 h-32 rounded-full mx-auto mb-4">
+                        <h2 class="text-2xl font-semibold"><%= otherUser.username %></h2>
+                        <p class="text-gray-300">${type === 'video' ? 'Video' : 'Audio'} Call</p>
+                        ${type === 'video' ? `
+                            <div class="mt-8 flex justify-center space-x-4">
+                                <video id="local-video" autoplay muted class="w-64 h-48 bg-gray-800 rounded-lg"></video>
+                                <video id="remote-video" autoplay class="w-64 h-48 bg-gray-800 rounded-lg"></video>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-4 flex justify-center space-x-4">
+                    <button id="toggle-audio" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" clip-rule="evenodd"></path>
+                            <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5H10.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"></path>
+                        </svg>
+                    </button>
+                    ${type === 'video' ? `
+                        <button id="toggle-video" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+                            </svg>
+                        </button>
+                    ` : ''}
+                    <button id="end-call" onclick="endCall()" class="bg-red-500 text-white p-3 rounded-full hover:bg-red-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7s-8-3.134-8-7 3.582-7 8-7 8 3.134 8 7zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
                 </div>
             `;
-        } else {
-            content.innerHTML = `<p>${summary}</p>`;
+
+            document.body.appendChild(callInterface);
+
+            // Set local video stream
+            if (type === 'video') {
+                const localVideo = document.getElementById('local-video');
+                localVideo.srcObject = localStream;
+            }
+
+            // Add event listeners for controls
+            document.getElementById('toggle-audio').addEventListener('click', toggleAudio);
+            if (type === 'video') {
+                document.getElementById('toggle-video').addEventListener('click', toggleVideo);
+            }
+
+        } catch (error) {
+            console.error('Error accessing media devices:', error);
+            alert('Could not access camera/microphone');
         }
     }
 
-    function closeAISummary() {
-        const modal = document.getElementById('ai-summary-modal');
-        modal.classList.add('hidden');
-        document.body.style.overflow = 'auto';
-    }
-
-    // Smart Replies Functions
-    function showSmartReplies(replies) {
-        const panel = document.getElementById('smart-replies-panel');
-        const content = document.getElementById('smart-replies-content');
-        
-        content.innerHTML = '';
-        
-        replies.forEach(reply => {
-            const button = document.createElement('button');
-            button.className = 'w-full text-left px-3 py-2 bg-secondary-50 hover:bg-secondary-100 rounded-lg text-sm transition-colors';
-            button.textContent = reply;
-            button.onclick = () => selectSmartReply(reply);
-            content.appendChild(button);
-        });
-        
-        panel.classList.remove('hidden');
-    }
-
-    function selectSmartReply(reply) {
-        msgInput.value = reply;
-        hideSmartReplies();
-        msgInput.focus();
-    }
-
-    function hideSmartReplies() {
-        const panel = document.getElementById('smart-replies-panel');
-        panel.classList.add('hidden');
-    }
-
-    // Listen for smart replies from AI
-    socket.on('smart replies', (data) => {
-        if (data.replies && data.replies.length > 0) {
-            showSmartReplies(data.replies);
+    function toggleAudio() {
+        if (localStream) {
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                const button = document.getElementById('toggle-audio');
+                button.classList.toggle('bg-red-500', !audioTrack.enabled);
+            }
         }
-    });
+    }
 
-    // Call functions
-    function initiateCall(type) {
-        console.log(`Initiating ${type} call with ${otherUserId}`);
-        // Implement call functionality
+    function toggleVideo() {
+        if (localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                const button = document.getElementById('toggle-video');
+                button.classList.toggle('bg-red-500', !videoTrack.enabled);
+            }
+        }
+    }
+
+    function endCall() {
+        if (currentCall) {
+            fetch(`/call/${currentCall.callId}/end`, {
+                method: 'POST'
+            }).catch(error => {
+                console.error('Error ending call:', error);
+            });
+        }
+
+        // Clean up
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+
+        const callInterface = document.getElementById('call-interface');
+        if (callInterface) {
+            callInterface.remove();
+        }
+
+        currentCall = null;
     }
   </script>
 </body>

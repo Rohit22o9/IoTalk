@@ -392,7 +392,7 @@
             <h2 class="text-lg font-semibold mt-2 text-secondary-900"><%= group.name %></h2>
             <p class="text-sm text-secondary-500"><%= group.members.length %> Members</p>
           </div>
-          
+
           <hr class="my-4 w-full border-secondary-200">
 
           <!-- Members List -->
@@ -438,7 +438,7 @@
                   Add Member
                 </button>
               </div>
-              
+
               <!-- Update Group Form -->
               <form action="/groups/<%= group._id %>/update" method="POST" enctype="multipart/form-data" class="w-full space-y-2">
                 <input type="text" name="name" placeholder="New Group Name"
@@ -571,7 +571,7 @@
   <script src="/js/notifications.js"></script>
   <script>
     // Initialize socket and group chat variables
-    const socket = window.socket || io();
+    const chatSocket = io(); // Changed from 'socket' to 'chatSocket'
     const groupId = "<%= group._id %>";
     const currentUserId = "<%= currentUser._id %>";
     const currentUsername = "<%= currentUser.username %>";
@@ -582,11 +582,11 @@
     let isGroupTyping = false;
     let selectedFile = null;
 
-    socket.emit('joinGroup', groupId);
+    chatSocket.emit('joinGroup', groupId); // Use chatSocket
 
     // Initialize notification manager
     if (window.notificationManager) {
-        window.notificationManager.setSocket(socket, currentUserId);
+        window.notificationManager.setSocket(chatSocket, currentUserId); // Use chatSocket
     }
 
     // Request notification permission explicitly
@@ -801,7 +801,7 @@
     messageInput.addEventListener('input', () => {
       if (!isGroupTyping) {
         isGroupTyping = true;
-        socket.emit('group typing start', {
+        chatSocket.emit('group typing start', { // Use chatSocket
           from: currentUserId,
           groupId: groupId,
           username: currentUsername
@@ -811,7 +811,7 @@
       clearTimeout(groupTypingTimer);
       groupTypingTimer = setTimeout(() => {
         isGroupTyping = false;
-        socket.emit('group typing stop', {
+        chatSocket.emit('group typing stop', { // Use chatSocket
           from: currentUserId,
           groupId: groupId,
           username: currentUsername
@@ -852,8 +852,8 @@
                 mediaInput.value = '';
 
                 // Stop typing indicator
-                if (socket) {
-                    socket.emit('group typing stop', {
+                if (chatSocket) { // Use chatSocket
+                    chatSocket.emit('group typing stop', { // Use chatSocket
                         from: currentUserId,
                         groupId: groupId,
                         username: currentUsername
@@ -882,7 +882,7 @@
 
 
 
-    socket.on('group message', msg => {
+    chatSocket.on('group message', msg => { // Use chatSocket
       const isMine = msg.from._id === currentUserId;
       let mediaHTML = '';
 
@@ -979,7 +979,7 @@
     });
 
     // Group typing indicators
-    socket.on('group user typing', ({ userId, username, isTyping }) => {
+    chatSocket.on('group user typing', ({ userId, username, isTyping }) => { // Use chatSocket
       if (userId === currentUserId) return; // Don't show typing for current user
 
       if (isTyping) {
@@ -1449,7 +1449,7 @@
     }
 
     // Handle group message deletion via socket
-    socket.on('group message deleted', ({ messageId, deleteType }) => {
+    chatSocket.on('group message deleted', ({ messageId, deleteType }) => { // Use chatSocket
       try {
         const messageElement = document.querySelector(`[data-id="${messageId}"]`);
         if (messageElement) {
@@ -1461,7 +1461,7 @@
     });
 
     // Handle group message editing via socket
-    socket.on('group message edited', (updatedMessage) => {
+    chatSocket.on('group message edited', (updatedMessage) => { // Use chatSocket
       try {
         const messageElement = document.querySelector(`[data-id="${updatedMessage._id}"]`);
         if (messageElement) {

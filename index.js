@@ -1751,24 +1751,37 @@ io.on('connection', (socket) => {
             // Send any pending notifications
             const pendingCalls = await Call.find({
                 $or: [
-                    { receiver: userId },
-                    { groupId: { $exists: true }, status: 'ringing' }
+                    { receiver: userId, status: 'ringing' },
+                    { 
+                        groupId: { $exists: true }, 
+                        status: 'ringing',
+                        participants: { $ne: userId }
+                    }
                 ],
                 status: 'ringing'
-            }).populate('caller', 'username avatar');
+            }).populate('caller', 'username avatar').populate('groupId', 'name');
 
             pendingCalls.forEach(call => {
                 if (call.groupId) {
                     socket.emit('incoming-group-call', {
                         callId: call._id,
-                        groupId: call.groupId,
-                        caller: call.caller,
+                        groupId: call.groupId._id,
+                        groupName: call.groupId.name,
+                        caller: {
+                            id: call.caller._id,
+                            username: call.caller.username,
+                            avatar: call.caller.avatar
+                        },
                         type: call.type
                     });
-                } else {
+                } else if (call.receiver.toString() === userId) {
                     socket.emit('incoming-call', {
                         callId: call._id,
-                        caller: call.caller,
+                        caller: {
+                            id: call.caller._id,
+                            username: call.caller.username,
+                            avatar: call.caller.avatar
+                        },
                         type: call.type
                     });
                 }

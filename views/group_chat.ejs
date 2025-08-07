@@ -258,7 +258,26 @@
                   <% if (isImage) { %>
                     <div class="mb-2">
                       <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
-                           alt="Media" class="rounded-md max-h-60 shadow">
+                           alt="Media" 
+                           class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
+                           onclick="openMediaPreview(this.src, 'image', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                    </div>
+                  <% } else if (['mp4','avi','mov','wmv','flv','mkv'].includes(ext)) { %>
+                    <div class="mb-2">
+                      <div class="relative cursor-pointer group" 
+                           onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                          <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
+                              <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
+                              Your browser does not support the video tag.
+                          </video>
+                          <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                              <div class="bg-white bg-opacity-80 rounded-full p-3">
+                                  <svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M8 5v14l11-7z"/>
+                                  </svg>
+                              </div>
+                          </div>
+                      </div>
                     </div>
                   <% } else if (isVoice) { %>
                     <div class="voice-message-container">
@@ -516,6 +535,33 @@
       </form>
       </div>
     </footer>
+  </div>
+
+  <!-- Full-Screen Media Preview Modal -->
+  <div id="mediaPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+      <div class="relative max-w-screen-lg max-h-screen-lg w-full h-full flex items-center justify-center p-4">
+          <!-- Close Button -->
+          <button onclick="closeMediaPreview()" 
+                  class="absolute top-4 right-4 z-60 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-colors">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+          </button>
+          
+          <!-- Media Content Container -->
+          <div id="previewMediaContainer" class="flex items-center justify-center w-full h-full">
+              <!-- Content will be dynamically inserted here -->
+          </div>
+          
+          <!-- Download Button -->
+          <button id="downloadMediaBtn" onclick="downloadMedia()" 
+                  class="absolute bottom-4 right-4 z-60 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+              </svg>
+              <span>Download</span>
+          </button>
+      </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -896,7 +942,24 @@
         const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
 
         if (isImage) {
-          mediaHTML = `<div class="mb-2"><img src="${msg.media}" class="rounded-md max-h-60 shadow" alt="image"></div>`;
+          mediaHTML = `<div class="mb-2"><img src="${msg.media}" class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity" alt="image" onclick="openMediaPreview('${msg.media}', 'image', '${msg.originalName || msg.media.split('/').pop()}')"></div>`;
+        } else if (['mp4','avi','mov','wmv','flv','mkv'].includes(ext)) {
+          mediaHTML = `
+            <div class="mb-2">
+              <div class="relative cursor-pointer group" onclick="openMediaPreview('${msg.media}', 'video', '${msg.originalName || msg.media.split('/').pop()}')">
+                  <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
+                      <source src="${msg.media}" type="video/${ext}">
+                      Your browser does not support the video tag.
+                  </video>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                      <div class="bg-white bg-opacity-80 rounded-full p-3">
+                          <svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z"/>
+                          </svg>
+                      </div>
+                  </div>
+              </div>
+            </div>`;
         } else if (isVoice) {
           mediaHTML = `
             <div class="voice-message-container">
@@ -1687,6 +1750,82 @@
       } catch (error) {
         console.error('Error handling group message edit:', error);
       }
+    });
+
+    // Media Preview Functions
+    let currentMediaSrc = '';
+    let currentMediaName = '';
+
+    function openMediaPreview(src, type, name) {
+        const modal = document.getElementById('mediaPreviewModal');
+        const container = document.getElementById('previewMediaContainer');
+        
+        currentMediaSrc = src;
+        currentMediaName = name || 'media';
+        
+        container.innerHTML = '';
+        
+        if (type === 'image') {
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = 'max-w-full max-h-full object-contain rounded-lg shadow-2xl';
+            img.alt = name;
+            container.appendChild(img);
+        } else if (type === 'video') {
+            const video = document.createElement('video');
+            video.src = src;
+            video.className = 'max-w-full max-h-full rounded-lg shadow-2xl';
+            video.controls = true;
+            video.autoplay = true;
+            video.preload = 'metadata';
+            container.appendChild(video);
+        }
+        
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    function closeMediaPreview() {
+        const modal = document.getElementById('mediaPreviewModal');
+        const container = document.getElementById('previewMediaContainer');
+        
+        // Stop any playing video
+        const video = container.querySelector('video');
+        if (video) {
+            video.pause();
+            video.currentTime = 0;
+        }
+        
+        modal.classList.add('hidden');
+        document.body.style.overflow = 'auto'; // Restore scrolling
+        container.innerHTML = '';
+        currentMediaSrc = '';
+        currentMediaName = '';
+    }
+
+    function downloadMedia() {
+        if (currentMediaSrc) {
+            const link = document.createElement('a');
+            link.href = currentMediaSrc;
+            link.download = currentMediaName;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+
+    // Close modal when clicking outside the media or pressing Escape
+    document.getElementById('mediaPreviewModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeMediaPreview();
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeMediaPreview();
+        }
     });
 
     // Load available users when panel opens (only for admins)

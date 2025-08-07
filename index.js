@@ -1559,7 +1559,7 @@ io.on('connection', (socket) => {
             socket.join(userId);
             await User.findByIdAndUpdate(userId, { online: true, lastSeen: null });
             io.emit('userStatus', { userId, online: true });
-            
+
             // Send any pending notifications
             const pendingCalls = await Call.find({
                 $or: [
@@ -1568,7 +1568,7 @@ io.on('connection', (socket) => {
                 ],
                 status: 'ringing'
             }).populate('caller', 'username avatar');
-            
+
             pendingCalls.forEach(call => {
                 if (call.groupId) {
                     socket.emit('incoming-group-call', {

@@ -270,30 +270,41 @@
                                     <%= chat.from.toString() === currentUser._id.toString()
                                         ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md'
                                         : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20' %> shadow-lg">
-                            <% if (chat.media) {
-                                const ext = chat.media.split('.').pop().toLowerCase();
-                                const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
-                                const isVoice = ['webm','ogg','mp3','m4a','wav'].includes(ext);
-                                const isVideo = ['mp4','avi','mov','wmv','flv','mkv'].includes(ext);
+                            <%
+                                const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : null;
+                                const isImage = ext ? ['png','jpg','jpeg','gif','webp'].includes(ext) : false;
+                                const isVoice = ext ? ['webm','ogg','mp3','m4a','wav'].includes(ext) : false;
+                                const isVideo = ext ? ['mp4','avi','mov','wmv','flv','mkv'].includes(ext) : false;
                             %>
                                 <% if (isImage) { %>
                                     <div class="mb-2">
                                         <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
-                                             alt="Media" class="rounded-md max-h-60 shadow">
+                                             alt="Media" 
+                                             class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
+                                             onclick="openMediaPreview(this.src, 'image', '<%= chat.originalName || chat.media.split('/').pop() %>')">
                                     </div>
                                 <% } else if (isVideo) { %>
                                     <div class="mb-2">
-                                        <video controls class="rounded-md max-h-60 shadow" style="max-width: 100%;">
-                                            <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
-                                            Your browser does not support the video tag.
-                                        </video>
+                                        <div class="relative cursor-pointer group" 
+                                             onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                                            <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
+                                                <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
+                                                Your browser does not support the video tag.
+                                            </video>
+                                            <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                                                <div class="bg-white bg-opacity-80 rounded-full p-3">
+                                                    <svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M8 5v14l11-7z"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 <% } else if (isVoice) { %>
                                     <div class="voice-message-container">
                                         <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
                                             <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
                                             </svg>
                                             <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -434,7 +445,6 @@
                 <button id="playRecordedVoice" class="voice-action-btn voice-play-pause-btn">
                     <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
                     </svg>
                     <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -480,6 +490,23 @@
             </form>
             </div>
         </footer>
+    </div>
+
+    <!-- Media Preview Modal -->
+    <div id="mediaPreviewModal" class="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center hidden">
+        <div class="relative bg-white p-4 rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col items-center justify-center">
+            <button onclick="closeMediaPreview()" class="absolute top-3 right-3 text-white bg-red-500 rounded-full p-2 hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+            <div id="previewMediaContainer" class="flex-1 flex items-center justify-center w-full">
+                <!-- Image or Video will be loaded here -->
+            </div>
+            <div id="previewMediaInfo" class="mt-4 text-center w-full">
+                <p id="previewFileName" class="text-lg font-medium text-gray-800"></p>
+            </div>
+        </div>
     </div>
 
     <!-- Call Modal -->
@@ -598,6 +625,11 @@
         const voiceDuration = document.querySelectorAll('.voice-duration');
         const voicePlayBtns = document.querySelectorAll('.voice-play-btn');
 
+        // Media Preview Modal Elements
+        const mediaPreviewModal = document.getElementById('mediaPreviewModal');
+        const previewMediaContainer = document.getElementById('previewMediaContainer');
+        const previewFileName = document.getElementById('previewFileName');
+
         // Utility functions
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -624,6 +656,43 @@
                 notification.remove();
             }, 3000);
         }
+
+        // Media Preview Functions
+        function openMediaPreview(src, type, filename) {
+            previewMediaContainer.innerHTML = ''; // Clear previous content
+            previewFileName.textContent = filename;
+
+            if (type === 'image') {
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = filename;
+                img.className = 'max-w-full max-h-[70vh] object-contain';
+                previewMediaContainer.appendChild(img);
+            } else if (type === 'video') {
+                const video = document.createElement('video');
+                video.src = src;
+                video.controls = true;
+                video.autoplay = true; // Autoplay on open
+                video.className = 'max-w-full max-h-[70vh] object-contain';
+                video.setAttribute('preload', 'auto'); // Load video data immediately
+                previewMediaContainer.appendChild(video);
+            }
+
+            mediaPreviewModal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden'); // Prevent background scrolling
+        }
+
+        function closeMediaPreview() {
+            mediaPreviewModal.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden'); // Allow background scrolling
+            // Stop any video playback in the modal
+            const videoElement = previewMediaContainer.querySelector('video');
+            if (videoElement) {
+                videoElement.pause();
+                videoElement.currentTime = 0;
+            }
+        }
+
 
         // Socket event handlers for real-time messaging
         socket.on('chat message', (data) => {
@@ -743,6 +812,10 @@
                 document.querySelectorAll('.dropdown-menu').forEach(menu => {
                     menu.classList.remove('show');
                 });
+            }
+            // Close media preview if clicking outside of it
+            if (!mediaPreviewModal.contains(e.target) && !mediaPreviewModal.classList.contains('hidden')) {
+                closeMediaPreview();
             }
         });
 
@@ -1057,15 +1130,27 @@
                     mediaHTML = `
                         <div class="mb-2">
                             <img src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}"
-                                 alt="Media" class="rounded-md max-h-60 shadow">
+                                 alt="Media" 
+                                 class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
+                                 onclick="openMediaPreview(this.src, 'image', '<%= chat.originalName || chat.media.split('/').pop() %>')">
                         </div>`;
                 } else if (isVideo) {
                     mediaHTML = `
                         <div class="mb-2">
-                            <video controls class="rounded-md max-h-60 shadow" style="max-width: 100%;">
-                                <source src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}" type="video/${ext}">
-                                Your browser does not support the video tag.
-                            </video>
+                            <div class="relative cursor-pointer group" 
+                                 onclick="openMediaPreview('${chat.media.startsWith('/') ? chat.media : '/' + chat.media}', 'video', '<%= chat.originalName || chat.media.split('/').pop() %>')">
+                                <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
+                                    <source src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}" type="video/${ext}">
+                                    Your browser does not support the video tag.
+                                </video>
+                                <div class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                                    <div class="bg-white bg-opacity-80 rounded-full p-3">
+                                        <svg class="h-8 w-8 text-primary-600" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
                         </div>`;
                 } else if (isVoice) {
                     mediaHTML = `
@@ -1934,9 +2019,9 @@
 
             setupEventListeners() {
                 voiceMessageBtn.addEventListener('click', () => {
-                    if (this.isRecording) {
+                    if (this.isRecording || this.isPaused) { // If recording or paused, pause/resume
                         this.pauseRecording();
-                    } else {
+                    } else { // If not recording, start
                         this.startRecording();
                     }
                 });
@@ -1969,9 +2054,9 @@
             }
 
             pauseRecording() {
-                if (!this.isRecording || !this.mediaRecorder) return;
+                if (!this.mediaRecorder) return;
 
-                if (this.isPaused) {
+                if (this.isPaused) { // Resuming
                     this.mediaRecorder.resume();
                     this.isPaused = false;
                     this.startTimer(); // Restart timer
@@ -1979,8 +2064,9 @@
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>`;
+                    voiceMessageBtn.setAttribute('title', 'Pause Recording');
                     console.log('Recording resumed');
-                } else {
+                } else { // Pausing
                     this.mediaRecorder.pause();
                     this.isPaused = true;
                     clearInterval(this.timerInterval); // Pause timer
@@ -1989,6 +2075,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
                         </svg>`;
+                    voiceMessageBtn.setAttribute('title', 'Resume Recording');
                     console.log('Recording paused');
                 }
             }
@@ -2022,8 +2109,8 @@
                     micIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>`; // Pause icon
                     voiceMessageBtn.setAttribute('title', 'Pause Recording');
                     cancelRecording.classList.remove('hidden');
-                    playRecordedVoice.classList.add('hidden');
-                    sendVoiceMessage.classList.add('hidden');
+                    playRecordedVoice.classList.remove('hidden');
+                    sendVoiceMessage.classList.remove('hidden');
                 } else {
                     voiceMessageBtn.classList.remove('bg-gradient-to-r', 'from-yellow-500', 'to-orange-500');
                     voiceMessageBtn.classList.add('bg-gradient-to-r', 'from-green-500', 'to-green-600');
@@ -2076,31 +2163,15 @@
                 const pauseIcon = playBtn.querySelector('.pause-icon');
                 const playIcon = playBtn.querySelector('.play-icon');
 
-                const audioUrl = URL.createObjectURL(this.recordedBlob);
-                const audioElement = new Audio(audioUrl);
+                // Reuse or create audio element
+                let audioElement = voiceRecordingPreview.querySelector('audio');
+                if (!audioElement) {
+                    audioElement = document.createElement('audio');
+                    audioElement.src = URL.createObjectURL(this.recordedBlob);
+                    voiceRecordingPreview.appendChild(audioElement); // Append to preview for scope
+                }
 
                 if (audioElement.paused) {
-                    // Stop any other playing voice messages
-                    document.querySelectorAll('.voice-play-btn').forEach(btn => {
-                        const otherAudioElement = btn.closest('.voice-message-container').querySelector('audio');
-                        if (otherAudioElement && otherAudioElement !== audioElement && !otherAudioElement.paused) {
-                            otherAudioElement.pause();
-                            const otherPlayBtn = btn;
-                            const otherPauseIcon = otherPlayBtn.querySelector('.pause-icon');
-                            const otherPlayIcon = otherPlayBtn.querySelector('.play-icon');
-                            otherPlayIcon.classList.remove('hidden');
-                            otherPauseIcon.classList.add('hidden');
-                            otherPlayBtn.classList.add('bg-primary-500');
-                            otherPlayBtn.classList.remove('bg-gray-600');
-                            otherPlayBtn.setAttribute('title', 'Play');
-                            // Reset progress bar and duration for others
-                            const otherProgressBar = btn.closest('.voice-message-container').querySelector('.voice-progress');
-                            const otherDurationDisplay = btn.closest('.voice-message-container').querySelector('.voice-duration');
-                            otherProgressBar.style.width = '0%';
-                            otherDurationDisplay.textContent = '0:00';
-                        }
-                    });
-
                     audioElement.play();
                     playIcon.classList.add('hidden');
                     pauseIcon.classList.remove('hidden');
@@ -2344,8 +2415,6 @@
                     voiceMessageContainer.appendChild(audioElement); // Append to container for scope
                 }
 
-                const messageId = audioElement.dataset.messageId;
-
                 if (audioElement.paused) {
                     // Stop any other playing voice messages
                     document.querySelectorAll('.voice-play-btn').forEach(btn => {
@@ -2393,8 +2462,6 @@
                         playBtn.setAttribute('title', 'Play');
                         progressBar.style.width = '0%';
                         durationDisplay.textContent = '0:00';
-                        // Clean up audio element if not needed anymore
-                        // audioElement.remove();
                     };
                 } else {
                     audioElement.pause();

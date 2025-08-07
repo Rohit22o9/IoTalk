@@ -2144,7 +2144,7 @@
                   formData.append('msg', ''); // Empty message for voice only
 
                   console.log('Sending voice message...', audioFile.name, audioFile.type);
-                  const response = await fetch('/chat/' + otherUserId, {
+                  const response = await fetch(`/chat/${otherUserId}`, {
                     method: 'POST',
                     body: formData
                   });
@@ -2155,6 +2155,17 @@
                     this.deleteRecording();
                     // Hide the recording preview
                     this.recordingPreview.classList.add('hidden');
+                    
+                    // Stop typing when sending voice message
+                    clearTimeout(typingTimer);
+                    if (isTyping) {
+                        isTyping = false;
+                        socket.emit('typing stop', {
+                            from: currentUserId,
+                            to: otherUserId,
+                            username: "<%= currentUser.username %>"
+                        });
+                    }
                   } else {
                     const errorText = await response.text();
                     console.error('Voice message send failed:', response.status, errorText);

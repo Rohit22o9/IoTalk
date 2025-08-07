@@ -1260,7 +1260,7 @@
           formData.append('msg', ''); // Empty message for voice only
 
           console.log('Sending voice message...', audioFile.name, audioFile.type);
-          const response = await fetch('/groupchat/' + groupId, {
+          const response = await fetch(`/groupchat/${groupId}`, {
             method: 'POST',
             body: formData
           });
@@ -1271,6 +1271,17 @@
             this.deleteRecording();
             // Hide the recording preview
             this.recordingPreview.classList.add('hidden');
+            
+            // Stop typing when sending voice message
+            clearTimeout(groupTypingTimer);
+            if (isGroupTyping) {
+                isGroupTyping = false;
+                socket.emit('group typing stop', {
+                    from: currentUserId,
+                    groupId: groupId,
+                    username: "<%= currentUser.username %>"
+                });
+            }
           } else {
             const errorText = await response.text();
             console.error('Voice message send failed:', response.status, errorText);

@@ -112,9 +112,10 @@ class NotificationManager {
         const title = `Incoming ${callData.type} call`;
         const body = `${callData.caller.username} is calling you`;
         
+        // Show browser notification
         this.showBrowserNotification(title, body, {
             tag: `call-${callData.callId}`,
-            icon: '/avatars/default-avatar.png',
+            icon: callData.caller.avatar || '/avatars/default-avatar.png',
             requireInteraction: true,
             data: {
                 type: 'call',
@@ -123,13 +124,17 @@ class NotificationManager {
             }
         });
 
+        // Show toast notification with call actions
         this.showToastNotification(title, body, 'call', {
             persistent: true,
             actions: [
-                { label: 'Answer', action: () => this.answerCall(callData.callId) },
-                { label: 'Decline', action: () => this.declineCall(callData.callId) }
+                { label: 'Answer', action: `notificationManager.answerCall('${callData.callId}')` },
+                { label: 'Decline', action: `notificationManager.declineCall('${callData.callId}')` }
             ]
         });
+
+        // Play notification sound if available
+        this.playNotificationSound();
     }
 
     showGroupCallNotification(callData) {
@@ -200,6 +205,12 @@ class NotificationManager {
             bg-white rounded-lg shadow-lg p-4 mb-2 border-l-4 transform transition-all duration-300
             translate-x-full opacity-0 ${this.getToastColor(type)}
         `;
+
+        // Add call ID for tracking if it's a call notification
+        if (type === 'call' || type === 'group-call') {
+            toast.setAttribute('data-call-id', options.callId || '');
+            this.vibrateDevice(); // Vibrate for calls
+        }
 
         toast.innerHTML = `
             <div class="flex items-start">
@@ -280,12 +291,35 @@ class NotificationManager {
         return `
             <div class="mt-2 flex space-x-2">
                 ${actions.map(action => `
-                    <button onclick="${action.action}" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                    <button onclick="${action.action}" class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition-colors">
                         ${action.label}
                     </button>
                 `).join('')}
             </div>
         `;
+    }
+
+    playNotificationSound() {
+        try {
+            // Create audio context for notification sound
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        } catch (error) {
+            console.log('Could not play notification sound:', error);
+        }
     }
 
     handleNotificationClick(data) {
@@ -307,20 +341,67 @@ class NotificationManager {
 
     // Call action methods
     answerCall(callId) {
-        if (window.callManager) {
-            window.callManager.acceptCall();
-        }
+        fetch(`/call/${callId}/respond`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: 'accept' })
+        }).then(response => response.json()).then(data => {
+            if (data.success) {
+                console.log('Call answered successfully');
+                // Remove call notification
+                this.removeCallNotification(callId);
+            }
+        }).catch(error => {
+            console.error('Error answering call:', error);
+        });
     }
 
     declineCall(callId) {
-        if (window.callManager) {
-            window.callManager.declineCall();
-        }
+        fetch(`/call/${callId}/respond`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: 'decline' })
+        }).then(response => response.json()).then(data => {
+            if (data.success) {
+                console.log('Call declined successfully');
+                // Remove call notification
+                this.removeCallNotification(callId);
+            }
+        }).catch(error => {
+            console.error('Error declining call:', error);
+        });
     }
 
     joinGroupCall(callId, groupId) {
-        if (window.groupCallManager) {
-            window.groupCallManager.acceptGroupCall(callId, groupId, 'video');
+        fetch(`/call/${callId}/respond`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action: 'accept' })
+        }).then(response => response.json()).then(data => {
+            if (data.success) {
+                console.log('Joined group call successfully');
+                window.location.href = `/groups/${groupId}`;
+            }
+        }).catch(error => {
+            console.error('Error joining group call:', error);
+        });
+    }
+
+    removeCallNotification(callId) {
+        // Remove toast notifications for this call
+        const toasts = document.querySelectorAll(`[data-call-id="${callId}"]`);
+        toasts.forEach(toast => toast.remove());
+    }
+
+    vibrateDevice() {
+        if ('vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200]);
         }
     }
 }

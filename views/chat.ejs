@@ -691,9 +691,16 @@
 
         // Initialize notification manager
         if (window.notificationManager) {
-            window.notificationManager.setSocket(socket, currentUserId);
+            window.notificationManager.setSocket(socket, '<%= currentUser._id %>');
         }
 
+        // Request notification permission explicitly
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                console.log('Notification permission:', permission);
+            });
+        }
+    });
         // Typing detection
         msgInput.addEventListener('input', () => {
             if (!isTyping) {
@@ -2158,7 +2165,7 @@
                     this.deleteRecording();
                     // Hide the recording preview
                     this.recordingPreview.classList.add('hidden');
-                    
+
                     // Stop typing when sending voice message
                     clearTimeout(typingTimer);
                     if (isTyping) {
@@ -2169,7 +2176,7 @@
                             username: "<%= currentUser.username %>"
                         });
                     }
-                    
+
                     showNotification('Voice message sent!', 'success');
                   } else {
                     const errorText = await response.text();

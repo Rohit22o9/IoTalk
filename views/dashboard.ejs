@@ -357,5 +357,32 @@
           }
         });
     </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize socket connection for notifications
+            const socket = io();
+
+            socket.emit('userOnline', '<%= currentUser._id %>');
+
+            // Initialize notification manager
+            if (window.notificationManager) {
+                window.notificationManager.setSocket(socket, '<%= currentUser._id %>');
+            }
+
+            // Request notification permission
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    console.log('Notification permission:', permission);
+                    if (permission === 'granted') {
+                        window.notificationManager.showToastNotification(
+                            'Notifications Enabled',
+                            'You will now receive notifications for messages and calls',
+                            'message'
+                        );
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>

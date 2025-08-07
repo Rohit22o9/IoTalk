@@ -1559,6 +1559,32 @@ io.on('connection', (socket) => {
             socket.join(userId);
             await User.findByIdAndUpdate(userId, { online: true, lastSeen: null });
             io.emit('userStatus', { userId, online: true });
+            
+            // Send any pending notifications
+            const pendingCalls = await Call.find({
+                $or: [
+                    { receiver: userId },
+                    { groupId: { $exists: true }, status: 'ringing' }
+                ],
+                status: 'ringing'
+            }).populate('caller', 'username avatar');
+            
+            pendingCalls.forEach(call => {
+                if (call.groupId) {
+                    socket.emit('incoming-group-call', {
+                        callId: call._id,
+                        groupId: call.groupId,
+                        caller: call.caller,
+                        type: call.type
+                    });
+                } else {
+                    socket.emit('incoming-call', {
+                        callId: call._id,
+                        caller: call.caller,
+                        type: call.type
+                    });
+                }
+            });
         } catch (error) {
             console.error('User online error:', error);
         }

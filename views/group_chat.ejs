@@ -570,6 +570,7 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
   <script>
+    // Initialize socket
     const socket = io();
     const groupId = "<%= group._id %>";
     const currentUserId = "<%= currentUser._id %>";
@@ -600,7 +601,7 @@
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
     const messageInput = form.querySelector('textarea[name="msg"]'); // Use textarea
-    
+
     // Ensure media input is properly initialized
     if (!mediaInput) {
         console.error('Media input not found, attempting to re-select...');
@@ -824,7 +825,7 @@
         }
     }
 
-    // Initialize media handlers when DOM is fully loaded
+    // Initialize media input handlers when DOM is fully loaded
     document.addEventListener('DOMContentLoaded', function() {
         initializeMediaHandlers();
         console.log('Media handlers initialized');
@@ -939,7 +940,7 @@
 
                 // Reset input height
                 messageInput.style.height = 'auto';
-                
+
                 // Scroll to bottom to show new message
                 setTimeout(() => {
                     scrollToBottom();

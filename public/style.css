@@ -182,7 +182,7 @@ html {
     padding-left: 1rem;
     padding-right: 1rem;
   }
-  
+
   .mobile-text {
     font-size: 0.875rem;
   }
@@ -258,3 +258,23 @@ footer {
   right: 1.5rem;
   z-index: 50;
 }
+
+#groupInfoPanel {
+      width: 0;
+      transition: width 0.3s ease;
+      overflow: hidden;
+      height: calc(100vh - 64px);
+    }
+    #groupInfoPanel.open {
+      width: 320px;
+    }
+
+    /* Fixed header spacing */
+    .chat-container-with-header {
+      margin-top: 64px;
+    }
+
+    /* Media preview positioning */
+    #filePreview {
+      max-width: calc(100% - 2rem);
+    }

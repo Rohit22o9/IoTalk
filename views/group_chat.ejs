@@ -204,7 +204,7 @@
 <body class="h-screen bg-gradient-to-br from-secondary-50 via-white to-primary-50 overflow-hidden">
   <div class="h-full flex flex-col">
     <!-- Header -->
-    <header class="bg-white/90 backdrop-blur-lg border-b border-secondary-200 px-4 py-3 flex-shrink-0">
+    <header class="bg-white/90 backdrop-blur-lg border-b border-secondary-200 px-4 py-3 flex-shrink-0 fixed top-0 left-0 right-0 z-20">
       <div class="flex items-center space-x-4">
         <form action="/dashboard" method="GET" class="inline">
           <button type="submit" class="p-2 rounded-lg hover:bg-secondary-100 transition-colors duration-200">
@@ -227,7 +227,7 @@
     </header>
 
     <!-- Main Container -->
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden pt-16">
       <!-- Chat Messages -->
       <main class="flex-1 overflow-y-auto p-4 pb-32 space-y-4 chat-messages" id="chatBox">
         <!-- Group Typing Indicator -->
@@ -384,7 +384,7 @@
       </main>
 
       <!-- Group Info Panel -->
-      <aside id="groupInfoPanel" class="bg-white/90 backdrop-blur-lg border-l border-secondary-200 shadow-lg">
+      <aside id="groupInfoPanel" class="bg-white/90 backdrop-blur-lg border-l border-secondary-200 shadow-lg fixed top-0 right-0 h-full">
         <div class="p-4 flex flex-col items-center">
           <img src="<%= group.icon || '/group_icons/default.png' %>" class="w-20 h-20 rounded-full object-cover border-2 border-white shadow-md">
           <h2 class="text-lg font-semibold mt-2 text-secondary-900"><%= group.name %></h2>
@@ -465,43 +465,6 @@
       </aside>
     </div>
 
-    <!-- Media Preview (positioned above the footer) -->
-    <div id="filePreview" class="hidden fixed bottom-20 left-0 right-0 z-20 mx-4 mb-2"></div>
-      <div class="flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl shadow-lg">
-        <div id="previewContent" class="flex items-center space-x-3 flex-1 overflow-hidden"></div>
-        <button id="removeFile" type="button" class="ml-3 p-2 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors flex-shrink-0">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        </button>
-      </div>
-    </div>
-
-    <!-- Voice Recording Modal (like personal chats) -->
-    <div id="voice-recording-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div class="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full">
-        <div class="text-center">
-          <div class="mb-4">
-            <div class="w-20 h-20 bg-red-500 rounded-full mx-auto flex items-center justify-center animate-pulse">
-              <svg class="h-10 w-10 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
-              </svg>
-            </div>
-          </div>
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">Recording Voice Message</h3>
-          <p class="text-sm text-gray-500 mb-4">Tap to stop recording</p>
-          <div class="flex space-x-3 justify-center">
-            <button onclick="stopGroupVoiceRecording()" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
-              Stop & Send
-            </button>
-            <button onclick="cancelGroupVoiceRecording()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors">
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Message Input -->
     <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200" style="z-index: 10;">
       <div class="p-4">
@@ -535,8 +498,45 @@
     </footer>
   </div>
 
-  <!-- Full-Screen Media Preview Modal -->
-  <div id="mediaPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+  <!-- Media Preview -->
+  <div id="filePreview" class="hidden fixed bottom-20 left-0 right-0 z-20 mx-4 mb-2">
+      <div class="flex items-center justify-between p-3 bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl shadow-lg">
+        <div id="previewContent" class="flex items-center space-x-3 flex-1 overflow-hidden"></div>
+        <button id="removeFile" type="button" class="ml-3 p-2 rounded-full hover:bg-secondary-100 text-secondary-500 hover:text-red-500 transition-colors flex-shrink-0">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+  </div>
+
+    <!-- Voice Recording Modal (like personal chats) -->
+    <div id="voice-recording-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full">
+        <div class="text-center">
+          <div class="mb-4">
+            <div class="w-20 h-20 bg-red-500 rounded-full mx-auto flex items-center justify-center animate-pulse">
+              <svg class="h-10 w-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Recording Voice Message</h3>
+          <p class="text-sm text-gray-500 mb-4">Tap to stop recording</p>
+          <div class="flex space-x-3 justify-center">
+            <button onclick="stopGroupVoiceRecording()" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
+              Stop & Send
+            </button>
+            <button onclick="cancelGroupVoiceRecording()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-Screen Media Preview Modal -->
+    <div id="mediaPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
       <div class="relative max-w-screen-lg max-h-screen-lg w-full h-full flex items-center justify-center p-4">
           <!-- Close Button -->
           <button onclick="closeMediaPreview()"
@@ -626,7 +626,7 @@
     // Show media preview function (fixed from personal chat)
     function showMediaPreview(file) {
         console.log('Showing media preview for:', file.name, file.type);
-        
+
         if (!filePreview || !previewContent) {
             console.error('Preview elements not found');
             return;
@@ -824,7 +824,7 @@
     // Message form submission
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-        
+
         const message = messageInput.value.trim();
         if (!message && !selectedFile) return;
 
@@ -840,12 +840,12 @@
         .then(result => {
             if (result.success) {
                 console.log('Group message sent successfully:', result);
-                
+
                 messageInput.value = '';
                 selectedFile = null;
                 hideMediaPreview();
                 mediaInput.value = '';
-                
+
                 // Stop typing indicator
                 if (socket) {
                     socket.emit('group typing stop', {
@@ -858,7 +858,7 @@
 
                 // Reset input height
                 messageInput.style.height = 'auto';
-                
+
                 // Scroll to bottom to show new message
                 setTimeout(() => {
                     scrollToBottom();
@@ -874,7 +874,7 @@
         });
     });
 
-    
+
 
 
     socket.on('group message', msg => {
@@ -1028,11 +1028,11 @@
                 groupMediaRecorder.onstop = function() {
                     const audioBlob = new Blob(groupAudioChunks, { type: 'audio/webm' });
                     const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-                    
+
                     // Show preview and send
                     selectedFile = audioFile;
                     showMediaPreview(audioFile);
-                    
+
                     // Auto-send voice message
                     setTimeout(function() {
                         form.dispatchEvent(new Event('submit'));
@@ -1054,14 +1054,14 @@
         if (groupMediaRecorder && groupMediaRecorder.state === 'recording') {
             groupMediaRecorder.stop();
         }
-        
+
         if (groupVoiceStream) {
             groupVoiceStream.getTracks().forEach(function(track) {
                 track.stop();
             });
             groupVoiceStream = null;
         }
-        
+
         document.getElementById('voice-recording-modal').classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
@@ -1070,14 +1070,14 @@
         if (groupMediaRecorder && groupMediaRecorder.state === 'recording') {
             groupMediaRecorder.stop();
         }
-        
+
         if (groupVoiceStream) {
             groupVoiceStream.getTracks().forEach(function(track) {
                 track.stop();
             });
             groupVoiceStream = null;
         }
-        
+
         groupAudioChunks = [];
         document.getElementById('voice-recording-modal').classList.add('hidden');
         document.body.style.overflow = 'auto';

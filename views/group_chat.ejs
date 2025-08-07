@@ -477,33 +477,28 @@
       </div>
     </div>
 
-    <!-- Voice Recording Preview (positioned above the footer) -->
-    <div id="voiceRecordingPreview" class="hidden fixed bottom-24 left-0 right-0 z-20 mx-4 mb-2">
-      <div class="voice-record-preview">
-        <button id="cancelRecording" class="voice-action-btn voice-delete-btn">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        </button>
-        <div class="voice-timer" id="recordingTimer">0:00</div>
-        <button id="playRecordedVoice" class="voice-action-btn voice-play-pause-btn">
-          <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
-          </svg>
-          <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-        </button>
-        <div class="voice-progress-bar-container">
-          <div class="voice-progress"></div>
+    <!-- Voice Recording Modal (like personal chats) -->
+    <div id="voice-recording-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full">
+        <div class="text-center">
+          <div class="mb-4">
+            <div class="w-20 h-20 bg-red-500 rounded-full mx-auto flex items-center justify-center animate-pulse">
+              <svg class="h-10 w-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+          </div>
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Recording Voice Message</h3>
+          <p class="text-sm text-gray-500 mb-4">Tap to stop recording</p>
+          <div class="flex space-x-3 justify-center">
+            <button onclick="stopGroupVoiceRecording()" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
+              Stop & Send
+            </button>
+            <button onclick="cancelGroupVoiceRecording()" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600 transition-colors">
+              Cancel
+            </button>
+          </div>
         </div>
-        <div class="voice-duration" id="recordedDuration">0:00</div>
-        <button id="sendVoiceMessage" class="voice-action-btn voice-send-btn">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-          </svg>
-        </button>
       </div>
     </div>
 
@@ -519,9 +514,9 @@
         </label>
 
         <!-- Voice Message Button -->
-        <button type="button" id="voiceMessageBtn" class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl">
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+        <button type="button" id="voice-message-btn" onclick="startGroupVoiceRecording()" class="cursor-pointer p-3 rounded-xl bg-secondary-100 hover:bg-secondary-200 transition">
+          <svg class="h-5 w-5 text-secondary-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
           </svg>
         </button>
 
@@ -1012,308 +1007,91 @@
       }
     }
 
-    // Voice Message functionality for group chat
-    class VoiceMessageManager {
-      constructor() {
-        this.mediaRecorder = null;
-        this.recordedBlob = null;
-        this.isRecording = false;
-        this.isPaused = false;
-        this.startTime = null;
-        this.timerInterval = null;
-        this.audioStream = null;
+    // Voice Recording Functions (like personal chats)
+    let groupMediaRecorder = null;
+    let groupAudioChunks = [];
+    let groupVoiceStream = null;
 
-        this.initializeElements();
-        this.initializeEventListeners();
-        this.initiateRecorder();
-      }
+    function startGroupVoiceRecording() {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(function(stream) {
+                groupVoiceStream = stream;
+                groupMediaRecorder = new MediaRecorder(stream);
+                groupAudioChunks = [];
 
-      initializeElements() {
-        this.voiceBtn = document.getElementById('voiceMessageBtn');
-        this.recordingPreview = document.getElementById('voiceRecordingPreview');
-        this.recordingTimerElement = document.getElementById('recordingTimer');
-        this.cancelRecordingBtn = document.getElementById('cancelRecording');
-        this.playRecordedBtn = document.getElementById('playRecordedVoice');
-        this.sendVoiceBtn = document.getElementById('sendVoiceMessage');
-        this.recordedDurationElement = document.getElementById('recordedDuration');
-      }
+                groupMediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0) {
+                        groupAudioChunks.push(event.data);
+                    }
+                };
 
-      initializeEventListeners() {
-        this.voiceBtn.addEventListener('click', () => {
-          if (this.isRecording) {
-            this.stopRecording();
-          } else if (this.recordedBlob) {
-            // If we have a recorded message, start a new recording
-            this.deleteRecording();
-            this.startRecording();
-          } else {
-            this.startRecording();
-          }
-        });
+                groupMediaRecorder.onstop = function() {
+                    const audioBlob = new Blob(groupAudioChunks, { type: 'audio/webm' });
+                    const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+                    
+                    // Show preview and send
+                    selectedFile = audioFile;
+                    showMediaPreview(audioFile);
+                    
+                    // Auto-send voice message
+                    setTimeout(function() {
+                        form.dispatchEvent(new Event('submit'));
+                    }, 500);
+                };
 
-        this.cancelRecordingBtn.addEventListener('click', () => this.deleteRecording());
-        this.sendVoiceBtn.addEventListener('click', () => this.sendVoiceMessage());
-        this.playRecordedBtn.addEventListener('click', () => {
-          if (this.recordedBlob) {
-            this.togglePlayPause();
-          }
-        });
-
-        document.addEventListener('click', (e) => {
-          if (e.target.closest('.voice-play-btn')) {
-            const btn = e.target.closest('.voice-play-btn');
-            this.toggleVoicePlayback(btn);
-          }
-        });
-      }
-
-      initiateRecorder() {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          navigator.mediaDevices.getUserMedia({ audio: true })
-            .then((stream) => {
-              this.audioStream = stream;
-              this.mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
-              this.mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                  this.recordedBlob = event.data;
-                  this.updateProgress(this.recordedBlob);
-                }
-              };
-
-              this.mediaRecorder.onstop = () => {
-                this.isRecording = false;
-                this.isPaused = false;
-                clearInterval(this.timerInterval);
-                this.recordingTimerElement.textContent = '0:00';
-                this.toggleRecordingUI(false);
-              };
+                groupMediaRecorder.start();
+                document.getElementById('voice-recording-modal').classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
 
             })
-            .catch((error) => {
-              console.error('Error accessing microphone:', error);
-              alert('Could not access microphone. Please check permissions.');
+            .catch(function(error) {
+                console.error('Error starting voice recording:', error);
+                alert('Could not access microphone. Please check permissions.');
             });
-        } else {
-          alert('MediaRecorder not supported in this browser.');
+    }
+
+    function stopGroupVoiceRecording() {
+        if (groupMediaRecorder && groupMediaRecorder.state === 'recording') {
+            groupMediaRecorder.stop();
         }
-      }
-
-      startRecording() {
-        if (!this.mediaRecorder) return;
-
-        this.recordedBlob = null;
-        this.recordingPreview.classList.remove('hidden');
-        this.toggleRecordingUI(true);
-
-        this.mediaRecorder.start();
-        this.isRecording = true;
-        this.startTime = Date.now();
-        this.startTimer();
-        console.log('Recording started');
-      }
-
-      pauseRecording() {
-        if (!this.isRecording || !this.mediaRecorder) return;
-
-        if (this.isPaused) {
-          this.mediaRecorder.resume();
-          this.isPaused = false;
-          this.startTimer();
-          this.playRecordedBtn.innerHTML = `
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>`;
-          console.log('Recording resumed');
-        } else {
-          this.mediaRecorder.pause();
-          this.isPaused = true;
-          clearInterval(this.timerInterval);
-          this.playRecordedBtn.innerHTML = `
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
-            </svg>`;
-          console.log('Recording paused');
+        
+        if (groupVoiceStream) {
+            groupVoiceStream.getTracks().forEach(function(track) {
+                track.stop();
+            });
+            groupVoiceStream = null;
         }
-      }
+        
+        document.getElementById('voice-recording-modal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
 
-      stopRecording() {
-        if (this.mediaRecorder && (this.isRecording || this.isPaused)) {
-          this.mediaRecorder.stop();
-          console.log('Recording stopped');
+    function cancelGroupVoiceRecording() {
+        if (groupMediaRecorder && groupMediaRecorder.state === 'recording') {
+            groupMediaRecorder.stop();
         }
-      }
-
-      deleteRecording() {
-        this.stopRecording();
-        this.recordedBlob = null;
-        this.recordingPreview.classList.add('hidden');
-        this.resetProgressAndTimer();
-        // Also reset the voice button
-        this.toggleRecordingUI(false);
-        console.log('Recording deleted');
-      }
-
-      toggleRecordingUI(isRecording) {
-        const micIcon = this.voiceBtn.querySelector('svg');
-        if (isRecording) {
-          this.voiceBtn.classList.add('bg-gradient-to-r', 'from-yellow-500', 'to-orange-500');
-          this.voiceBtn.classList.remove('bg-gradient-to-r', 'from-green-500', 'to-green-600');
-          micIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>`;
-          this.voiceBtn.setAttribute('title', 'Pause Recording');
-          this.cancelRecordingBtn.classList.remove('hidden');
-          this.playRecordedBtn.classList.add('hidden');
-          this.sendVoiceBtn.classList.add('hidden');
-        } else {
-          this.voiceBtn.classList.remove('bg-gradient-to-r', 'from-yellow-500', 'to-orange-500');
-          this.voiceBtn.classList.add('bg-gradient-to-r', 'from-green-500', 'to-green-600');
-          micIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>`;
-          this.voiceBtn.setAttribute('title', 'Start Recording');
-          this.cancelRecordingBtn.classList.add('hidden');
-          this.playRecordedBtn.classList.remove('hidden');
-          this.sendVoiceBtn.classList.remove('hidden');
+        
+        if (groupVoiceStream) {
+            groupVoiceStream.getTracks().forEach(function(track) {
+                track.stop();
+            });
+            groupVoiceStream = null;
         }
-      }
+        
+        groupAudioChunks = [];
+        document.getElementById('voice-recording-modal').classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
 
-      startTimer() {
-        this.startTime = Date.now();
-        this.timerInterval = setInterval(() => {
-          const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
-          const minutes = Math.floor(elapsed / 60);
-          const seconds = elapsed % 60;
-          this.recordingTimerElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-          this.recordedDurationElement.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-        }, 1000);
-      }
-
-      updateProgress(blob) {
-        if (!blob) return;
-        const audioUrl = URL.createObjectURL(blob);
-        const audioElement = new Audio(audioUrl);
-        audioElement.onloadedmetadata = () => {
-          const duration = audioElement.duration;
-          const progressWidth = (duration / 60) * 100;
-          const voiceProgress = document.querySelectorAll('.voice-progress');
-          voiceProgress.forEach(bar => bar.style.width = `${Math.min(progressWidth, 100)}%`);
-          URL.revokeObjectURL(audioUrl);
-        };
-      }
-
-      resetProgressAndTimer() {
-        this.recordingTimerElement.textContent = '0:00';
-        this.recordedDurationElement.textContent = '0:00';
-        const voiceProgress = document.querySelectorAll('.voice-progress');
-        voiceProgress.forEach(bar => bar.style.width = '0%');
-        this.playRecordedBtn.innerHTML = `
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
-          </svg>`;
-      }
-
-      async togglePlayPause() {
-        if (!this.recordedBlob) return;
-
-        const playBtn = this.playRecordedBtn;
-        const pauseIcon = playBtn.querySelector('.pause-icon');
-        const playIcon = playBtn.querySelector('.play-icon');
-
-        const audioUrl = URL.createObjectURL(this.recordedBlob);
-        const audioElement = new Audio(audioUrl);
-
-        if (audioElement.paused) {
-          audioElement.play();
-          if (playIcon) playIcon.classList.add('hidden');
-          if (pauseIcon) pauseIcon.classList.remove('hidden');
-          playBtn.classList.add('bg-gray-600');
-          playBtn.classList.remove('bg-primary-500');
-          playBtn.setAttribute('title', 'Pause');
-
-          audioElement.ontimeupdate = () => {
-            const progressWidth = (audioElement.currentTime / audioElement.duration) * 100;
-            const voiceProgress = document.querySelectorAll('.voice-progress');
-            voiceProgress.forEach(bar => bar.style.width = `${progressWidth}%`);
-            const currentTimeMinutes = Math.floor(audioElement.currentTime / 60);
-            const currentTimeSeconds = Math.floor(audioElement.currentTime % 60);
-            this.recordedDurationElement.textContent = `${currentTimeMinutes}:${currentTimeSeconds < 10 ? '0' : ''}${currentTimeSeconds}`;
-          };
-
-          audioElement.onended = () => {
-            if (playIcon) playIcon.classList.remove('hidden');
-            if (pauseIcon) pauseIcon.classList.add('hidden');
-            playBtn.classList.add('bg-primary-500');
-            playBtn.classList.remove('bg-gray-600');
-            playBtn.setAttribute('title', 'Play');
-            this.resetProgressAndTimer();
-          };
-
-        } else {
-          audioElement.pause();
-          if (playIcon) playIcon.classList.remove('hidden');
-          if (pauseIcon) pauseIcon.classList.add('hidden');
-          playBtn.classList.add('bg-primary-500');
-          playBtn.classList.remove('bg-gray-600');
-          playBtn.setAttribute('title', 'Play');
+    // Voice message playback
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.voice-play-btn')) {
+            const btn = e.target.closest('.voice-play-btn');
+            toggleVoicePlayback(btn);
         }
-      }
+    });
 
-      async sendVoiceMessage() {
-        if (!this.recordedBlob) {
-          console.error('No recorded audio to send');
-          alert('No voice recording found. Please record a message first.');
-          return;
-        }
-
-        // Stop recording if still recording
-        this.stopRecording();
-
-        try {
-          const formData = new FormData();
-          const audioFile = new File([this.recordedBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-          formData.append('media', audioFile);
-          formData.append('msg', ''); // Empty message for voice only
-
-          console.log('Sending voice message...', audioFile.name, audioFile.type, 'Size:', audioFile.size);
-          const response = await fetch(`/groupchat/${groupId}`, {
-            method: 'POST',
-            body: formData
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log('Voice message sent successfully:', data);
-            this.deleteRecording();
-            // Hide the recording preview
-            this.recordingPreview.classList.add('hidden');
-
-            // Stop typing when sending voice message
-            clearTimeout(groupTypingTimer);
-            if (isGroupTyping) {
-                isGroupTyping = false;
-                socket.emit('group typing stop', {
-                    from: currentUserId,
-                    groupId: groupId,
-                    username: currentUsername
-                });
-            }
-
-            // Scroll to bottom
-            setTimeout(() => {
-                scrollToBottom();
-            }, 100);
-          } else {
-            const errorText = await response.text();
-            console.error('Voice message send failed:', response.status, errorText);
-            throw new Error('Failed to send voice message: ' + response.status);
-          }
-        } catch (error) {
-          console.error('Error sending voice message:', error);
-          alert('Failed to send voice message: ' + error.message);
-        }
-      }
-
-      toggleVoicePlayback(button) {
+    function toggleVoicePlayback(button) {
         const audioSrc = button.dataset.audioSrc;
         const playIcon = button.querySelector('.play-icon');
         const pauseIcon = button.querySelector('.pause-icon');
@@ -1322,66 +1100,60 @@
 
         let audioElement = button.closest('.voice-message-container').querySelector('audio');
         if (!audioElement) {
-          audioElement = document.createElement('audio');
-          audioElement.src = audioSrc;
-          audioElement.dataset.messageId = button.closest('.message-container').getAttribute('data-id');
-          button.closest('.voice-message-container').appendChild(audioElement);
+            audioElement = document.createElement('audio');
+            audioElement.src = audioSrc;
+            button.closest('.voice-message-container').appendChild(audioElement);
         }
 
         if (audioElement.paused) {
-          // Pause any other playing audio messages
-          document.querySelectorAll('.voice-play-btn').forEach(btn => {
-            const otherAudioElement = btn.closest('.voice-message-container').querySelector('audio');
-            if (otherAudioElement && otherAudioElement !== audioElement && !otherAudioElement.paused) {
-              otherAudioElement.pause();
-              const otherPlayBtn = btn;
-              const otherPauseIcon = otherPlayBtn.querySelector('.pause-icon');
-              const otherPlayIcon = otherPlayBtn.querySelector('.play-icon');
-              if (otherPlayIcon) otherPlayIcon.classList.remove('hidden');
-              if (otherPauseIcon) otherPauseIcon.classList.add('hidden');
-              otherPlayBtn.classList.add('bg-primary-500');
-              otherPlayBtn.classList.remove('bg-gray-600');
-              otherPlayBtn.setAttribute('title', 'Play');
-            }
-          });
+            // Pause any other playing audio messages
+            document.querySelectorAll('.voice-play-btn').forEach(function(btn) {
+                const otherAudioElement = btn.closest('.voice-message-container').querySelector('audio');
+                if (otherAudioElement && otherAudioElement !== audioElement && !otherAudioElement.paused) {
+                    otherAudioElement.pause();
+                    const otherPlayIcon = btn.querySelector('.play-icon');
+                    const otherPauseIcon = btn.querySelector('.pause-icon');
+                    if (otherPlayIcon) otherPlayIcon.classList.remove('hidden');
+                    if (otherPauseIcon) otherPauseIcon.classList.add('hidden');
+                    btn.classList.add('bg-primary-500');
+                    btn.classList.remove('bg-gray-600');
+                    btn.setAttribute('title', 'Play');
+                }
+            });
 
-          audioElement.play();
-          if (playIcon) playIcon.classList.add('hidden');
-          if (pauseIcon) pauseIcon.classList.remove('hidden');
-          button.classList.add('bg-gray-600');
-          button.classList.remove('bg-primary-500');
-          button.setAttribute('title', 'Pause');
+            audioElement.play();
+            if (playIcon) playIcon.classList.add('hidden');
+            if (pauseIcon) pauseIcon.classList.remove('hidden');
+            button.classList.add('bg-gray-600');
+            button.classList.remove('bg-primary-500');
+            button.setAttribute('title', 'Pause');
 
-          audioElement.ontimeupdate = () => {
-            const progressWidth = (audioElement.currentTime / audioElement.duration) * 100;
-            progressBar.style.width = `${progressWidth}%`;
-            const currentTimeMinutes = Math.floor(audioElement.currentTime / 60);
-            const currentTimeSeconds = Math.floor(audioElement.currentTime % 60);
-            durationElement.textContent = `${currentTimeMinutes}:${currentTimeSeconds < 10 ? '0' : ''}${currentTimeSeconds}`;
-          };
+            audioElement.ontimeupdate = function() {
+                const progressWidth = (audioElement.currentTime / audioElement.duration) * 100;
+                progressBar.style.width = progressWidth + '%';
+                const currentTimeMinutes = Math.floor(audioElement.currentTime / 60);
+                const currentTimeSeconds = Math.floor(audioElement.currentTime % 60);
+                durationElement.textContent = currentTimeMinutes + ':' + (currentTimeSeconds < 10 ? '0' : '') + currentTimeSeconds;
+            };
 
-          audioElement.onended = () => {
+            audioElement.onended = function() {
+                if (playIcon) playIcon.classList.remove('hidden');
+                if (pauseIcon) pauseIcon.classList.add('hidden');
+                button.classList.add('bg-primary-500');
+                button.classList.remove('bg-gray-600');
+                button.setAttribute('title', 'Play');
+                progressBar.style.width = '0%';
+                durationElement.textContent = '0:00';
+            };
+        } else {
+            audioElement.pause();
             if (playIcon) playIcon.classList.remove('hidden');
             if (pauseIcon) pauseIcon.classList.add('hidden');
             button.classList.add('bg-primary-500');
             button.classList.remove('bg-gray-600');
             button.setAttribute('title', 'Play');
-            progressBar.style.width = '0%';
-            durationElement.textContent = '0:00';
-          };
-        } else {
-          audioElement.pause();
-          if (playIcon) playIcon.classList.remove('hidden');
-          if (pauseIcon) pauseIcon.classList.add('hidden');
-          button.classList.add('bg-primary-500');
-          button.classList.remove('bg-gray-600');
-          button.setAttribute('title', 'Play');
         }
-      }
     }
-
-    // Initialize voice message manager
-    const voiceManager = new VoiceMessageManager();
 
     // Group Management Functions
     async function loadAvailableUsers() {

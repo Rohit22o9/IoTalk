@@ -197,6 +197,7 @@
     "node-abi": "^3.75.0",
     "node-addon-api": "^8.5.0",
     "node-api-version": "^0.2.1",
+    "node-fetch": "^3.3.2",
     "node-gyp-build": "^4.8.4",
     "nopt": "^6.0.0",
     "normalize-url": "^6.1.0",

@@ -161,8 +161,8 @@
                        onclick="openMediaPreview(this.src, 'image', '<%= (chat.originalName || chat.media.split('/').pop()).replace(/'/g, '&apos;') %>')">
                 </div>
               <% } else if (isVideo) { %>
-                <div class="mb-2">
-                  <div class="relative cursor-pointer group" 
+                <div class="mb-2 relative group">
+                  <div class="relative cursor-pointer" 
                        onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= (chat.originalName || chat.media.split('/').pop()).replace(/'/g, '&apos;') %>')">
                     <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
                       <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
@@ -176,9 +176,13 @@
                       </div>
                     </div>
                   </div>
+                  <button onclick="summarizeContent('<%= chat._id %>', 'video', '<%= chat.media %>'); event.stopPropagation();"
+                          class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded hover:bg-primary-600">
+                    📝 Summarize
+                  </button>
                 </div>
               <% } else if (isAudio) { %>
-                <div class="voice-message-container">
+                <div class="voice-message-container relative group">
                   <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
                     <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
@@ -192,6 +196,10 @@
                     <div class="voice-progress"></div>
                   </div>
                   <div class="voice-duration">0:00</div>
+                  <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
+                          class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600">
+                    📝
+                  </button>
                 </div>
               <% } else { %>
                 <% const extColor = ext === 'pdf' ? 'text-red-500' :
@@ -224,18 +232,67 @@
             <% } %>
             
             <% if (chat.msg) { %>
-              <p class="text-sm leading-relaxed"><%= chat.msg %></p>
+              <div class="relative group">
+                <p class="text-sm leading-relaxed"><%= chat.msg %></p>
+                <% if (chat.msg.length > 200) { %>
+                  <button onclick="summarizeContent('<%= chat._id %>', 'text', `<%= chat.msg.replace(/'/g, "\\'") %>`)"
+                          class="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-20 text-white text-xs px-2 py-1 rounded hover:bg-opacity-40">
+                    📝 Summarize
+                  </button>
+                <% } %>
+              </div>
             <% } %>
             
             <div class="flex items-center justify-between mt-2">
               <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
                 <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
               </span>
+              <% if (chat.moderationResult && chat.moderationResult.flagged) { %>
+                <span class="text-xs text-red-400" title="Message was moderated">⚠️</span>
+              <% } %>
             </div>
           </div>
         </div>
       <% }); %>
     </main>
+
+    <!-- AI Summary Modal -->
+    <div id="ai-summary-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-2xl p-6 mx-4 max-w-md w-full max-h-96 overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">🤖 AI Summary</h3>
+          <button onclick="closeAISummary()" class="text-gray-400 hover:text-gray-600">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="ai-summary-content" class="text-sm text-gray-700 leading-relaxed">
+          <!-- Summary content will be inserted here -->
+        </div>
+        <div id="ai-summary-loading" class="text-center py-4">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          <p class="text-sm text-gray-500 mt-2">Generating summary...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Smart Replies Panel -->
+    <div id="smart-replies-panel" class="hidden fixed bottom-20 left-0 right-0 z-10 mx-4 mb-2">
+      <div class="bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl shadow-lg p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-gray-600">🤖 Smart Replies</span>
+          <button onclick="hideSmartReplies()" class="text-gray-400 hover:text-gray-600">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="smart-replies-content" class="space-y-2">
+          <!-- Smart reply buttons will be inserted here -->
+        </div>
+      </div>
+    </div>
 
     <!-- Media Preview (positioned above the footer) -->
     <div id="filePreview" class="hidden fixed bottom-20 left-0 right-0 z-10 mx-4 mb-2">
@@ -965,6 +1022,145 @@
         document.getElementById('voice-recording-modal').classList.add('hidden');
         document.body.style.overflow = 'auto';
     }
+
+    // AI Summarization Functions
+    async function summarizeContent(messageId, type, content) {
+        try {
+            showAISummary();
+            
+            const response = await fetch('/ai/summarize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    messageId: messageId,
+                    type: type,
+                    content: content
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                displayAISummary(data.summary);
+            } else {
+                displayAISummary('Unable to generate summary for this content.');
+            }
+        } catch (error) {
+            console.error('Summarization error:', error);
+            displayAISummary('Error generating summary. Please try again.');
+        }
+    }
+
+    function showAISummary() {
+        const modal = document.getElementById('ai-summary-modal');
+        const loading = document.getElementById('ai-summary-loading');
+        const content = document.getElementById('ai-summary-content');
+        
+        modal.classList.remove('hidden');
+        loading.classList.remove('hidden');
+        content.classList.add('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function displayAISummary(summary) {
+        const loading = document.getElementById('ai-summary-loading');
+        const content = document.getElementById('ai-summary-content');
+        
+        loading.classList.add('hidden');
+        content.classList.remove('hidden');
+        
+        if (typeof summary === 'object') {
+            // For audio/video with transcript and summary
+            content.innerHTML = `
+                <div class="space-y-4">
+                    ${summary.summary ? `<div><h4 class="font-semibold text-gray-900 mb-2">Summary:</h4><p>${summary.summary}</p></div>` : ''}
+                    ${summary.transcript ? `<div><h4 class="font-semibold text-gray-900 mb-2">Full Transcript:</h4><p class="text-sm text-gray-600">${summary.transcript}</p></div>` : ''}
+                    ${summary.note ? `<div class="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">${summary.note}</div>` : ''}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `<p>${summary}</p>`;
+        }
+    }
+
+    function closeAISummary() {
+        const modal = document.getElementById('ai-summary-modal');
+        modal.classList.add('hidden');
+        document.body.style.overflow = 'auto';
+    }
+
+    // Smart Replies Functions
+    function showSmartReplies(replies) {
+        const panel = document.getElementById('smart-replies-panel');
+        const content = document.getElementById('smart-replies-content');
+        
+        content.innerHTML = '';
+        
+        replies.forEach(reply => {
+            const button = document.createElement('button');
+            button.className = 'w-full text-left px-3 py-2 bg-secondary-50 hover:bg-secondary-100 rounded-lg text-sm transition-colors';
+            button.textContent = reply;
+            button.onclick = () => selectSmartReply(reply);
+            content.appendChild(button);
+        });
+        
+        panel.classList.remove('hidden');
+    }
+
+    function selectSmartReply(reply) {
+        msgInput.value = reply;
+        hideSmartReplies();
+        msgInput.focus();
+    }
+
+    function hideSmartReplies() {
+        const panel = document.getElementById('smart-replies-panel');
+        panel.classList.add('hidden');
+    }
+
+    // Auto-responder toggle function
+    async function toggleAutoResponder(enabled, groupId = null) {
+        try {
+            const response = await fetch('/ai/auto-responder/toggle', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    enabled: enabled,
+                    groupId: groupId
+                })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log('Auto-responder toggled:', data.enabled);
+            }
+        } catch (error) {
+            console.error('Auto-responder toggle error:', error);
+        }
+    }
+
+    // Listen for smart replies from AI
+    socket.on('smart replies', (data) => {
+        if (data.replies && data.replies.length > 0) {
+            showSmartReplies(data.replies);
+        }
+    });
+
+    // Detect YouTube links and offer summarization
+    msgInput.addEventListener('input', (e) => {
+        const message = e.target.value;
+        const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
+        
+        if (youtubeRegex.test(message)) {
+            // Could add a small indicator that YouTube summarization is available
+            console.log('YouTube link detected');
+        }
+    });
 
     // Call functions
     function initiateCall(type) {

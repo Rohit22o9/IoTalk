@@ -18,6 +18,10 @@ const GroupChat = require('./models/groupChat');
 const Call = require('./models/call');
 const Community = require('./models/community');
 
+// Import AI modules (assuming these are available in './utils/')
+const aiModeration = require('./utils/aiModeration');
+const aiAutoResponder = require('./utils/aiAutoResponder');
+
 // ----------- DATABASE CONNECTION -----------
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
@@ -239,47 +243,117 @@ app.get('/chat/:id', async (req, res) => {
     }
 });
 
-app.post('/chat/:id', mediaUpload.single('media'), async (req, res) => {
+// Chat message route
+app.post('/chat/:id', upload.single('media'), async (req, res) => {
     try {
-        if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!req.session.userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
+        const { id } = req.params;
         const { msg } = req.body;
-        const receiverId = req.params.id;
-        const senderId = req.session.userId;
+        const media = req.file;
 
-        if (!msg && !req.file) {
+        if (!msg && !media) {
             return res.status(400).json({ error: 'Message or media required' });
         }
 
-        // Fix media path to ensure proper serving
+        // Verify the recipient exists
+        const recipient = await User.findById(id);
+        if (!recipient) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
         let mediaPath = null;
-        if (req.file) {
-            mediaPath = req.file.path.replace('public', '').replace(/\\/g, '/');
-            if (!mediaPath.startsWith('/')) {
-                mediaPath = '/' + mediaPath;
+        let originalName = null;
+        let moderationResult = { flagged: false };
+        let finalMessage = msg || '';
+
+        // AI Moderation for text
+        if (msg) {
+            moderationResult = await aiModeration.moderateText(msg);
+            if (moderationResult.flagged) {
+                finalMessage = '';
+                // Store the moderation notice as the message
+                const moderationNotice = aiModeration.generateModerationNotice(moderationResult);
+                finalMessage = moderationNotice;
             }
         }
 
-        const newChat = new Chat({
-            from: senderId,
-            to: receiverId,
-            msg: msg || '',
+        if (media) {
+            mediaPath = '/media/' + media.filename;
+            originalName = media.originalname;
+
+            // AI Moderation for media (placeholder for now)
+            const mediaModeration = await aiModeration.moderateMedia(mediaPath, media.mimetype);
+            if (mediaModeration.flagged) {
+                // Remove the uploaded file if flagged
+                const fs = require('fs');
+                const fullPath = path.join(__dirname, 'public', mediaPath);
+                if (fs.existsSync(fullPath)) {
+                    fs.unlinkSync(fullPath);
+                }
+                mediaPath = null;
+                originalName = null;
+                finalMessage = '⚠️ Media content was automatically removed due to policy violations.';
+            }
+        }
+
+        const chat = await Chat.create({
+            from: req.session.userId,
+            to: id,
+            msg: finalMessage,
             media: mediaPath,
-            originalName: req.file ? req.file.originalname : null
+            originalName: originalName,
+            moderationResult: moderationResult.flagged ? moderationResult : undefined
         });
 
-        await newChat.save();
-        const savedChat = await Chat.findById(newChat._id).populate('from to');
-        const decryptedChat = savedChat.getDecrypted();
+        const populatedChat = await Chat.findById(chat._id)
+            .populate('from', 'username avatar')
+            .populate('to', 'username avatar');
 
-        // Emit to both users
-        io.to(senderId).emit('chat message', decryptedChat);
-        io.to(receiverId).emit('chat message', decryptedChat);
+        const roomId = [req.session.userId, id].sort().join('_');
+        io.to(roomId).emit('chat message', populatedChat);
 
-        res.json({ success: true, message: decryptedChat });
+        // AI Auto-Responder for personal chats
+        if (!moderationResult.flagged && aiAutoResponder.isEnabled(id)) {
+            setTimeout(async () => {
+                try {
+                    // Get recent conversation history
+                    const recentChats = await Chat.find({
+                        $or: [
+                            { from: req.session.userId, to: id },
+                            { from: id, to: req.session.userId }
+                        ]
+                    })
+                    .sort({ created_at: -1 })
+                    .limit(5)
+                    .populate('from', 'username');
+
+                    const conversationHistory = recentChats.reverse().map(chat => ({
+                        from: chat.from.username,
+                        message: chat.msg
+                    }));
+
+                    const smartReplies = await aiAutoResponder.generateSmartReplies(conversationHistory);
+
+                    if (smartReplies.length > 0) {
+                        // Send smart replies suggestion to the recipient
+                        io.to(id).emit('smart replies', {
+                            chatId: chat._id,
+                            replies: smartReplies
+                        });
+                    }
+                } catch (error) {
+                    console.error('Auto-responder error:', error);
+                }
+            }, 2000); // Delay to seem more natural
+        }
+
+        res.json({ success: true, message: populatedChat });
     } catch (error) {
-        console.error('Chat message error:', error);
-        res.status(500).json({ error: 'Error sending message' });
+        console.error('Chat error:', error);
+        res.status(500).json({ error: 'Failed to send message' });
     }
 });
 
@@ -483,40 +557,122 @@ app.get('/groups/:id', async (req, res) => {
     }
 });
 
-app.post('/groupchat/:groupId', mediaUpload.single('media'), async (req, res) => {
+// Group chat message route
+app.post('/groupchat/:groupId', upload.single('media'), async (req, res) => {
     try {
-        if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!req.session.userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
 
         const { groupId } = req.params;
-        const userId = req.session.userId;
-        const msg = req.body.msg || '';
-        const media = req.file ? `/media/${req.file.filename}` : null;
-        const originalName = req.file ? req.file.originalname : null;
-        const replyTo = req.body.replyTo || null;
+        const { msg } = req.body;
+        const media = req.file;
+
+        if (!msg && !media) {
+            return res.status(400).json({ error: 'Message or media required' });
+        }
 
         const group = await Group.findById(groupId);
-        if (!group || !group.members.includes(userId)) {
+        if (!group || !group.members.includes(req.session.userId)) {
             return res.status(403).json({ error: 'Not a group member' });
         }
 
-        const newMessage = await GroupChat.create({
+        let mediaPath = null;
+        let originalName = null;
+        let moderationResult = { flagged: false };
+        let finalMessage = msg || '';
+
+        // AI Moderation for text
+        if (msg) {
+            moderationResult = await aiModeration.moderateText(msg);
+            if (moderationResult.flagged) {
+                finalMessage = '';
+                const moderationNotice = aiModeration.generateModerationNotice(moderationResult);
+                finalMessage = moderationNotice;
+            }
+        }
+
+        if (media) {
+            mediaPath = '/media/' + media.filename;
+            originalName = media.originalname;
+
+            // AI Moderation for media
+            const mediaModeration = await aiModeration.moderateMedia(mediaPath, media.mimetype);
+            if (mediaModeration.flagged) {
+                const fs = require('fs');
+                const fullPath = path.join(__dirname, 'public', mediaPath);
+                if (fs.existsSync(fullPath)) {
+                    fs.unlinkSync(fullPath);
+                }
+                mediaPath = null;
+                originalName = null;
+                finalMessage = '⚠️ Media content was automatically removed due to policy violations.';
+            }
+        }
+
+        const groupMessage = await GroupChat.create({
             group: groupId,
-            from: userId,
-            msg,
-            media,
-            originalName,
-            replyTo
+            from: req.session.userId,
+            msg: finalMessage,
+            media: mediaPath,
+            originalName: originalName,
+            moderationResult: moderationResult.flagged ? moderationResult : undefined
         });
 
-        const populatedMessage = await GroupChat.findById(newMessage._id)
-            .populate('from', 'username avatar')
-            .populate('replyTo');
+        const populatedMessage = await GroupChat.findById(groupMessage._id)
+            .populate('from', 'username avatar');
 
         io.to(`group_${groupId}`).emit('group message', populatedMessage);
+
+        // AI Auto-Responder for group chats
+        if (!moderationResult.flagged && msg && aiAutoResponder.shouldRespondInGroup(msg)) {
+            setTimeout(async () => {
+                try {
+                    // Get recent group conversation history
+                    const recentMessages = await GroupChat.find({ group: groupId })
+                        .sort({ created_at: -1 })
+                        .limit(8)
+                        .populate('from', 'username');
+
+                    const conversationHistory = recentMessages.reverse().map(chat => ({
+                        from: chat.from.username,
+                        message: chat.msg
+                    }));
+
+                    const user = await User.findById(req.session.userId);
+                    const botResponse = await aiAutoResponder.generateGroupResponse(
+                        msg,
+                        conversationHistory,
+                        user.username
+                    );
+
+                    if (botResponse) {
+                        // Create bot message
+                        const botMessage = await GroupChat.create({
+                            group: groupId,
+                            from: req.session.userId, // For now, we'll need a dedicated bot user ID
+                            msg: botResponse,
+                            isAIResponse: true
+                        });
+
+                        const populatedBotMessage = await GroupChat.findById(botMessage._id)
+                            .populate('from', 'username avatar');
+
+                        // Add AI indicator
+                        populatedBotMessage.from.username = 'ModernBot (AI)';
+
+                        io.to(`group_${groupId}`).emit('group message', populatedBotMessage);
+                    }
+                } catch (error) {
+                    console.error('Group auto-responder error:', error);
+                }
+            }, 3000); // Delay for natural feel
+        }
+
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
-        console.error('Send group message error:', error);
-        res.status(500).json({ error: 'Failed to send group message' });
+        console.error('Group chat error:', error);
+        res.status(500).json({ error: 'Failed to send message' });
     }
 });
 

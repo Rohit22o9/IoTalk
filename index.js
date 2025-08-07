@@ -318,7 +318,7 @@ app.post('/chat/:id', upload.single('media'), async (req, res) => {
             .populate('to', 'username avatar');
 
         const roomId = [req.session.userId, id].sort().join('_');
-        io.to(roomId).emit('chat message', populatedChat);
+        io.to(roomId).emit('chat message', populatedChat.getDecrypted());
 
         // AI Auto-Responder for personal chats
         if (!moderationResult.flagged && aiAutoResponder.isEnabled(id)) {

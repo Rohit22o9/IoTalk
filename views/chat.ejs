@@ -146,7 +146,7 @@
         <% const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : ''; %>
         <% const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext); %>
         <% const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext); %>
-        <% const isAudio = ['mp3', 'wav', 'ogg', 'webm', 'm4a'].includes(ext); %>
+        <% const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || chat.media.includes('voice_'); %>
         
         <div class="flex <%= isOwn ? 'justify-end' : 'justify-start' %>">
           <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl
@@ -737,8 +737,8 @@
         if (data.media) {
             const ext = data.media.split('.').pop().toLowerCase();
             const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-            const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext);
-            const isAudio = ['mp3', 'wav', 'ogg', 'webm', 'm4a'].includes(ext);
+            const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(ext);
+            const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || data.originalName?.startsWith('voice_') || data.media.includes('voice_');
             
             if (isImage) {
                 mediaContent = `
@@ -746,7 +746,7 @@
                         <img src="${data.media}" alt="Media" class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity" onclick="openMediaPreview('${data.media}', 'image', '${data.originalName || data.media.split('/').pop()}')">
                     </div>
                 `;
-            } else if (isVideo) {
+            } else if (isVideo && !isAudio) {
                 mediaContent = `
                     <div class="mb-2">
                         <div class="relative cursor-pointer group" onclick="openMediaPreview('${data.media}', 'video', '${data.originalName || data.media.split('/').pop()}')">

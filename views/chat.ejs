@@ -373,10 +373,10 @@
 
     // Initialize socket only if not already initialized
     let socket;
-    if (typeof io !== 'undefined' && !window.chatSocket) {
+    if (typeof window.chatSocket === 'undefined') {
       socket = io();
       window.chatSocket = socket;
-    } else if (window.chatSocket) {
+    } else {
       socket = window.chatSocket;
     }
 
@@ -725,7 +725,12 @@
     }
 
     // Voice message playback functionality
-    document.addEventListener('click', function(event) {
+    function initializeVoiceMessagePlayback() {
+        document.removeEventListener('click', voiceMessageClickHandler);
+        document.addEventListener('click', voiceMessageClickHandler);
+    }
+
+    function voiceMessageClickHandler(event) {
         if (event.target.closest('.voice-play-btn')) {
             const button = event.target.closest('.voice-play-btn');
             const audioSrc = button.getAttribute('data-audio-src');
@@ -767,6 +772,12 @@
                 pauseIcon.classList.add('hidden');
             }
         }
+    }
+
+    // Initialize voice message playback on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeVoiceMessagePlayback();
+        scrollToBottom();
     });
 
     // Auto-scroll to bottom when new messages arrive
@@ -833,10 +844,7 @@
         `;
     }
 
-    // Initialize auto-scroll on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        scrollToBottom();
-    });
+    
   </script>
 </body>
 </html>

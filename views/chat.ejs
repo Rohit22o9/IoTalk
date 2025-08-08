@@ -145,7 +145,7 @@
         <% const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : ''; %>
         <% const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext); %>
         <% const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext); %>
-        <% const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_')); %>
+        <% const isAudio = ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_')); %>
 
         <div class="flex <%= isOwn ? 'justify-end' : 'justify-start' %>">
           <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl
@@ -181,23 +181,25 @@
                   </button>
                 </div>
               <% } else if (isAudio) { %>
-                <div class="voice-message-container relative group">
-                  <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
-                    <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
-                    </svg>
-                    <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
-                    </svg>
-                  </button>
-                  <div class="voice-progress-bar-container">
-                    <div class="voice-progress"></div>
+                <div class="mb-2">
+                  <div class="voice-message-container relative group">
+                    <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
+                      <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
+                      </svg>
+                      <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                      </svg>
+                    </button>
+                    <div class="voice-progress-bar-container">
+                      <div class="voice-progress"></div>
+                    </div>
+                    <div class="voice-duration">0:00</div>
+                    <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
+                            class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600">
+                      📝
+                    </button>
                   </div>
-                  <div class="voice-duration">0:00</div>
-                  <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
-                          class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600">
-                    📝
-                  </button>
                 </div>
               <% } else { %>
                 <% const extColor = ext === 'pdf' ? 'text-red-500' :
@@ -827,21 +829,26 @@
         
         let mediaContent = '';
         if (chat.media) {
+            const ext = chat.media.split('.').pop().toLowerCase();
+            const isAudio = ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
+            
             if (isAudio) {
                 mediaContent = `
-                    <div class="voice-message-container relative group">
-                        <button class="voice-play-btn" data-audio-src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}">
-                            <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
-                            </svg>
-                            <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
-                            </svg>
-                        </button>
-                        <div class="voice-progress-bar-container">
-                            <div class="voice-progress"></div>
+                    <div class="mb-2">
+                        <div class="voice-message-container relative group">
+                            <button class="voice-play-btn" data-audio-src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}">
+                                <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
+                                </svg>
+                                <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                                </svg>
+                            </button>
+                            <div class="voice-progress-bar-container">
+                                <div class="voice-progress"></div>
+                            </div>
+                            <div class="voice-duration">0:00</div>
                         </div>
-                        <div class="voice-duration">0:00</div>
                     </div>
                 `;
             }

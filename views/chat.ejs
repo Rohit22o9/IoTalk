@@ -369,6 +369,29 @@
             return true; // Allow default navigation
         }
     }
+
+    // Check for pending call data from dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.pendingCallData) {
+            // Set up the call immediately
+            currentCall = {
+                callId: window.pendingCallData.callId,
+                type: window.pendingCallData.type,
+                isInitiator: false,
+                status: 'connecting'
+            };
+            
+            localStream = window.pendingCallData.localStream;
+            
+            // Create peer connection and show active call interface
+            createPeerConnection().then(() => {
+                showActiveCallInterface(currentCall.type);
+            });
+            
+            // Clear the pending call data
+            delete window.pendingCallData;
+        }
+    });
   </script>
   <script>
     // Initialize chat variables
@@ -519,6 +542,9 @@
 
     // Listen for incoming calls
     chatSocket.on('incoming-call', (data) => {
+        // Hide footer when receiving call
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'none';
         showIncomingCallNotification(data);
     });
 
@@ -871,6 +897,10 @@
         const statusOverlay = document.getElementById('call-status-overlay');
         const statusMessage = document.getElementById('status-message');
 
+        // Ensure footer is hidden during any call state
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'none';
+
         if (status === 'connected') {
             if (statusElement) {
                 statusElement.textContent = 'Connected';
@@ -900,6 +930,10 @@
 
     // Show call status messages
     function showCallStatus(message, type) {
+        // Always hide footer during call status updates
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'none';
+
         const statusElement = document.getElementById('call-status');
         if (statusElement) {
             statusElement.textContent = message;

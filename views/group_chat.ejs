@@ -1826,6 +1826,19 @@
         } else {
             console.error('Message input not found');
         }
+
+        // Close the AI suggestions panel
+        closeGroupAISuggestions();
+    }
+
+    // Close AI suggestions panel
+    function closeGroupAISuggestions() {
+        const existingSuggestions = document.querySelector('.ai-suggestions');
+        if (existingSuggestions) {
+            existingSuggestions.style.opacity = '0';
+            existingSuggestions.style.transform = 'translateY(10px)';
+            setTimeout(() => existingSuggestions.remove(), 300);
+        }
     }
   </script>
   <script src="/js/groupCall.js"></script>

@@ -138,13 +138,13 @@
               <% if (isImage) { %>
                 <div class="mb-2">
                   <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
-                       alt="Media" 
+                       alt="Media"
                        class="rounded-md max-h-60 shadow cursor-pointer hover:opacity-90 transition-opacity"
                        onclick="openMediaPreview(this.src, 'image', '<%= (chat.originalName || chat.media.split('/').pop()).replace(/'/g, '&apos;') %>')">
                 </div>
               <% } else if (isVideo) { %>
                 <div class="mb-2 relative group">
-                  <div class="relative cursor-pointer" 
+                  <div class="relative cursor-pointer"
                        onclick="openMediaPreview('<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>', 'video', '<%= (chat.originalName || chat.media.split('/').pop()).replace(/'/g, '&apos;') %>')">
                     <video class="rounded-md max-h-60 shadow w-full" style="max-width: 100%;" preload="metadata">
                       <source src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>" type="video/<%= ext %>">
@@ -333,7 +333,7 @@
   <div id="mediaPreviewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
     <div class="relative max-w-screen-lg max-h-screen-lg w-full h-full flex items-center justify-center p-4">
       <!-- Close Button -->
-      <button onclick="closeMediaPreview()" 
+      <button onclick="closeMediaPreview()"
               class="absolute top-4 right-4 z-60 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-colors">
         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -346,7 +346,7 @@
       </div>
 
       <!-- Download Button -->
-      <button id="downloadMediaBtn" onclick="downloadMedia()" 
+      <button id="downloadMediaBtn" onclick="downloadMedia()"
               class="absolute bottom-4 right-4 z-60 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
@@ -358,6 +358,18 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
+  <script>
+    // Handle chat navigation
+    function handleChatNavigation(userId) {
+        try {
+            window.location.href = `/chat/${userId}`;
+            return false;
+        } catch (error) {
+            console.error('Navigation error:', error);
+            return true; // Allow default navigation
+        }
+    }
+  </script>
   <script>
     // Initialize chat variables
     const messagesContainer = document.getElementById('messages-container');
@@ -407,7 +419,7 @@
                 video: type === 'video'
             };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            
+
             const response = await fetch('/call/initiate', {
                 method: 'POST',
                 headers: {
@@ -418,7 +430,7 @@
                     type: type
                 })
             });
-            
+
             const data = await response.json();
             if (data.success) {
                 currentCall = {
@@ -427,7 +439,7 @@
                     isInitiator: true,
                     status: 'calling'
                 };
-                
+
                 // Create peer connection
                 await createPeerConnection();
                 showOutgoingCallInterface(type);
@@ -452,14 +464,14 @@
     // Create WebRTC peer connection
     async function createPeerConnection() {
         peerConnection = new RTCPeerConnection(rtcConfiguration);
-        
+
         // Add local stream tracks
         if (localStream) {
             localStream.getTracks().forEach(track => {
                 peerConnection.addTrack(track, localStream);
             });
         }
-        
+
         // Handle remote stream
         peerConnection.ontrack = (event) => {
             const remoteVideo = document.getElementById('remote-video');
@@ -467,7 +479,7 @@
                 remoteVideo.srcObject = event.streams[0];
             }
         };
-        
+
         // Handle ICE candidates
         peerConnection.onicecandidate = (event) => {
             if (event.candidate && currentCall) {
@@ -479,23 +491,23 @@
                 });
             }
         };
-        
+
         // Handle connection state changes
         peerConnection.onconnectionstatechange = () => {
             console.log('Connection state:', peerConnection.connectionState);
             if (peerConnection.connectionState === 'connected') {
                 startCallTimer();
-            } else if (peerConnection.connectionState === 'disconnected' || 
+            } else if (peerConnection.connectionState === 'disconnected' ||
                       peerConnection.connectionState === 'failed') {
                 endCall();
             }
         };
-        
+
         // Create and send offer if initiator
         if (currentCall && currentCall.isInitiator) {
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
-            
+
             chatSocket.emit('call-offer', {
                 offer: offer,
                 to: otherUserId,
@@ -550,7 +562,7 @@
                 await peerConnection.setRemoteDescription(data.offer);
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                
+
                 chatSocket.emit('call-answer', {
                     answer: answer,
                     to: data.from,
@@ -587,7 +599,7 @@
         // Hide the message footer
         const footer = document.getElementById('message-footer');
         if (footer) footer.style.display = 'none';
-        
+
         // Create incoming call interface
         const callInterface = document.createElement('div');
         callInterface.id = 'incoming-call-interface';
@@ -597,8 +609,8 @@
             <div class="flex-1 flex flex-col items-center justify-center p-8">
                 <div class="text-center text-white mb-8">
                     <div class="relative mb-6">
-                        <img src="${data.caller.avatar || '/avatars/default-avatar.png'}" 
-                             alt="${data.caller.username}" 
+                        <img src="${data.caller.avatar || '/avatars/default-avatar.png'}"
+                             alt="${data.caller.username}"
                              class="w-32 h-32 rounded-full mx-auto border-4 border-white shadow-2xl animate-pulse">
                         <div class="absolute inset-0 w-32 h-32 rounded-full border-4 border-white animate-ping mx-auto"></div>
                     </div>
@@ -611,16 +623,16 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="p-8">
                 <div class="flex justify-center space-x-12">
-                    <button onclick="declineCall('${data.callId}')" 
+                    <button onclick="declineCall('${data.callId}')"
                             class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all duration-200 transform hover:scale-110 shadow-2xl">
                         <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v1.5a1.5 1.5 0 001.5 1.5H7a1 1 0 001-1V4a1 1 0 011-1h2a1 1 0 011 1v1.5a1 1 0 001-1V4a1 1 0 011-1h1.5A1.5 1.5 0 0017 4v12a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 013 16V4a1 1 0 011-1z" clip-rule="evenodd"></path>
                         </svg>
                     </button>
-                    <button onclick="acceptCall('${data.callId}', '${data.type}')" 
+                    <button onclick="acceptCall('${data.callId}', '${data.type}')"
                             class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white hover:bg-green-600 transition-all duration-200 transform hover:scale-110 shadow-2xl">
                         <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
@@ -644,7 +656,7 @@
                 video: type === 'video'
             };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            
+
             const response = await fetch(`/call/${callId}/respond`, {
                 method: 'POST',
                 headers: {
@@ -652,7 +664,7 @@
                 },
                 body: JSON.stringify({ action: 'accept' })
             });
-            
+
             const data = await response.json();
             if (data.success) {
                 currentCall = {
@@ -661,7 +673,7 @@
                     isInitiator: false,
                     status: 'connecting'
                 };
-                
+
                 // Create peer connection
                 await createPeerConnection();
                 showActiveCallInterface(type);
@@ -698,7 +710,7 @@
         if (notification) {
             notification.remove();
         }
-        
+
         // Show the message footer back
         const footer = document.getElementById('message-footer');
         if (footer) footer.style.display = 'block';
@@ -709,7 +721,7 @@
         // Hide the message footer
         const footer = document.getElementById('message-footer');
         if (footer) footer.style.display = 'none';
-        
+
         const callInterface = document.createElement('div');
         callInterface.id = 'call-interface';
         callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 z-50 flex flex-col';
@@ -718,8 +730,8 @@
             <div class="flex-1 flex flex-col items-center justify-center p-8">
                 <div class="text-center text-white mb-8">
                     <div class="relative mb-6">
-                        <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>" 
-                             alt="<%= otherUser.username %>" 
+                        <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>"
+                             alt="<%= otherUser.username %>"
                              class="w-32 h-32 rounded-full mx-auto border-4 border-white shadow-2xl">
                     </div>
                     <h2 class="text-3xl font-bold mb-2"><%= otherUser.username %></h2>
@@ -731,10 +743,10 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="p-8">
                 <div class="flex justify-center">
-                    <button onclick="endCall()" 
+                    <button onclick="endCall()"
                             class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all duration-200 transform hover:scale-110 shadow-2xl">
                         <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v1.5a1.5 1.5 0 001.5 1.5H7a1 1 0 001-1V4a1 1 0 011-1h2a1 1 0 011 1v1.5a1 1 0 001-1V4a1 1 0 011-1h1.5A1.5 1.5 0 0017 4v12a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 013 16V4a1 1 0 011-1z" clip-rule="evenodd"></path>
@@ -766,13 +778,13 @@
         // Hide the message footer
         const footer = document.getElementById('message-footer');
         if (footer) footer.style.display = 'none';
-        
+
         const callInterface = document.createElement('div');
         callInterface.id = 'call-interface';
         callInterface.className = 'fixed inset-0 bg-black z-50 flex flex-col';
 
         const isVideo = type === 'video';
-        
+
         callInterface.innerHTML = `
             <div class="flex-1 relative ${isVideo ? 'bg-black' : 'bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900'}">
                 ${isVideo ? `
@@ -783,22 +795,22 @@
                     <!-- Audio call layout -->
                     <div class="flex flex-col items-center justify-center h-full text-white">
                         <div class="relative mb-8">
-                            <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>" 
-                                 alt="<%= otherUser.username %>" 
+                            <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>"
+                                 alt="<%= otherUser.username %>"
                                  class="w-40 h-40 rounded-full border-4 border-white shadow-2xl">
                         </div>
                         <h2 class="text-3xl font-bold mb-2"><%= otherUser.username %></h2>
                         <p class="text-xl text-blue-200" id="call-timer">00:00</p>
                     </div>
                 `}
-                
+
                 <!-- Call timer for video calls -->
                 ${isVideo ? `
                     <div class="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full">
                         <span id="call-timer">00:00</span>
                     </div>
                 ` : ''}
-                
+
                 <!-- Call status overlay -->
                 <div id="call-status-overlay" class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden">
                     <div class="text-center text-white">
@@ -811,28 +823,28 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Call controls -->
             <div class="bg-gray-900 bg-opacity-80 p-6">
                 <div class="flex justify-center space-x-6">
-                    <button id="toggle-audio" onclick="toggleAudio()" 
+                    <button id="toggle-audio" onclick="toggleAudio()"
                             class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center text-white hover:bg-gray-700 transition-all duration-200">
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" clip-rule="evenodd"></path>
                             <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5H10.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"></path>
                         </svg>
                     </button>
-                    
+
                     ${isVideo ? `
-                        <button id="toggle-video" onclick="toggleVideo()" 
+                        <button id="toggle-video" onclick="toggleVideo()"
                                 class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center text-white hover:bg-gray-700 transition-all duration-200">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
                             </svg>
                         </button>
                     ` : ''}
-                    
-                    <button onclick="endCall()" 
+
+                    <button onclick="endCall()"
                             class="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all duration-200">
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v1.5a1.5 1.5 0 001.5 1.5H7a1 1 0 001-1V4a1 1 0 011-1h2a1 1 0 011 1v1.5a1 1 0 001-1V4a1 1 0 011-1h1.5A1.5 1.5 0 0017 4v12a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 013 16V4a1 1 0 011-1z" clip-rule="evenodd"></path>
@@ -858,7 +870,7 @@
         const statusElement = document.getElementById('call-status');
         const statusOverlay = document.getElementById('call-status-overlay');
         const statusMessage = document.getElementById('status-message');
-        
+
         if (status === 'connected') {
             if (statusElement) {
                 statusElement.textContent = 'Connected';
@@ -866,7 +878,7 @@
             if (statusOverlay) {
                 statusOverlay.classList.add('hidden');
             }
-            
+
             // Replace interface with active call interface if it's an outgoing call
             if (currentCall && currentCall.status === 'calling') {
                 const oldInterface = document.getElementById('call-interface');
@@ -892,7 +904,7 @@
         if (statusElement) {
             statusElement.textContent = message;
         }
-        
+
         const statusMessage = document.getElementById('status-message');
         if (statusMessage) {
             statusMessage.textContent = message;
@@ -904,14 +916,14 @@
         if (callTimer) {
             clearInterval(callTimer);
         }
-        
+
         callStartTime = Date.now();
         callTimer = setInterval(() => {
             const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
             const minutes = Math.floor(elapsed / 60);
             const seconds = elapsed % 60;
             const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
+
             const timerElement = document.getElementById('call-timer');
             if (timerElement) {
                 timerElement.textContent = timeString;
@@ -943,7 +955,7 @@
                     button.classList.toggle('bg-red-500', !videoTrack.enabled);
                     button.classList.toggle('bg-gray-600', videoTrack.enabled);
                 }
-                
+
                 // Show/hide local video
                 const localVideo = document.getElementById('local-video');
                 if (localVideo) {
@@ -959,7 +971,7 @@
             clearInterval(callTimer);
             callTimer = null;
         }
-        
+
         if (currentCall) {
             fetch(`/call/${currentCall.callId}/end`, {
                 method: 'POST'
@@ -1122,11 +1134,11 @@
             const modal = document.getElementById('ai-summary-modal');
             const loadingDiv = document.getElementById('ai-summary-loading');
             const contentDiv = document.getElementById('ai-summary-content');
-            
+
             modal.classList.remove('hidden');
             loadingDiv.classList.remove('hidden');
             contentDiv.classList.add('hidden');
-            
+
             const response = await fetch('/api/ai/summarize', {
                 method: 'POST',
                 headers: {
@@ -1138,12 +1150,12 @@
                     content: content
                 })
             });
-            
+
             const result = await response.json();
-            
+
             loadingDiv.classList.add('hidden');
             contentDiv.classList.remove('hidden');
-            
+
             if (result.success) {
                 contentDiv.innerHTML = `<p>${result.summary}</p>`;
             } else {
@@ -1153,7 +1165,7 @@
             console.error('Error summarizing content:', error);
             const contentDiv = document.getElementById('ai-summary-content');
             const loadingDiv = document.getElementById('ai-summary-loading');
-            
+
             loadingDiv.classList.add('hidden');
             contentDiv.classList.remove('hidden');
             contentDiv.innerHTML = `<p class="text-red-500">Error generating summary</p>`;
@@ -1173,16 +1185,16 @@
         const modal = document.getElementById('mediaPreviewModal');
         const container = document.getElementById('previewMediaContainer');
         const downloadBtn = document.getElementById('downloadMediaBtn');
-        
+
         downloadBtn.setAttribute('data-src', src);
         downloadBtn.setAttribute('data-filename', filename);
-        
+
         if (type === 'image') {
             container.innerHTML = `<img src="${src}" alt="${filename}" class="max-w-full max-h-full object-contain">`;
         } else if (type === 'video') {
             container.innerHTML = `<video src="${src}" controls class="max-w-full max-h-full object-contain">Your browser does not support video playback.</video>`;
         }
-        
+
         modal.classList.remove('hidden');
     }
 
@@ -1194,7 +1206,7 @@
         const downloadBtn = document.getElementById('downloadMediaBtn');
         const src = downloadBtn.getAttribute('data-src');
         const filename = downloadBtn.getAttribute('data-filename');
-        
+
         const link = document.createElement('a');
         link.href = src;
         link.download = filename;
@@ -1271,7 +1283,26 @@
         `;
     }
 
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize notification manager
+        if (window.notificationManager) {
+            window.notificationManager.setSocket(chatSocket, '<%= currentUser._id %>');
+        }
 
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                console.log('Notification permission:', permission);
+                if (permission === 'granted' && window.notificationManager) {
+                    window.notificationManager.showToastNotification(
+                        'Notifications Enabled',
+                        'You will now receive notifications for messages and calls',
+                        'message'
+                    );
+                }
+            });
+        }
+    });
   </script>
 </body>
 </html>

@@ -307,12 +307,37 @@
             if (!window.currentIncomingCall) return;
 
             const callData = window.currentIncomingCall;
-            if (callData.groupId) {
-                // Redirect to group chat for group calls
-                window.location.href = `/groups/${callData.groupId}`;
-            } else {
-                // Redirect to personal chat for individual calls
-                window.location.href = `/chat/${callData.caller.id}`;
+            
+            try {
+                // Accept the call on the server
+                const response = await fetch(`/call/${callData.callId}/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action: 'accept' })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    // Hide the modal before redirecting
+                    hideGlobalCallModal();
+                    
+                    if (callData.groupId) {
+                        // Redirect to group chat for group calls
+                        window.location.href = `/groups/${callData.groupId}?autoAcceptCall=${callData.callId}&callType=${callData.type}`;
+                    } else {
+                        // Redirect to personal chat for individual calls
+                        window.location.href = `/chat/${callData.caller.id}?autoAcceptCall=${callData.callId}&callType=${callData.type}`;
+                    }
+                } else {
+                    alert('Failed to accept call: ' + result.error);
+                    hideGlobalCallModal();
+                }
+            } catch (error) {
+                console.error('Error accepting call:', error);
+                alert('Failed to accept call');
+                hideGlobalCallModal();
             }
         };
 

@@ -8,31 +8,33 @@ class AIAutoResponder {
     }
 
     loadResponsePatterns() {
-        // Greeting responses
+        // Greeting responses (English + Hindi + Hinglish)
         this.greetingPatterns = [
-            { pattern: /^(hi|hello|hey|good morning|good evening)/i, responses: ['Hello!', 'Hi there!', 'Hey! How are you?', 'Good to see you!'] },
-            { pattern: /how are you/i, responses: ['I\'m doing well, thanks!', 'All good here!', 'Great, thanks for asking!'] },
+            { pattern: /^(hi|hello|hey|good morning|good evening|namaste|namaskar|adab)/i, responses: ['Hello!', 'Hi there!', 'Hey! How are you?', 'Good to see you!', 'Namaste!', 'Namaskar!'] },
+            { pattern: /^(kya haal|kaise ho|kaisi ho|kya chal raha|wassup)/i, responses: ['Sab badhiya!', 'Main theek hun!', 'All good yaar!', 'Bas chill kar raha hun!'] },
+            { pattern: /how are you|kaise ho|kaisi ho|what\'s up/i, responses: ['I\'m doing well, thanks!', 'All good here!', 'Great, thanks for asking!', 'Sab badhiya hai!', 'Main ekdum fine hun!'] },
         ];
 
-        // Question responses
+        // Question responses (English + Hindi + Hinglish)
         this.questionPatterns = [
-            { pattern: /what time/i, responses: [`It's ${new Date().toLocaleTimeString()}`] },
-            { pattern: /what day/i, responses: [`Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}`] },
-            { pattern: /how to|help with|can you help/i, responses: ['I\'d be happy to help!', 'What do you need assistance with?', 'How can I help you?'] },
+            { pattern: /what time|kitne baje|time kya|samay kya/i, responses: [`It's ${new Date().toLocaleTimeString()}`, `Abhi ${new Date().toLocaleTimeString()} baj rahe hain`] },
+            { pattern: /what day|kaun sa din|aaj kya din/i, responses: [`Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}`, `Aaj ${new Date().toLocaleDateString('hi-IN', { weekday: 'long' })} hai`] },
+            { pattern: /how to|help with|can you help|kaise karu|madad|help chahiye/i, responses: ['I\'d be happy to help!', 'What do you need assistance with?', 'How can I help you?', 'Haan bolo, kya madad chahiye?', 'Main help kar sakta hun!'] },
+            { pattern: /kya kar rahe|kya chal raha|what doing/i, responses: ['Just chatting!', 'Bas yahan timepass kar raha hun!', 'Tumse baat kar raha hun!', 'Nothing much, just here!'] },
         ];
 
-        // Sentiment-based responses
-        this.positiveResponses = ['That\'s great!', 'Awesome!', 'Wonderful!', 'Nice!', 'That sounds good!'];
-        this.negativeResponses = ['I\'m sorry to hear that.', 'That doesn\'t sound good.', 'I hope things get better.', 'Is there anything I can do to help?'];
-        this.neutralResponses = ['I see.', 'Okay.', 'Got it.', 'Thanks for sharing.', 'Interesting.'];
+        // Sentiment-based responses (English + Hindi + Hinglish)
+        this.positiveResponses = ['That\'s great!', 'Awesome!', 'Wonderful!', 'Nice!', 'That sounds good!', 'Wah bhai!', 'Badhiya!', 'Zabardast!', 'Mast hai!', 'Ekdum sahi!'];
+        this.negativeResponses = ['I\'m sorry to hear that.', 'That doesn\'t sound good.', 'I hope things get better.', 'Is there anything I can do to help?', 'Yaar ye to sad hai.', 'Koi baat nahi, sab theek ho jayega.', 'Tension mat lo.'];
+        this.neutralResponses = ['I see.', 'Okay.', 'Got it.', 'Thanks for sharing.', 'Interesting.', 'Achha.', 'Theek hai.', 'Samajh gaya.', 'Haan bhai.', 'OK yaar.'];
 
-        // Smart reply templates
+        // Smart reply templates (English + Hindi + Hinglish)
         this.smartReplyTemplates = {
-            question: ['Yes', 'No', 'Maybe', 'I think so', 'Not sure'],
-            agreement: ['I agree', 'Exactly!', 'You\'re right', 'That makes sense'],
-            acknowledgment: ['Thanks', 'Got it', 'Okay', 'Sure', 'Alright'],
-            positive: ['Great!', 'Awesome!', 'Nice!', 'Cool!', 'Perfect!'],
-            negative: ['Sorry to hear that', 'That\'s unfortunate', 'I understand', 'Hope it gets better']
+            question: ['Yes', 'No', 'Maybe', 'I think so', 'Not sure', 'Haan', 'Nahi', 'Shayad', 'Ho sakta hai', 'Pata nahi'],
+            agreement: ['I agree', 'Exactly!', 'You\'re right', 'That makes sense', 'Bilkul sahi!', 'Ekdum right!', 'Yaar tu sahi keh raha hai', 'Main agree karta hun'],
+            acknowledgment: ['Thanks', 'Got it', 'Okay', 'Sure', 'Alright', 'Dhanyawad', 'Samajh gaya', 'Theek hai', 'Haan bhai', 'OK yaar'],
+            positive: ['Great!', 'Awesome!', 'Nice!', 'Cool!', 'Perfect!', 'Badhiya!', 'Mast!', 'Zabardast!', 'Perfect hai!', 'Ekdum sahi!'],
+            negative: ['Sorry to hear that', 'That\'s unfortunate', 'I understand', 'Hope it gets better', 'Bura laga sunke', 'Koi baat nahi', 'Samajh sakta hun', 'Sab theek ho jayega']
         };
     }
 
@@ -147,59 +149,59 @@ class AIAutoResponder {
     generateContextualReplies(messageText, context) {
         const replies = [];
 
-        // Handle specific greetings
-        if (/^(hi|hello|hey)\b/i.test(messageText)) {
-            if (context.topics.includes('time') || messageText.includes('morning')) {
-                replies.push('Good morning!', 'Morning! Hope you have a great day!');
-            } else if (messageText.includes('evening')) {
-                replies.push('Good evening!', 'Evening! How was your day?');
+        // Handle specific greetings (English + Hindi + Hinglish)
+        if (/^(hi|hello|hey|namaste|namaskar|adab|kya haal)\b/i.test(messageText)) {
+            if (context.topics.includes('time') || messageText.includes('morning') || messageText.includes('subah')) {
+                replies.push('Good morning!', 'Morning! Hope you have a great day!', 'Subah bakhair!', 'Good morning yaar!');
+            } else if (messageText.includes('evening') || messageText.includes('shaam')) {
+                replies.push('Good evening!', 'Evening! How was your day?', 'Shaam bakhair!', 'Good evening bhai!');
             } else {
-                replies.push('Hello there!', 'Hey! How are you doing?', 'Hi! What\'s up?');
+                replies.push('Hello there!', 'Hey! How are you doing?', 'Hi! What\'s up?', 'Namaste!', 'Kya haal hai?', 'Wassup yaar!');
             }
             return replies;
         }
 
-        // Handle questions specifically
-        if (messageText.includes('?')) {
-            if (messageText.includes('how are you') || messageText.includes('how\'re you')) {
-                replies.push('I\'m doing well, thanks! How about you?', 'Great, thanks for asking!', 'All good here! How are things with you?');
-            } else if (messageText.includes('what are you doing') || messageText.includes('what\'re you doing')) {
-                replies.push('Just chatting with you!', 'Not much, just here to help!', 'Having a nice conversation with you!');
-            } else if (messageText.includes('how was your day') || messageText.includes('how\'s your day')) {
-                replies.push('It\'s been good, thanks!', 'Pretty good day so far!', 'Going well, how about yours?');
-            } else if (messageText.includes('what time') || messageText.includes('what\'s the time')) {
-                replies.push(`It's ${new Date().toLocaleTimeString()}`, 'Let me check the time for you');
-            } else if (messageText.includes('where') || messageText.includes('when') || messageText.includes('why')) {
-                replies.push('That\'s a good question!', 'I\'m not sure about that', 'What do you think?');
+        // Handle questions specifically (English + Hindi + Hinglish)
+        if (messageText.includes('?') || messageText.includes('kya') || messageText.includes('kaise') || messageText.includes('kaun') || messageText.includes('kab')) {
+            if (messageText.includes('how are you') || messageText.includes('how\'re you') || messageText.includes('kaise ho') || messageText.includes('kaisi ho')) {
+                replies.push('I\'m doing well, thanks! How about you?', 'Great, thanks for asking!', 'All good here! How are things with you?', 'Main bilkul theek hun! Tum kaise ho?', 'Sab badhiya! Tumhara kya haal?');
+            } else if (messageText.includes('what are you doing') || messageText.includes('what\'re you doing') || messageText.includes('kya kar rahe') || messageText.includes('kya chal raha')) {
+                replies.push('Just chatting with you!', 'Not much, just here to help!', 'Having a nice conversation with you!', 'Bas tumse baat kar raha hun!', 'Kuch khas nahi, timepass!');
+            } else if (messageText.includes('how was your day') || messageText.includes('how\'s your day') || messageText.includes('din kaisa')) {
+                replies.push('It\'s been good, thanks!', 'Pretty good day so far!', 'Going well, how about yours?', 'Achha chal raha hai!', 'Badhiya din hai, tumhara kya haal?');
+            } else if (messageText.includes('what time') || messageText.includes('what\'s the time') || messageText.includes('kitne baje') || messageText.includes('time kya')) {
+                replies.push(`It's ${new Date().toLocaleTimeString()}`, 'Let me check the time for you', `Abhi ${new Date().toLocaleTimeString()} baj rahe hain`, 'Time check karta hun!');
+            } else if (messageText.includes('where') || messageText.includes('when') || messageText.includes('why') || messageText.includes('kahan') || messageText.includes('kab') || messageText.includes('kyun')) {
+                replies.push('That\'s a good question!', 'I\'m not sure about that', 'What do you think?', 'Yaar ye to acha sawal hai!', 'Mujhe nahi pata, tum kya sochte ho?');
             } else {
                 // Generic question responses
-                replies.push('Hmm, let me think about that', 'That\'s interesting!', 'Good question!');
+                replies.push('Hmm, let me think about that', 'That\'s interesting!', 'Good question!', 'Hmm, sochne do', 'Interesting sawal hai!', 'Achha question!');
             }
             return replies;
         }
 
-        // Handle statements about activities
-        if (messageText.includes('working') || messageText.includes('studying')) {
-            replies.push('That sounds productive!', 'Hope it\'s going well!', 'What are you working on?');
-        } else if (messageText.includes('eating') || messageText.includes('lunch') || messageText.includes('dinner')) {
-            replies.push('Enjoy your meal!', 'What are you having?', 'That sounds tasty!');
-        } else if (messageText.includes('watching') || messageText.includes('movie') || messageText.includes('show')) {
-            replies.push('What are you watching?', 'Sounds entertaining!', 'Is it good?');
-        } else if (messageText.includes('tired') || messageText.includes('sleepy')) {
-            replies.push('You should get some rest!', 'Take care of yourself!', 'Maybe time for a break?');
-        } else if (messageText.includes('excited') || messageText.includes('happy')) {
-            replies.push('That\'s wonderful!', 'I\'m happy for you!', 'What\'s got you excited?');
+        // Handle statements about activities (English + Hindi + Hinglish)
+        if (messageText.includes('working') || messageText.includes('studying') || messageText.includes('padh raha') || messageText.includes('kaam kar raha') || messageText.includes('office')) {
+            replies.push('That sounds productive!', 'Hope it\'s going well!', 'What are you working on?', 'Mehnat kar rahe ho!', 'Kya kaam chal raha hai?', 'Study hard yaar!');
+        } else if (messageText.includes('eating') || messageText.includes('lunch') || messageText.includes('dinner') || messageText.includes('khana') || messageText.includes('kha raha')) {
+            replies.push('Enjoy your meal!', 'What are you having?', 'That sounds tasty!', 'Khana enjoy karo!', 'Kya kha rahe ho?', 'Maza aaye khane mein!');
+        } else if (messageText.includes('watching') || messageText.includes('movie') || messageText.includes('show') || messageText.includes('dekh raha') || messageText.includes('film')) {
+            replies.push('What are you watching?', 'Sounds entertaining!', 'Is it good?', 'Kya dekh rahe ho?', 'Maza aa raha hai?', 'Kaisi hai movie?');
+        } else if (messageText.includes('tired') || messageText.includes('sleepy') || messageText.includes('thak gaya') || messageText.includes('neend aa rahi')) {
+            replies.push('You should get some rest!', 'Take care of yourself!', 'Maybe time for a break?', 'Aram karo yaar!', 'So jao bhai!', 'Break lelo thoda!');
+        } else if (messageText.includes('excited') || messageText.includes('happy') || messageText.includes('khush') || messageText.includes('maza aa raha')) {
+            replies.push('That\'s wonderful!', 'I\'m happy for you!', 'What\'s got you excited?', 'Wah! Badhiya!', 'Khushi ki baat hai!', 'Kya baat hai!');
         }
 
-        // Handle thank you messages
-        if (messageText.includes('thank') || messageText.includes('thanks')) {
-            replies.push('You\'re welcome!', 'No problem!', 'Happy to help!', 'Anytime!');
+        // Handle thank you messages (English + Hindi + Hinglish)
+        if (messageText.includes('thank') || messageText.includes('thanks') || messageText.includes('shukriya') || messageText.includes('dhanyawad') || messageText.includes('thanks yaar')) {
+            replies.push('You\'re welcome!', 'No problem!', 'Happy to help!', 'Anytime!', 'Koi baat nahi!', 'Welcome hai bhai!', 'Mention not yaar!');
             return replies;
         }
 
-        // Handle goodbye messages
-        if (messageText.includes('bye') || messageText.includes('see you') || messageText.includes('talk later')) {
-            replies.push('Goodbye!', 'See you later!', 'Take care!', 'Talk to you soon!');
+        // Handle goodbye messages (English + Hindi + Hinglish)
+        if (messageText.includes('bye') || messageText.includes('see you') || messageText.includes('talk later') || messageText.includes('alvida') || messageText.includes('milte hain') || messageText.includes('chalta hun')) {
+            replies.push('Goodbye!', 'See you later!', 'Take care!', 'Talk to you soon!', 'Bye yaar!', 'Milte hain!', 'Take care bhai!', 'Phir baat karte hain!');
             return replies;
         }
 
@@ -314,18 +316,26 @@ class AIAutoResponder {
         return shouldRespond && Math.random() < 0.3; // 30% chance to respond to questions
     }
 
-    // Simple sentiment detection using word analysis
+    // Simple sentiment detection using word analysis (English + Hindi + Hinglish)
     detectSentiment(message) {
         const positiveWords = [
             'happy', 'good', 'great', 'awesome', 'amazing', 'wonderful', 'fantastic',
             'excellent', 'perfect', 'love', 'like', 'enjoy', 'pleased', 'satisfied',
-            'thankful', 'grateful', 'appreciate', 'brilliant', 'outstanding', 'marvelous'
+            'thankful', 'grateful', 'appreciate', 'brilliant', 'outstanding', 'marvelous',
+            // Hindi/Hinglish positive words
+            'khush', 'khushi', 'badhiya', 'achha', 'accha', 'mast', 'zabardast', 'shandar',
+            'kamaal', 'wah', 'wow', 'ekdum', 'bilkul', 'sahi', 'perfect', 'awesome',
+            'cool', 'nice', 'superb', 'fantastic', 'brilliant', 'maja', 'mazaa', 'fun'
         ];
 
         const negativeWords = [
             'sad', 'bad', 'terrible', 'awful', 'horrible', 'disgusting', 'hate',
             'dislike', 'angry', 'mad', 'furious', 'disappointed', 'upset', 'annoyed',
-            'frustrated', 'worried', 'concerned', 'troubled', 'depressed', 'miserable'
+            'frustrated', 'worried', 'concerned', 'troubled', 'depressed', 'miserable',
+            // Hindi/Hinglish negative words
+            'dukhi', 'udas', 'pareshan', 'tension', 'problem', 'dikkat', 'bura', 'ganda',
+            'bekaar', 'faltu', 'waste', 'boring', 'sad', 'depressed', 'worried', 'tense',
+            'gussa', 'angry', 'pareshaan', 'mushkil', 'difficult', 'hard', 'tough'
         ];
 
         const words = message.toLowerCase().split(/\s+/);
@@ -358,19 +368,19 @@ class AIAutoResponder {
         return null;
     }
 
-    // Enhanced topic extraction with better keyword matching
+    // Enhanced topic extraction with better keyword matching (English + Hindi + Hinglish)
     extractTopics(messages) {
         const topicKeywords = {
-            time: ['time', 'clock', 'hour', 'minute', 'when', 'today', 'tomorrow', 'yesterday', 'now', 'later'],
-            weather: ['weather', 'rain', 'sunny', 'cloudy', 'temperature', 'hot', 'cold', 'warm', 'snow', 'storm'],
-            food: ['eat', 'food', 'hungry', 'lunch', 'dinner', 'breakfast', 'restaurant', 'cooking', 'recipe', 'delicious'],
-            work: ['work', 'job', 'office', 'meeting', 'project', 'task', 'deadline', 'boss', 'colleague', 'business'],
-            entertainment: ['movie', 'music', 'game', 'show', 'book', 'video', 'watch', 'play', 'fun', 'entertainment'],
-            technology: ['computer', 'phone', 'app', 'software', 'internet', 'website', 'tech', 'digital', 'online'],
-            travel: ['travel', 'trip', 'vacation', 'flight', 'hotel', 'visit', 'journey', 'explore', 'destination'],
-            health: ['health', 'doctor', 'medicine', 'exercise', 'gym', 'fit', 'sick', 'tired', 'rest', 'sleep'],
-            family: ['family', 'mom', 'dad', 'parent', 'child', 'brother', 'sister', 'relative', 'home', 'house'],
-            education: ['school', 'study', 'learn', 'class', 'teacher', 'student', 'exam', 'homework', 'university']
+            time: ['time', 'clock', 'hour', 'minute', 'when', 'today', 'tomorrow', 'yesterday', 'now', 'later', 'samay', 'waqt', 'abhi', 'aaj', 'kal', 'parso', 'kitne baje'],
+            weather: ['weather', 'rain', 'sunny', 'cloudy', 'temperature', 'hot', 'cold', 'warm', 'snow', 'storm', 'mausam', 'baarish', 'garmi', 'sardi', 'dhoop', 'baadal'],
+            food: ['eat', 'food', 'hungry', 'lunch', 'dinner', 'breakfast', 'restaurant', 'cooking', 'recipe', 'delicious', 'khana', 'kha', 'bhookh', 'nashta', 'lunch', 'dinner', 'pakana', 'tasty', 'mazedaar'],
+            work: ['work', 'job', 'office', 'meeting', 'project', 'task', 'deadline', 'boss', 'colleague', 'business', 'kaam', 'naukri', 'office', 'meeting', 'project', 'kaam', 'boss', 'sahab', 'vyavasaya'],
+            entertainment: ['movie', 'music', 'game', 'show', 'book', 'video', 'watch', 'play', 'fun', 'entertainment', 'film', 'gana', 'gaana', 'game', 'show', 'kitab', 'video', 'dekh', 'khel', 'maza', 'manoranjan'],
+            technology: ['computer', 'phone', 'app', 'software', 'internet', 'website', 'tech', 'digital', 'online', 'computer', 'phone', 'mobile', 'app', 'software', 'internet', 'website', 'tech', 'digital', 'online'],
+            travel: ['travel', 'trip', 'vacation', 'flight', 'hotel', 'visit', 'journey', 'explore', 'destination', 'yatra', 'safar', 'ghumna', 'flight', 'hotel', 'milna', 'ghumna', 'dekhna'],
+            health: ['health', 'doctor', 'medicine', 'exercise', 'gym', 'fit', 'sick', 'tired', 'rest', 'sleep', 'sehat', 'doctor', 'dawai', 'vyayam', 'gym', 'fit', 'bimar', 'thak', 'aram', 'neend'],
+            family: ['family', 'mom', 'dad', 'parent', 'child', 'brother', 'sister', 'relative', 'home', 'house', 'parivar', 'maa', 'papa', 'mata', 'pita', 'baccha', 'bhai', 'behen', 'rishtedaar', 'ghar', 'makan'],
+            education: ['school', 'study', 'learn', 'class', 'teacher', 'student', 'exam', 'homework', 'university', 'school', 'padhai', 'seekhna', 'class', 'teacher', 'student', 'pariksha', 'homework', 'university', 'vidyalaya']
         };
 
         const foundTopics = [];

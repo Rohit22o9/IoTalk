@@ -330,20 +330,23 @@
                     // Hide the modal
                     hideGlobalCallModal();
                     
-                    // Store call data and stream globally for the chat page
-                    window.pendingCallData = {
+                    // Store call data and stream in sessionStorage to persist across page navigation
+                    sessionStorage.setItem('pendingCallData', JSON.stringify({
                         callId: callData.callId,
                         type: callData.type,
-                        localStream: localStream,
-                        isReceiver: true
-                    };
+                        isReceiver: true,
+                        callAccepted: true
+                    }));
+                    
+                    // Store stream reference (will be recreated on the call page)
+                    window.pendingCallStream = localStream;
                     
                     if (callData.groupId) {
                         // Redirect to group chat for group calls
-                        window.location.href = `/groups/${callData.groupId}`;
+                        window.location.href = `/groups/${callData.groupId}?call=true`;
                     } else {
                         // Redirect to personal chat for individual calls
-                        window.location.href = `/chat/${callData.caller.id}`;
+                        window.location.href = `/chat/${callData.caller.id}?call=true`;
                     }
                 } else {
                     // Stop stream if call failed

@@ -380,14 +380,14 @@
                 isInitiator: false,
                 status: 'connecting'
             };
-            
+
             localStream = window.pendingCallData.localStream;
-            
+
             // Create peer connection and show active call interface
             createPeerConnection().then(() => {
                 showActiveCallInterface(currentCall.type);
             });
-            
+
             // Clear the pending call data
             delete window.pendingCallData;
         }
@@ -1039,7 +1039,10 @@
 
         // Show the message footer back
         const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'block';
+        if (footer) {
+            footer.style.display = 'block';
+            footer.style.visibility = 'visible';
+        }
 
         // Reset call state
         currentCall = null;

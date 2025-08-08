@@ -1125,7 +1125,7 @@ app.post('/api/ai/summarize', async (req, res) => {
 
         // Simple summarization logic (you can replace with actual AI service)
         let summary = '';
-        
+
         if (type === 'text') {
             if (content.length > 200) {
                 summary = content.substring(0, 150) + '... (This is a summary of a long message)';
@@ -1559,27 +1559,44 @@ app.post('/call/:callId/respond', async (req, res) => {
             return res.status(400).json({ error: 'Call is no longer available' });
         }
 
+        const user = await User.findById(req.session.userId);
         if (action === 'accept') {
             call.status = 'accepted';
             await call.save();
 
-            io.to(call.caller._id.toString()).emit('call-accepted', {
+            // Notify the caller that call was accepted
+            io.to(call.caller.toString()).emit('call-accepted', {
                 callId: call._id,
                 receiver: {
-                    id: call.receiver._id,
-                    username: call.receiver.username,
-                    avatar: call.receiver.avatar
+                    id: req.session.userId,
+                    username: user.username,
+                    avatar: user.avatar
+                }
+            });
+
+            // Also emit to the receiver to confirm acceptance
+            io.to(req.session.userId).emit('call-accepted', {
+                callId: call._id,
+                caller: {
+                    id: call.caller._id,
+                    username: call.caller.username,
+                    avatar: call.caller.avatar
                 }
             });
 
             res.json({ success: true, message: 'Call accepted' });
-        } else {
+        } else if (action === 'decline') {
             call.status = 'declined';
             call.endTime = new Date();
             await call.save();
 
-            io.to(call.caller._id.toString()).emit('call-declined', {
-                callId: call._id
+            io.to(call.caller.toString()).emit('call-declined', {
+                callId: call._id,
+                receiver: {
+                    id: req.session.userId,
+                    username: user.username,
+                    avatar: user.avatar
+                }
             });
 
             res.json({ success: true, message: 'Call declined' });
@@ -1783,8 +1800,8 @@ io.on('connection', (socket) => {
             const pendingCalls = await Call.find({
                 $or: [
                     { receiver: userId, status: 'ringing' },
-                    { 
-                        groupId: { $exists: true }, 
+                    {
+                        groupId: { $exists: true },
                         status: 'ringing',
                         participants: { $ne: userId }
                     }

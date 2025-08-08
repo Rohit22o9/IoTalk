@@ -1116,6 +1116,37 @@ app.post('/user/theme', async (req, res) => {
     }
 });
 
+// ----------- AI SUMMARIZATION ROUTE -----------
+app.post('/api/ai/summarize', async (req, res) => {
+    try {
+        if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { messageId, type, content } = req.body;
+
+        // Simple summarization logic (you can replace with actual AI service)
+        let summary = '';
+        
+        if (type === 'text') {
+            if (content.length > 200) {
+                summary = content.substring(0, 150) + '... (This is a summary of a long message)';
+            } else {
+                summary = 'Message is already concise.';
+            }
+        } else if (type === 'audio') {
+            summary = 'This is a voice message. Audio summarization is not available yet.';
+        } else if (type === 'video') {
+            summary = 'This is a video message. Video summarization is not available yet.';
+        } else {
+            summary = 'Content type not supported for summarization.';
+        }
+
+        res.json({ success: true, summary });
+    } catch (error) {
+        console.error('AI summarization error:', error);
+        res.status(500).json({ error: 'Failed to generate summary' });
+    }
+});
+
 // ----------- COMMUNITY ROUTES -----------
 app.get('/communities', async (req, res) => {
     if (!req.session.userId) return res.redirect('/login');

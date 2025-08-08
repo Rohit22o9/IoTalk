@@ -229,22 +229,27 @@
     </main>
 
     <!-- AI Summary Modal -->
-    <div id="ai-summary-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div class="bg-white rounded-2xl p-6 mx-4 max-w-md w-full max-h-96 overflow-y-auto">
+    <div id="ai-summary-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onclick="closeAISummaryOnOutsideClick(event)">
+      <div class="bg-white rounded-2xl p-6 mx-4 max-w-md w-full max-h-96 overflow-y-auto relative">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900">🤖 AI Summary</h3>
-          <button onclick="closeAISummary()" class="text-gray-400 hover:text-gray-600">
+          <button onclick="closeAISummary()" class="text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full p-1 transition-colors duration-200">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
           </button>
         </div>
-        <div id="ai-summary-content" class="text-sm text-gray-700 leading-relaxed">
+        <div id="ai-summary-content" class="text-sm text-gray-700 leading-relaxed mb-4">
           <!-- Summary content will be inserted here -->
         </div>
         <div id="ai-summary-loading" class="text-center py-4">
           <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
           <p class="text-sm text-gray-500 mt-2">Generating summary...</p>
+        </div>
+        <div class="flex justify-center mt-4 pt-4 border-t border-gray-200">
+          <button onclick="closeAISummary()" class="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 font-medium">
+            Close Summary
+          </button>
         </div>
       </div>
     </div>
@@ -1365,6 +1370,13 @@
 
     function closeAISummary() {
         document.getElementById('ai-summary-modal').classList.add('hidden');
+    }
+
+    function closeAISummaryOnOutsideClick(event) {
+        // Close modal only if clicking on the backdrop, not the modal content
+        if (event.target === event.currentTarget) {
+            closeAISummary();
+        }
     }
 
     function hideSmartReplies() {

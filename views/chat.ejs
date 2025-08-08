@@ -792,9 +792,8 @@
         document.body.appendChild(callInterface);
 
         // Set local video for preview if video call
-        if (type === 'video' && localStream) {
-            // Add local video preview in corner
-            setTimeout(() => {
+        setTimeout(() => {
+            if (type === 'video' && localStream) {
                 const videoPreview = document.createElement('video');
                 videoPreview.id = 'local-video-preview';
                 videoPreview.autoplay = true;
@@ -802,8 +801,8 @@
                 videoPreview.srcObject = localStream;
                 videoPreview.className = 'fixed top-4 right-4 w-32 h-24 bg-gray-800 rounded-lg border-2 border-white shadow-lg';
                 callInterface.appendChild(videoPreview);
-            }, 100);
-        }
+            }
+        }, 100);
     }
 
     // Show active call interface (when call is connected)
@@ -1336,7 +1335,7 @@
     // Message form submission handler
     messageForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        
+
         const message = msgInput.value.trim();
         const fileInput = mediaInput;
         const file = fileInput.files[0];
@@ -1361,17 +1360,17 @@
             });
 
             const result = await response.json();
-            
+
             if (result.success) {
                 // Clear the input fields
                 msgInput.value = '';
                 fileInput.value = '';
-                
+
                 // Hide file preview if shown
                 if (!filePreview.classList.contains('hidden')) {
                     filePreview.classList.add('hidden');
                 }
-                
+
                 // Auto-resize textarea
                 msgInput.style.height = '48px';
             } else {
@@ -1462,7 +1461,7 @@
         const fileSize = (file.size / 1024 / 1024).toFixed(2);
 
         let previewHtml = '';
-        
+
         if (fileType.startsWith('image/')) {
             const imageUrl = URL.createObjectURL(file);
             previewHtml = `

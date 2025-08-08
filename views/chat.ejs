@@ -1199,16 +1199,16 @@
         try {
             // Get current chat messages from the screen
             const chatMessages = [];
-            const messageContainers = document.querySelectorAll('.max-w-xs.lg\\:max-w-md');
+            const messageElements = document.querySelectorAll('#messages-container .flex');
 
-            messageContainers.forEach(container => {
-                const textElement = container.querySelector('p.text-sm.leading-relaxed');
+            messageElements.forEach(messageDiv => {
+                const textElement = messageDiv.querySelector('p.text-sm.leading-relaxed');
                 if (!textElement) return;
 
                 const messageText = textElement.textContent.trim();
-                if (!messageText) return;
+                if (!messageText || messageText.startsWith('⚠️')) return;
 
-                const isOwn = container.closest('.justify-end') !== null;
+                const isOwn = messageDiv.classList.contains('justify-end');
                 const username = isOwn ? currentUsername : '<%= otherUser.username %>';
 
                 chatMessages.push({
@@ -1220,18 +1220,18 @@
             });
 
             const recentMessages = chatMessages.slice(-10);
-            console.log('Extracted chat messages:', recentMessages);
+            console.log('Personal chat - Extracted messages:', recentMessages);
 
             if (recentMessages.length === 0) {
-                alert('No text messages found to analyze');
+                showNotification('No text messages found to analyze', 'warning');
                 return;
             }
 
             // Show loading state
-            const aiButton = event.target.closest('button');
+            const aiButton = document.getElementById('ai-reply-btn');
             const originalContent = aiButton.innerHTML;
             aiButton.innerHTML = `
-                <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-5 h-5 animate-spin text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
             `;
@@ -1249,7 +1249,7 @@
             });
 
             const data = await response.json();
-            console.log('AI Response:', data);
+            console.log('Personal chat AI Response:', data);
 
             // Restore button state
             aiButton.innerHTML = originalContent;
@@ -1259,23 +1259,11 @@
                 // Show AI suggestions
                 showAISuggestions(data.replies);
             } else {
-                // Show a more user-friendly message
-                const notification = document.createElement('div');
-                notification.className = 'fixed bottom-24 left-4 right-4 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-lg z-50';
-                notification.innerHTML = `
-                    <div class="flex items-center space-x-2">
-                        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                        </svg>
-                        <span class="text-sm text-amber-700">No suitable AI responses could be generated for this conversation context.</span>
-                    </div>
-                `;
-                document.body.appendChild(notification);
-                setTimeout(() => notification.remove(), 4000);
+                showNotification('No suitable AI responses could be generated for this conversation context.', 'warning');
             }
         } catch (error) {
             console.error('Error generating AI response:', error);
-            const aiButton = event.target.closest('button');
+            const aiButton = document.getElementById('ai-reply-btn');
             if (aiButton) {
                 aiButton.innerHTML = `
                     <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1284,8 +1272,34 @@
                 `;
                 aiButton.disabled = false;
             }
-            alert('Error generating AI response');
+            showNotification('Error generating AI response. Please try again.', 'error');
         }
+    }
+
+    // Helper function to show notifications
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        const bgColor = type === 'error' ? 'bg-red-50 border-red-200' : 
+                       type === 'warning' ? 'bg-amber-50 border-amber-200' : 
+                       'bg-blue-50 border-blue-200';
+        const textColor = type === 'error' ? 'text-red-700' : 
+                         type === 'warning' ? 'text-amber-700' : 
+                         'text-blue-700';
+        const iconColor = type === 'error' ? 'text-red-500' : 
+                         type === 'warning' ? 'text-amber-500' : 
+                         'text-blue-500';
+
+        notification.className = `fixed bottom-24 left-4 right-4 ${bgColor} border rounded-lg p-3 shadow-lg z-50`;
+        notification.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                </svg>
+                <span class="text-sm ${textColor}">${message}</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 4000);
     }
 
     function showAISuggestions(replies) {
@@ -1304,7 +1318,7 @@
                     <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                     <h3 class="text-sm font-semibold text-gray-700">🤖 AI Suggested Replies</h3>
                 </div>
-                <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <button onclick="closeAISuggestions()" class="text-gray-400 hover:text-gray-600 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -1312,7 +1326,7 @@
             </div>
             <div class="space-y-2 max-h-48 overflow-y-auto">
                 ${replies.map((reply, index) => `
-                    <button onclick="selectAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'")}\`); this.parentElement.parentElement.parentElement.remove();" 
+                    <button onclick="selectAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'").replace(/\n/g, '\\n')}\`)" 
                             class="w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg text-sm transition-all duration-200 transform hover:scale-[1.02] border border-blue-100 hover:border-blue-200">
                         <div class="flex items-start space-x-2">
                             <div class="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
@@ -1329,19 +1343,27 @@
         document.body.appendChild(suggestionsDiv);
 
         // Add entrance animation
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             suggestionsDiv.style.transform = 'translateY(-10px)';
             suggestionsDiv.style.opacity = '1';
-        }, 50);
+        });
 
         // Auto-remove after 30 seconds
         setTimeout(() => {
-            if (document.querySelector('.ai-suggestions')) {
-                suggestionsDiv.style.opacity = '0';
-                suggestionsDiv.style.transform = 'translateY(10px)';
-                setTimeout(() => suggestionsDiv.remove(), 300);
+            const suggestions = document.querySelector('.ai-suggestions');
+            if (suggestions) {
+                closeAISuggestions();
             }
         }, 30000);
+    }
+
+    function closeAISuggestions() {
+        const suggestions = document.querySelector('.ai-suggestions');
+        if (suggestions) {
+            suggestions.style.opacity = '0';
+            suggestions.style.transform = 'translateY(10px)';
+            setTimeout(() => suggestions.remove(), 300);
+        }
     }
 
     function selectAIReply(reply) {
@@ -1360,7 +1382,10 @@
                 messageInput.style.backgroundColor = '';
             }, 1000);
 
-            console.log('AI reply selected:', reply);
+            // Close suggestions panel
+            closeAISuggestions();
+
+            console.log('Personal chat - AI reply selected:', reply);
         } else {
             console.error('Message input not found');
         }

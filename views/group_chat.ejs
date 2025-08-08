@@ -342,7 +342,7 @@
                     <% if (shouldShowSummarize) { %>
                       <button onclick="summarizeGroupContent('<%= chat._id %>', '<%= hasVideoLink ? 'video_link' : 'text' %>', `<%= chat.msg.replace(/'/g, "\\'").replace(/`/g, "\\`").replace(/\n/g, "\\n") %>`)"
                               class="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg transform hover:scale-105"
-                              title="<%= hasVideoLink ? 'Summarize video' : 'Summarize content' %>">
+                              title="Summarize content">
                         <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <% if (hasVideoLink) { %>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
@@ -488,6 +488,23 @@
       </aside>
     </div>
 
+    <!-- AI Suggestions Panel for Group Chat -->
+    <div id="group-smart-replies-panel" class="hidden fixed bottom-24 left-0 right-0 z-50 mx-4 mb-2">
+      <div class="bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl shadow-lg p-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-medium text-gray-600">🤖 Smart Replies</span>
+          <button onclick="hideGroupSmartReplies()" class="text-gray-400 hover:text-gray-600">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="group-smart-replies-content" class="space-y-2">
+          <!-- Smart reply buttons will be inserted here -->
+        </div>
+      </div>
+    </div>
+
     <!-- Message Input -->
     <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200" style="z-index: 10;">
       <div class="p-4">
@@ -507,7 +524,7 @@
         </button>
 
         <!-- AI Reply Button -->
-        <button type="button" id="ai-reply-btn" onclick="generateGroupAIReply()" class="p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200" title="Generate AI Response">
+        <button type="button" id="ai-reply-btn" onclick="generateGroupAIResponse()" class="p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200" title="Generate AI Response">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
           </svg>
@@ -1632,236 +1649,168 @@
     });
 
     // Generate AI reply function for groups
-    async function generateGroupAIReply() {
+    async function generateGroupAIResponse() {
         try {
-            const aiBtn = document.getElementById('ai-reply-btn');
-            aiBtn.disabled = true;
-            aiBtn.innerHTML = `
-                <svg class="h-5 w-5 text-blue-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
+            // Get current chat messages from the screen
+            const chatMessages = [];
+            const messageElements = document.querySelectorAll('.max-w-xs.lg\\:max-w-md');
+
+            messageElements.forEach(element => {
+                let messageText = '';
+                const textContentElement = element.querySelector('p.text-sm.leading-relaxed');
+                if (textContentElement) {
+                    messageText = textContentElement.textContent.trim();
+                } else {
+                    return;
+                }
+
+                const isOwn = element.closest('.justify-end') !== null;
+                const username = isOwn ? currentUsername : 'Group Member';
+
+                if (messageText) {
+                    chatMessages.push({
+                        from: username,
+                        message: messageText,
+                        isOwn: isOwn,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            });
+
+            const recentMessages = chatMessages.slice(-10);
+
+            if (recentMessages.length === 0) {
+                alert('No text messages found to analyze');
+                return;
+            }
+
+            // Show loading state
+            const aiButton = event.target.closest('button');
+            const originalContent = aiButton.innerHTML;
+            aiButton.innerHTML = `
+                <div class="flex items-center space-x-1">
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span class="text-xs">Thinking...</span>
+                </div>
             `;
+            aiButton.disabled = true;
 
             const response = await fetch(`/api/ai/generate-group-reply/${groupId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
-            });
-
-            const result = await response.json();
-
-            if (result.success && result.replies && result.replies.length > 0) {
-                showGroupSmartReplies(result.replies);
-            } else {
-                alert('No AI replies available at the moment');
-            }
-        } catch (error) {
-            console.error('Error generating group AI reply:', error);
-            alert('Failed to generate AI reply');
-        } finally {
-            const aiBtn = document.getElementById('ai-reply-btn');
-            aiBtn.disabled = false;
-            aiBtn.innerHTML = `
-                <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                </svg>
-            `;
-        }
-    }
-
-    // Show smart replies panel for groups
-    function showGroupSmartReplies(replies) {
-        // Create smart replies panel if it doesn't exist
-        let panel = document.getElementById('group-smart-replies-panel');
-        if (!panel) {
-            panel = document.createElement('div');
-            panel.id = 'group-smart-replies-panel';
-            panel.className = 'fixed bottom-24 left-0 right-0 z-50 mx-4 mb-2';
-            panel.innerHTML = `
-                <div class="bg-white/90 backdrop-blur-lg border border-secondary-200 rounded-xl shadow-lg p-3">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-medium text-gray-600">🤖 Smart Replies</span>
-                        <button onclick="hideGroupSmartReplies()" class="text-gray-400 hover:text-gray-600">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="group-smart-replies-content" class="space-y-2">
-                        <!-- Smart reply buttons will be inserted here -->
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(panel);
-        }
-
-        const content = document.getElementById('group-smart-replies-content');
-        content.innerHTML = '';
-        replies.forEach(reply => {
-            const button = document.createElement('button');
-            button.className = 'text-left p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm transition-colors w-full';
-            button.textContent = reply;
-            button.onclick = () => selectGroupSmartReply(reply);
-            content.appendChild(button);
-        });
-
-        panel.classList.remove('hidden');
-    }
-
-    // Select and use smart reply for groups
-    function selectGroupSmartReply(reply) {
-        messageInput.value = reply;
-        hideGroupSmartReplies();
-        messageInput.focus();
-    }
-
-    function hideGroupSmartReplies() {
-        const panel = document.getElementById('group-smart-replies-panel');
-        if (panel) {
-            panel.classList.add('hidden');
-        }
-    }
-
-    // Store current summary data globally
-    let currentSummaryData = null;
-    let currentVideoUrl = null;
-
-    // Group content summarization function
-    async function summarizeGroupContent(messageId, type, content) {
-        try {
-            const modal = document.getElementById('ai-summary-modal');
-            const loadingDiv = document.getElementById('ai-summary-loading');
-            const contentDiv = document.getElementById('ai-summary-content');
-            const actionsDiv = document.getElementById('ai-summary-actions');
-            const watchVideoBtn = document.getElementById('watch-video-btn');
-
-            if (!modal || !loadingDiv || !contentDiv) {
-                console.error('Summary modal elements not found');
-                return;
-            }
-
-            modal.classList.remove('hidden');
-            loadingDiv.classList.remove('hidden');
-            contentDiv.classList.add('hidden');
-            if (actionsDiv) actionsDiv.classList.add('hidden');
-
-            // Detect video links in text content
-            let actualType = type;
-            if (type === 'text') {
-                const videoRegex = /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/video\/|dailymotion\.com\/video\/))([a-zA-Z0-9_-]+)/;
-                if (videoRegex.test(content)) {
-                    actualType = 'video_link';
-                }
-            }
-
-            const response = await fetch('/api/ai/summarize', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    messageId: messageId,
-                    type: actualType,
-                    content: content
+                    conversationHistory: recentMessages
                 })
             });
 
-            const result = await response.json();
+            const data = await response.json();
 
-            loadingDiv.classList.add('hidden');
-            contentDiv.classList.remove('hidden');
-            if (actionsDiv) actionsDiv.classList.remove('hidden');
+            // Restore button state
+            aiButton.innerHTML = originalContent;
+            aiButton.disabled = false;
 
-            if (result.success) {
-                // Store the result for actions
-                currentSummaryData = result;
-                currentVideoUrl = result.videoUrl || null;
-
-                // Format and display the summary with proper markdown-like formatting
-                let formattedSummary = result.summary;
-
-                // Convert markdown-like formatting to HTML
-                formattedSummary = formattedSummary
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold text
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>') // Italic text
-                    .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-xs">$1</code>') // Code
-                    .replace(/^\- (.*)/gm, '• $1') // List items
-                    .replace(/\n/g, '<br>'); // Line breaks
-
-                contentDiv.innerHTML = formattedSummary;
-
-                // Show/hide video button based on content type
-                if (watchVideoBtn) {
-                    if (actualType === 'video_link' && currentVideoUrl) {
-                        watchVideoBtn.classList.remove('hidden');
-                    } else {
-                        watchVideoBtn.classList.add('hidden');
-                    }
-                }
+            if (data.success && data.replies && data.replies.length > 0) {
+                showGroupAISuggestions(data.replies);
             } else {
-                const errorMessage = result.summary || `Failed to generate summary: ${result.error || 'Unknown error'}`;
-                contentDiv.innerHTML = errorMessage;
-                if (actionsDiv) actionsDiv.classList.add('hidden');
+                const notification = document.createElement('div');
+                notification.className = 'fixed bottom-24 left-4 right-4 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-lg z-50';
+                notification.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        <span class="text-sm text-amber-700">No suitable AI responses could be generated for this conversation context.</span>
+                    </div>
+                `;
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 4000);
             }
         } catch (error) {
-            console.error('Error summarizing group content:', error);
-            const contentDiv = document.getElementById('ai-summary-content');
-            const loadingDiv = document.getElementById('ai-summary-loading');
-            const actionsDiv = document.getElementById('ai-summary-actions');
+            console.error('Error:', error);
+            const aiButton = event.target.closest('button');
+            const originalContent = aiButton.innerHTML;
+            aiButton.innerHTML = originalContent;
+            aiButton.disabled = false;
+            alert('Error generating AI response');
+        }
+    }
 
-            if (loadingDiv) loadingDiv.classList.add('hidden');
-            if (contentDiv) {
-                contentDiv.classList.remove('hidden');
-                contentDiv.innerHTML = `<span class="text-red-500">❌ <strong>Error Generating Summary</strong><br><br>An error occurred while processing the content. Please try again.<br><br><strong>Error Type:</strong> Network/Processing Error<br><strong>Recommendation:</strong> Check your internet connection and try again.</span>`;
+    // Show AI suggestions for group chat
+    function showGroupAISuggestions(replies) {
+        // Remove existing suggestions
+        const existingSuggestions = document.querySelector('.ai-suggestions');
+        if (existingSuggestions) {
+            existingSuggestions.remove();
+        }
+
+        // Create suggestions container
+        const suggestionsDiv = document.createElement('div');
+        suggestionsDiv.className = 'ai-suggestions fixed bottom-24 left-4 right-4 bg-white/90 backdrop-blur-lg border border-gray-200 rounded-xl shadow-lg p-4 z-50';
+        suggestionsDiv.innerHTML = `
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <h3 class="text-sm font-semibold text-gray-700">🤖 AI Suggested Replies</h3>
+                </div>
+                <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
+                ${replies.map((reply, index) => `
+                    <button onclick="selectGroupAIReply('${reply.replace(/'/g, "\\'")}'); this.parentElement.parentElement.parentElement.remove();" 
+                            class="w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg text-sm transition-all duration-200 transform hover:scale-[1.02] border border-blue-100 hover:border-blue-200"
+                            style="animation-delay: ${index * 0.1}s;">
+                        <div class="flex items-start space-x-2">
+                            <div class="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <span class="leading-relaxed">${reply}</span>
+                        </div>
+                    </button>
+                `).join('')}
+            </div>
+            <div class="mt-3 pt-3 border-t border-gray-200">
+                <p class="text-xs text-gray-500 text-center">💡 Click on a suggestion to use it, or close to dismiss</p>
+            </div>
+        `;
+
+        document.body.appendChild(suggestionsDiv);
+
+        // Add entrance animation
+        setTimeout(() => {
+            suggestionsDiv.style.transform = 'translateY(-10px)';
+            suggestionsDiv.style.opacity = '1';
+        }, 50);
+
+        // Auto-remove after 20 seconds
+        setTimeout(() => {
+            if (document.querySelector('.ai-suggestions')) {
+                suggestionsDiv.style.opacity = '0';
+                suggestionsDiv.style.transform = 'translateY(10px)';
+                setTimeout(() => suggestionsDiv.remove(), 300);
             }
-            if (actionsDiv) actionsDiv.classList.add('hidden');
-        }
+        }, 20000);
     }
 
-    // Copy summary to clipboard
-    function copySummaryToClipboard() {
-        if (currentSummaryData && currentSummaryData.summary) {
-            const textToCopy = currentSummaryData.summary
-                .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
-                .replace(/\*(.*?)\*/g, '$1') // Remove italic formatting
-                .replace(/`(.*?)`/g, '$1') // Remove code formatting
-                .replace(/<[^>]*>/g, ''); // Remove any HTML tags
+    // Select AI reply for group chat
+    function selectGroupAIReply(reply) {
+        const messageInput = document.getElementById('message-input');
+        messageInput.value = reply;
+        messageInput.focus();
 
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const copyBtn = document.getElementById('copy-summary-btn');
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = '✅ Copied!';
-                copyBtn.classList.add('bg-green-500');
-                copyBtn.classList.remove('bg-blue-500');
+        // Auto-resize textarea to fit the selected reply
+        messageInput.style.height = '48px';
+        messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
 
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.classList.remove('bg-green-500');
-                    copyBtn.classList.add('bg-blue-500');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy text: ', err);
-                alert('Failed to copy summary to clipboard');
-            });
-        }
+        // Add a subtle highlight effect to show the reply was selected
+        messageInput.style.backgroundColor = '#eff6ff';
+        setTimeout(() => {
+            messageInput.style.backgroundColor = '';
+        }, 1000);
     }
-
-    // Open video link in new tab
-    function openVideoLink() {
-        if (currentVideoUrl) {
-            window.open(currentVideoUrl, '_blank');
-        }
-    }
-
-    function closeGroupAISummary() {
-        document.getElementById('ai-summary-modal').classList.add('hidden');
-    }
-
-    // Load available users when panel opens (only for admins)
-    <% if (group.admin._id.toString() === currentUser._id.toString()) { %>
-      loadAvailableUsers();
-    <% } %>
   </script>
   <script src="/js/groupCall.js"></script>
 </body>

@@ -1198,26 +1198,19 @@
     async function generateAIResponse() {
             // Get current chat messages from the screen
             const chatMessages = [];
-            // Using the .message class which is not present in the original HTML. Assuming it should be the main message container.
-            // Corrected selector to target the actual message divs.
-            const messageElements = document.querySelectorAll('.max-w-xs.lg\:max-w-md');
+            const messageElements = document.querySelectorAll('.max-w-xs.lg\\:max-w-md');
 
             messageElements.forEach(element => {
-                // Extract text content from the message element
-                // This needs to be robust to handle different message structures (text, media, etc.)
                 let messageText = '';
-                const textContentElement = element.querySelector('p.text-sm.leading-relaxed'); // Targeting text messages specifically
+                const textContentElement = element.querySelector('p.text-sm.leading-relaxed');
                 if (textContentElement) {
                     messageText = textContentElement.textContent.trim();
                 } else {
-                    // If it's not a text message, try to get a generic description or skip
-                    // For now, we'll focus on text messages for context
-                    return; // Skip non-text messages for context generation
+                    return;
                 }
 
-                // Determine if the message is from the current user or the other user
-                const isOwn = element.closest('.justify-end') !== null; // Check if it's in a 'justify-end' div
-                const username = isOwn ? currentUsername : '<%= otherUser.username %>'; // Use server-side rendered username
+                const isOwn = element.closest('.justify-end') !== null;
+                const username = isOwn ? currentUsername : '<%= otherUser.username %>';
 
                 if (messageText) {
                     chatMessages.push({
@@ -1229,7 +1222,6 @@
                 }
             });
 
-            // Take only the last 10 messages for context
             const recentMessages = chatMessages.slice(-10);
 
             if (recentMessages.length === 0) {

@@ -600,50 +600,8 @@ app.post('/groupchat/:groupId', upload.single('media'), async (req, res) => {
 
         io.to(`group_${groupId}`).emit('group message', populatedMessage);
 
-        // AI Auto-Responder for group chats
-        if (!moderationResult.flagged && msg && aiAutoResponder.shouldRespondInGroup(msg)) {
-            setTimeout(async () => {
-                try {
-                    // Get recent group conversation history
-                    const recentMessages = await GroupChat.find({ group: groupId })
-                        .sort({ created_at: -1 })
-                        .limit(8)
-                        .populate('from', 'username');
-
-                    const conversationHistory = recentMessages.reverse().map(chat => ({
-                        from: chat.from.username,
-                        message: chat.msg
-                    }));
-
-                    const user = await User.findById(req.session.userId);
-                    const botResponse = await aiAutoResponder.generateGroupResponse(
-                        msg,
-                        conversationHistory,
-                        user.username
-                    );
-
-                    if (botResponse) {
-                        // Create bot message
-                        const botMessage = await GroupChat.create({
-                            group: groupId,
-                            from: req.session.userId, // For now, we'll need a dedicated bot user ID
-                            msg: botResponse,
-                            isAIResponse: true
-                        });
-
-                        const populatedBotMessage = await GroupChat.findById(botMessage._id)
-                            .populate('from', 'username avatar');
-
-                        // Add AI indicator
-                        populatedBotMessage.from.username = 'ModernBot (AI)';
-
-                        io.to(`group_${groupId}`).emit('group message', populatedBotMessage);
-                    }
-                } catch (error) {
-                    console.error('Group auto-responder error:', error);
-                }
-            }, 3000); // Delay for natural feel
-        }
+        // Note: AI Auto-Responder is now triggered manually via the AI button
+        // The automatic response feature has been disabled to allow manual selection
 
         res.json({ success: true, message: populatedMessage });
     } catch (error) {
@@ -1093,7 +1051,7 @@ app.post('/api/ai/summarize', async (req, res) => {
         const aiSummarization = require('./utils/aiSummarization');
         let summary = '';
         let summaryData = null;
-        
+
         if (type === 'text') {
             if (content.length > 200) {
                 const textSummary = await aiSummarization.summarizeText(content, 200);
@@ -1117,8 +1075,8 @@ app.post('/api/ai/summarize', async (req, res) => {
         }
 
         // Include additional metadata if available
-        const response = { 
-            success: true, 
+        const response = {
+            success: true,
             summary,
             metadata: {
                 contentType: type,
@@ -1135,7 +1093,7 @@ app.post('/api/ai/summarize', async (req, res) => {
         res.json(response);
     } catch (error) {
         console.error('AI summarization error:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to generate summary',
             summary: `❌ **Error Generating Summary**\n\nAn error occurred while processing the content. Please try again.\n\n**Error Type**: Processing Error\n**Recommendation**: Refresh the page and try again, or contact support if the issue persists.`
         });

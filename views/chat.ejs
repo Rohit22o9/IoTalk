@@ -1240,7 +1240,12 @@
             // Show loading state
             const aiButton = event.target.closest('button');
             const originalContent = aiButton.innerHTML;
-            aiButton.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>';
+            aiButton.innerHTML = `
+                <div class="flex items-center space-x-1">
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span class="text-xs">Thinking...</span>
+                </div>
+            `;
             aiButton.disabled = true;
 
             // Send real-time messages to AI for analysis
@@ -1263,7 +1268,19 @@
                     // Show AI suggestions
                     showAISuggestions(data.replies);
                 } else {
-                    alert('No suitable AI responses could be generated');
+                    // Show a more user-friendly message
+                    const notification = document.createElement('div');
+                    notification.className = 'fixed bottom-24 left-4 right-4 bg-amber-50 border border-amber-200 rounded-lg p-3 shadow-lg z-50';
+                    notification.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                            <span class="text-sm text-amber-700">No suitable AI responses could be generated for this conversation context.</span>
+                        </div>
+                    `;
+                    document.body.appendChild(notification);
+                    setTimeout(() => notification.remove(), 4000);
                 }
             })
             .catch(error => {
@@ -1284,39 +1301,68 @@
 
             // Create suggestions container
             const suggestionsDiv = document.createElement('div');
-            suggestionsDiv.className = 'ai-suggestions fixed bottom-20 left-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50';
+            suggestionsDiv.className = 'ai-suggestions fixed bottom-24 left-4 right-4 bg-white/90 backdrop-blur-lg border border-gray-200 rounded-xl shadow-lg p-4 z-50';
             suggestionsDiv.innerHTML = `
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-sm font-semibold text-gray-700">AI Suggested Replies</h3>
-                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                        <h3 class="text-sm font-semibold text-gray-700">🤖 AI Suggested Replies</h3>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
                     </button>
                 </div>
-                <div class="space-y-2">
-                    ${replies.map(reply => `
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    ${replies.map((reply, index) => `
                         <button onclick="selectAIReply('${reply.replace(/'/g, "\\'")}'); this.parentElement.parentElement.parentElement.remove();" 
-                                class="w-full text-left p-2 bg-gray-50 hover:bg-gray-100 rounded text-sm transition-colors duration-200">
-                            ${reply}
+                                class="w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg text-sm transition-all duration-200 transform hover:scale-[1.02] border border-blue-100 hover:border-blue-200"
+                                style="animation-delay: ${index * 0.1}s;">
+                            <div class="flex items-start space-x-2">
+                                <div class="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                                <span class="leading-relaxed">${reply}</span>
+                            </div>
                         </button>
                     `).join('')}
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-200">
+                    <p class="text-xs text-gray-500 text-center">💡 Click on a suggestion to use it, or close to dismiss</p>
                 </div>
             `;
 
             document.body.appendChild(suggestionsDiv);
 
-            // Auto-remove after 15 seconds
+            // Add entrance animation
+            setTimeout(() => {
+                suggestionsDiv.style.transform = 'translateY(-10px)';
+                suggestionsDiv.style.opacity = '1';
+            }, 50);
+
+            // Auto-remove after 20 seconds
             setTimeout(() => {
                 if (document.querySelector('.ai-suggestions')) {
-                    suggestionsDiv.remove();
+                    suggestionsDiv.style.opacity = '0';
+                    suggestionsDiv.style.transform = 'translateY(10px)';
+                    setTimeout(() => suggestionsDiv.remove(), 300);
                 }
-            }, 15000);
+            }, 20000);
         }
 
         function selectAIReply(reply) {
-            document.getElementById('message-input').value = reply; // Corrected ID
-            document.getElementById('message-input').focus();
+            const messageInput = document.getElementById('message-input');
+            messageInput.value = reply;
+            messageInput.focus();
+            
+            // Auto-resize textarea to fit the selected reply
+            messageInput.style.height = '48px';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+            
+            // Add a subtle highlight effect to show the reply was selected
+            messageInput.style.backgroundColor = '#eff6ff';
+            setTimeout(() => {
+                messageInput.style.backgroundColor = '';
+            }, 1000);
         }
 
     // Show smart replies panel
@@ -1337,35 +1383,14 @@
     }
 
     // Select and use smart reply
-    async function selectSmartReply(reply) {
+    function selectSmartReply(reply) {
         msgInput.value = reply;
         hideSmartReplies();
         msgInput.focus();
-
-        // Automatically send the reply
-        const formData = new FormData();
-        formData.append('msg', reply);
-
-        try {
-            const response = await fetch(`/chat/${otherUserId}`, {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                // Clear the input field
-                msgInput.value = '';
-                msgInput.style.height = '48px';
-            } else {
-                console.error('Failed to send smart reply:', result.error);
-                alert('Failed to send message: ' + (result.error || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('Error sending smart reply:', error);
-            alert('Failed to send message. Please try again.');
-        }
+        
+        // Auto-resize textarea to fit the selected reply
+        msgInput.style.height = '48px';
+        msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
     }
 
     // Enhanced summarizeContent function for personal chats

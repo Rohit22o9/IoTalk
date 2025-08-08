@@ -338,7 +338,7 @@
           </button>
 
           <!-- AI Reply Button -->
-          <button type="button" id="ai-reply-btn" onclick="generateAIReply()" class="cursor-pointer p-3 rounded-xl bg-blue-100 hover:bg-blue-200 transition" title="Generate AI Reply">
+          <button type="button" id="ai-reply-btn" onclick="generateAIResponse()" class="cursor-pointer p-3 rounded-xl bg-blue-100 hover:bg-blue-200 transition" title="Generate AI Reply">
             <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
             </svg>
@@ -1195,57 +1195,129 @@
     }
 
     // Generate AI reply function
-    async function generateAIReply() {
-        try {
-            const aiBtn = document.getElementById('ai-reply-btn');
-            aiBtn.disabled = true;
-            aiBtn.innerHTML = `
-                <svg class="h-5 w-5 text-blue-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-            `;
+    async function generateAIResponse() {
+            // Get current chat messages from the screen
+            const chatMessages = [];
+            // Using the .message class which is not present in the original HTML. Assuming it should be the main message container.
+            // Corrected selector to target the actual message divs.
+            const messageElements = document.querySelectorAll('.max-w-xs.lg\:max-w-md');
 
-            const response = await fetch(`/api/ai/generate-reply/${otherUserId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+            messageElements.forEach(element => {
+                // Extract text content from the message element
+                // This needs to be robust to handle different message structures (text, media, etc.)
+                let messageText = '';
+                const textContentElement = element.querySelector('p.text-sm.leading-relaxed'); // Targeting text messages specifically
+                if (textContentElement) {
+                    messageText = textContentElement.textContent.trim();
+                } else {
+                    // If it's not a text message, try to get a generic description or skip
+                    // For now, we'll focus on text messages for context
+                    return; // Skip non-text messages for context generation
+                }
+
+                // Determine if the message is from the current user or the other user
+                const isOwn = element.closest('.justify-end') !== null; // Check if it's in a 'justify-end' div
+                const username = isOwn ? currentUsername : '<%= otherUser.username %>'; // Use server-side rendered username
+
+                if (messageText) {
+                    chatMessages.push({
+                        from: username,
+                        message: messageText,
+                        isOwn: isOwn,
+                        timestamp: new Date().toISOString()
+                    });
                 }
             });
 
-            const result = await response.json();
+            // Take only the last 10 messages for context
+            const recentMessages = chatMessages.slice(-10);
 
-            if (result.success && result.replies && result.replies.length > 0) {
-                showSmartReplies(result.replies);
-            } else {
-                // Fallback to some basic replies if no context is available
-                const fallbackReplies = [
-                    'How can I help you?',
-                    'What would you like to know?',
-                    'I\'m here if you need anything',
-                    'Feel free to ask me anything'
-                ];
-                showSmartReplies(fallbackReplies);
+            if (recentMessages.length === 0) {
+                alert('No text messages found to analyze');
+                return;
             }
-        } catch (error) {
-            console.error('Error generating AI reply:', error);
-            // Show fallback replies even on error
-            const fallbackReplies = [
-                'Thanks for your message',
-                'I understand',
-                'That\'s interesting',
-                'Tell me more'
-            ];
-            showSmartReplies(fallbackReplies);
-        } finally {
-            const aiBtn = document.getElementById('ai-reply-btn');
-            aiBtn.disabled = false;
-            aiBtn.innerHTML = `
-                <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-            </svg>
-            `;
+
+            // Show loading state
+            const aiButton = event.target.closest('button');
+            const originalContent = aiButton.innerHTML;
+            aiButton.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>';
+            aiButton.disabled = true;
+
+            // Send real-time messages to AI for analysis
+            fetch(`/api/ai/generate-reply/${otherUserId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    conversationHistory: recentMessages
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Restore button state
+                aiButton.innerHTML = originalContent;
+                aiButton.disabled = false;
+
+                if (data.success && data.replies && data.replies.length > 0) {
+                    // Show AI suggestions
+                    showAISuggestions(data.replies);
+                } else {
+                    alert('No suitable AI responses could be generated');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Restore button state
+                aiButton.innerHTML = originalContent;
+                aiButton.disabled = false;
+                alert('Error generating AI response');
+            });
         }
-    }
+
+        function showAISuggestions(replies) {
+            // Remove existing suggestions
+            const existingSuggestions = document.querySelector('.ai-suggestions');
+            if (existingSuggestions) {
+                existingSuggestions.remove();
+            }
+
+            // Create suggestions container
+            const suggestionsDiv = document.createElement('div');
+            suggestionsDiv.className = 'ai-suggestions fixed bottom-20 left-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-4 z-50';
+            suggestionsDiv.innerHTML = `
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-semibold text-gray-700">AI Suggested Replies</h3>
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-2">
+                    ${replies.map(reply => `
+                        <button onclick="selectAIReply('${reply.replace(/'/g, "\\'")}'); this.parentElement.parentElement.parentElement.remove();" 
+                                class="w-full text-left p-2 bg-gray-50 hover:bg-gray-100 rounded text-sm transition-colors duration-200">
+                            ${reply}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+
+            document.body.appendChild(suggestionsDiv);
+
+            // Auto-remove after 15 seconds
+            setTimeout(() => {
+                if (document.querySelector('.ai-suggestions')) {
+                    suggestionsDiv.remove();
+                }
+            }, 15000);
+        }
+
+        function selectAIReply(reply) {
+            document.getElementById('message-input').value = reply; // Corrected ID
+            document.getElementById('message-input').focus();
+        }
 
     // Show smart replies panel
     function showSmartReplies(replies) {
@@ -1269,7 +1341,7 @@
         msgInput.value = reply;
         hideSmartReplies();
         msgInput.focus();
-        
+
         // Automatically send the reply
         const formData = new FormData();
         formData.append('msg', reply);
@@ -1300,7 +1372,7 @@
     async function summarizeContent(messageId, type, content) {
         try {
             console.log('Summarizing content in personal chat:', { messageId, type, content });
-            
+
             const modal = document.getElementById('ai-summary-modal');
             const loadingDiv = document.getElementById('ai-summary-loading');
             const contentDiv = document.getElementById('ai-summary-content');
@@ -1352,7 +1424,7 @@
                         <div class="space-y-4">
                             <div class="flex items-center space-x-2 text-blue-600">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 002 2v8a2 2 0 002 2z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                                 </svg>
                                 <span class="font-semibold">🎬 YouTube Video Analysis</span>
                             </div>
@@ -1443,7 +1515,7 @@
         downloadBtn.setAttribute('data-filename', filename);
 
         if (type === 'image') {
-            container.innerHTML = `<img src="${src}" alt="${filename}" class="max-w-full max-h-full object-contain">`;
+            container.innerHTML = `<img src="${src}" alt="${fileName}" class="max-w-full max-h-full object-contain">`;
         } else if (type === 'video') {
             container.innerHTML = `<video src="${src}" controls class="max-w-full max-h-full object-contain">Your browser does not support video playback.</video>`;
         }

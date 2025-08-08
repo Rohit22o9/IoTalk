@@ -70,27 +70,41 @@ class AIAutoResponder {
         const messageText = lastMessage.message.toLowerCase().trim();
         const replies = [];
 
-        // Analyze the actual conversation flow
+        // Analyze the actual conversation flow with enhanced context
         const conversationContext = this.analyzeConversationContext(conversationHistory);
         
         // Generate contextual replies based on the last message
         const contextualReplies = this.generateContextualReplies(messageText, conversationContext);
         replies.push(...contextualReplies);
 
-        // If we have conversation history, analyze patterns
+        // Analyze conversation patterns and flow
         if (conversationHistory.length > 1) {
             const recentMessages = conversationHistory.slice(-3);
             const topicReplies = this.generateTopicBasedReplies(recentMessages);
             replies.push(...topicReplies);
+
+            // Add conversation flow based replies
+            const flowReplies = this.generateConversationFlowReplies(conversationHistory);
+            replies.push(...flowReplies);
         }
 
-        // Add sentiment-based responses
+        // Add sentiment-based responses with context
         const sentiment = this.detectSentiment(messageText);
         const sentimentReplies = this.getSentimentReplies(sentiment, messageText);
         replies.push(...sentimentReplies);
 
-        // Remove duplicates and limit
+        // Add time-aware responses
+        const timeReplies = this.generateTimeAwareReplies(messageText);
+        replies.push(...timeReplies);
+
+        // Remove duplicates and limit, prioritizing more contextual responses
         const uniqueReplies = [...new Set(replies)];
+        
+        // If we have no good replies, generate fallback responses
+        if (uniqueReplies.length === 0) {
+            return this.generateFallbackReplies(messageText, conversationContext);
+        }
+
         return uniqueReplies.slice(0, Math.min(maxReplies, uniqueReplies.length));
     }
 
@@ -368,3 +382,127 @@ class AIAutoResponder {
 }
 
 module.exports = new AIAutoResponder();
+
+
+
+    // Generate replies based on conversation flow patterns
+    generateConversationFlowReplies(conversationHistory) {
+        const replies = [];
+        const recent = conversationHistory.slice(-5);
+        
+        // Check for question-answer patterns
+        const hasRecentQuestion = recent.some(msg => msg.message.includes('?'));
+        if (hasRecentQuestion && !recent[recent.length - 1].message.includes('?')) {
+            replies.push('Any other questions?', 'Does that help?', 'What else would you like to know?');
+        }
+
+        // Check for conversation starters
+        const lastMsg = conversationHistory[conversationHistory.length - 1].message.toLowerCase();
+        if (lastMsg.length < 20 && !lastMsg.includes('?')) {
+            replies.push('Tell me more about that', 'That sounds interesting!', 'How did that go?');
+        }
+
+        // Check for activity mentions
+        if (lastMsg.includes('going to') || lastMsg.includes('will')) {
+            replies.push('That sounds exciting!', 'Hope it goes well!', 'When is that happening?');
+        }
+
+        return replies;
+    }
+
+    // Generate time-aware responses
+    generateTimeAwareReplies(messageText) {
+        const now = new Date();
+        const hour = now.getHours();
+        const replies = [];
+
+        if (messageText.includes('good morning') || messageText.includes('morning')) {
+            if (hour < 12) {
+                replies.push('Good morning!', 'Hope you have a great day ahead!');
+            } else if (hour < 17) {
+                replies.push('Good afternoon!', 'Hope your day is going well!');
+            } else {
+                replies.push('Good evening!', 'Hope you had a good day!');
+            }
+        }
+
+        if (messageText.includes('tired') || messageText.includes('sleepy')) {
+            if (hour > 21 || hour < 6) {
+                replies.push('It\'s getting late, you should get some rest!', 'Time for bed?');
+            } else {
+                replies.push('Maybe take a short break?', 'Have you been working hard?');
+            }
+        }
+
+        if (messageText.includes('lunch') || messageText.includes('dinner')) {
+            if (hour >= 11 && hour <= 14) {
+                replies.push('Enjoy your lunch!', 'What are you having for lunch?');
+            } else if (hour >= 17 && hour <= 21) {
+                replies.push('Enjoy your dinner!', 'What\'s for dinner?');
+            }
+        }
+
+        return replies;
+    }
+
+    // Generate fallback replies when no contextual replies are found
+    generateFallbackReplies(messageText, context) {
+        const fallbacks = [];
+
+        // Based on message length
+        if (messageText.length > 100) {
+            fallbacks.push('That\'s quite detailed!', 'I see what you mean', 'Thanks for sharing that');
+        } else if (messageText.length < 10) {
+            fallbacks.push('Could you tell me more?', 'What do you mean?', 'Can you elaborate?');
+        }
+
+        // Based on punctuation
+        if (messageText.includes('!')) {
+            fallbacks.push('That sounds exciting!', 'Wow!', 'That\'s great energy!');
+        }
+
+        if (messageText.includes('...')) {
+            fallbacks.push('I\'m listening', 'Take your time', 'Go on...');
+        }
+
+        // Generic engaging responses
+        if (fallbacks.length === 0) {
+            fallbacks.push(
+                'That\'s interesting!',
+                'Tell me more about that',
+                'How do you feel about that?',
+                'What made you think of that?',
+                'That\'s a good point'
+            );
+        }
+
+        return fallbacks.slice(0, 3);
+    }
+
+    // Enhanced topic extraction with better keyword matching
+    extractTopics(messages) {
+        const topicKeywords = {
+            time: ['time', 'clock', 'hour', 'minute', 'when', 'today', 'tomorrow', 'yesterday', 'now', 'later'],
+            weather: ['weather', 'rain', 'sunny', 'cloudy', 'temperature', 'hot', 'cold', 'warm', 'snow', 'storm'],
+            food: ['eat', 'food', 'hungry', 'lunch', 'dinner', 'breakfast', 'restaurant', 'cooking', 'recipe', 'delicious'],
+            work: ['work', 'job', 'office', 'meeting', 'project', 'task', 'deadline', 'boss', 'colleague', 'business'],
+            entertainment: ['movie', 'music', 'game', 'show', 'book', 'video', 'watch', 'play', 'fun', 'entertainment'],
+            technology: ['computer', 'phone', 'app', 'software', 'internet', 'website', 'tech', 'digital', 'online'],
+            travel: ['travel', 'trip', 'vacation', 'flight', 'hotel', 'visit', 'journey', 'explore', 'destination'],
+            health: ['health', 'doctor', 'medicine', 'exercise', 'gym', 'fit', 'sick', 'tired', 'rest', 'sleep'],
+            family: ['family', 'mom', 'dad', 'parent', 'child', 'brother', 'sister', 'relative', 'home', 'house'],
+            education: ['school', 'study', 'learn', 'class', 'teacher', 'student', 'exam', 'homework', 'university']
+        };
+
+        const foundTopics = [];
+        const allText = messages.map(m => m.message.toLowerCase()).join(' ');
+
+        for (const [topic, keywords] of Object.entries(topicKeywords)) {
+            const matchCount = keywords.filter(keyword => allText.includes(keyword)).length;
+            if (matchCount >= 1) {
+                foundTopics.push(topic);
+            }
+        }
+
+        return foundTopics;
+    }

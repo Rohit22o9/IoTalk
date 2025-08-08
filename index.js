@@ -1148,29 +1148,32 @@ app.post('/api/ai/generate-reply/:userId', async (req, res) => {
         if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
 
         const otherUserId = req.params.userId;
+        let conversationHistory = req.body.conversationHistory;
 
-        // Get recent conversation history
-        const recentChats = await Chat.find({
-            $or: [
-                { from: req.session.userId, to: otherUserId },
-                { from: otherUserId, to: req.session.userId }
-            ]
-        })
-        .sort({ created_at: -1 })
-        .limit(10)
-        .populate('from', 'username');
+        // If no conversation history provided in request body, get from database
+        if (!conversationHistory || conversationHistory.length === 0) {
+            const recentChats = await Chat.find({
+                $or: [
+                    { from: req.session.userId, to: otherUserId },
+                    { from: otherUserId, to: req.session.userId }
+                ]
+            })
+            .sort({ created_at: -1 })
+            .limit(10)
+            .populate('from', 'username');
 
-        if (recentChats.length === 0) {
-            return res.json({ success: false, error: 'No conversation history found' });
+            if (recentChats.length === 0) {
+                return res.json({ success: false, error: 'No conversation history found' });
+            }
+
+            conversationHistory = recentChats.reverse().map(chat => ({
+                from: chat.from.username,
+                message: chat.getDecrypted().msg,
+                isOwn: chat.from._id.toString() === req.session.userId
+            }));
         }
 
-        const conversationHistory = recentChats.reverse().map(chat => ({
-            from: chat.from.username,
-            message: chat.msg,
-            isOwn: chat.from._id.toString() === req.session.userId
-        }));
-
-        // Generate smart replies using AI auto-responder
+        // Generate smart replies using AI auto-responder with real-time context
         const smartReplies = await aiAutoResponder.generateSmartReplies(conversationHistory, 5);
 
         if (smartReplies.length === 0) {
@@ -1202,23 +1205,27 @@ app.post('/api/ai/generate-group-reply/:groupId', async (req, res) => {
             return res.status(403).json({ error: 'Not authorized' });
         }
 
-        // Get recent group conversation history
-        const recentChats = await GroupChat.find({ group: groupId })
-            .sort({ created_at: -1 })
-            .limit(10)
-            .populate('from', 'username');
+        let conversationHistory = req.body.conversationHistory;
 
-        if (recentChats.length === 0) {
-            return res.json({ success: false, error: 'No conversation history found' });
+        // If no conversation history provided in request body, get from database
+        if (!conversationHistory || conversationHistory.length === 0) {
+            const recentChats = await GroupChat.find({ group: groupId })
+                .sort({ created_at: -1 })
+                .limit(10)
+                .populate('from', 'username');
+
+            if (recentChats.length === 0) {
+                return res.json({ success: false, error: 'No conversation history found' });
+            }
+
+            conversationHistory = recentChats.reverse().map(chat => ({
+                from: chat.from.username,
+                message: chat.msg,
+                isOwn: chat.from._id.toString() === req.session.userId
+            }));
         }
 
-        const conversationHistory = recentChats.reverse().map(chat => ({
-            from: chat.from.username,
-            message: chat.msg,
-            isOwn: chat.from._id.toString() === req.session.userId
-        }));
-
-        // Generate smart replies using AI auto-responder
+        // Generate smart replies using AI auto-responder with real-time context
         const smartReplies = await aiAutoResponder.generateSmartReplies(conversationHistory, 5);
 
         if (smartReplies.length === 0) {

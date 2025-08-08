@@ -1161,6 +1161,54 @@ app.post('/api/ai/generate-reply/:userId', async (req, res) => {
     }
 });
 
+// ----------- GROUP AI REPLY GENERATION ROUTE -----------
+app.post('/api/ai/generate-group-reply/:groupId', async (req, res) => {
+    try {
+        if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const groupId = req.params.groupId;
+
+        // Verify user is a member of the group
+        const group = await Group.findById(groupId);
+        if (!group || !group.members.includes(req.session.userId)) {
+            return res.status(403).json({ error: 'Not authorized' });
+        }
+
+        // Get recent group conversation history
+        const recentChats = await GroupChat.find({ group: groupId })
+            .sort({ created_at: -1 })
+            .limit(10)
+            .populate('from', 'username');
+
+        if (recentChats.length === 0) {
+            return res.json({ success: false, error: 'No conversation history found' });
+        }
+
+        const conversationHistory = recentChats.reverse().map(chat => ({
+            from: chat.from.username,
+            message: chat.msg,
+            isOwn: chat.from._id.toString() === req.session.userId
+        }));
+
+        // Generate smart replies using AI auto-responder
+        const smartReplies = await aiAutoResponder.generateSmartReplies(conversationHistory, 5);
+
+        if (smartReplies.length === 0) {
+            // Generate contextual reply if no smart replies
+            const contextualReply = aiAutoResponder.generateContextualReply(conversationHistory);
+            if (contextualReply) {
+                return res.json({ success: true, replies: [contextualReply] });
+            }
+            return res.json({ success: false, error: 'No suitable replies could be generated' });
+        }
+
+        res.json({ success: true, replies: smartReplies });
+    } catch (error) {
+        console.error('Group AI reply generation error:', error);
+        res.status(500).json({ error: 'Failed to generate AI replies' });
+    }
+});
+
 // ----------- COMMUNITY ROUTES -----------
 app.get('/communities', async (req, res) => {
     if (!req.session.userId) return res.redirect('/login');

@@ -324,40 +324,7 @@ app.post('/chat/:id', upload.single('media'), async (req, res) => {
         const roomId = [req.session.userId, id].sort().join('_');
         io.to(roomId).emit('chat message', populatedChat.getDecrypted());
 
-        // AI Auto-Responder for personal chats
-        if (!moderationResult.flagged && aiAutoResponder.isEnabled(id)) {
-            setTimeout(async () => {
-                try {
-                    // Get recent conversation history
-                    const recentChats = await Chat.find({
-                        $or: [
-                            { from: req.session.userId, to: id },
-                            { from: id, to: req.session.userId }
-                        ]
-                    })
-                    .sort({ created_at: -1 })
-                    .limit(5)
-                    .populate('from', 'username');
-
-                    const conversationHistory = recentChats.reverse().map(chat => ({
-                        from: chat.from.username,
-                        message: chat.msg
-                    }));
-
-                    const smartReplies = await aiAutoResponder.generateSmartReplies(conversationHistory);
-
-                    if (smartReplies.length > 0) {
-                        // Send smart replies suggestion to the recipient
-                        io.to(id).emit('smart replies', {
-                            chatId: chat._id,
-                            replies: smartReplies
-                        });
-                    }
-                } catch (error) {
-                    console.error('Auto-responder error:', error);
-                }
-            }, 2000); // Delay to seem more natural
-        }
+        // Note: AI Auto-Responder moved to manual trigger via button
 
         res.json({ success: true, message: populatedChat });
     } catch (error) {
@@ -1144,6 +1111,53 @@ app.post('/api/ai/summarize', async (req, res) => {
     } catch (error) {
         console.error('AI summarization error:', error);
         res.status(500).json({ error: 'Failed to generate summary' });
+    }
+});
+
+// ----------- AI REPLY GENERATION ROUTE -----------
+app.post('/api/ai/generate-reply/:userId', async (req, res) => {
+    try {
+        if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const otherUserId = req.params.userId;
+
+        // Get recent conversation history
+        const recentChats = await Chat.find({
+            $or: [
+                { from: req.session.userId, to: otherUserId },
+                { from: otherUserId, to: req.session.userId }
+            ]
+        })
+        .sort({ created_at: -1 })
+        .limit(10)
+        .populate('from', 'username');
+
+        if (recentChats.length === 0) {
+            return res.json({ success: false, error: 'No conversation history found' });
+        }
+
+        const conversationHistory = recentChats.reverse().map(chat => ({
+            from: chat.from.username,
+            message: chat.msg,
+            isOwn: chat.from._id.toString() === req.session.userId
+        }));
+
+        // Generate smart replies using AI auto-responder
+        const smartReplies = await aiAutoResponder.generateSmartReplies(conversationHistory, 5);
+
+        if (smartReplies.length === 0) {
+            // Generate contextual reply if no smart replies
+            const contextualReply = aiAutoResponder.generateContextualReply(conversationHistory);
+            if (contextualReply) {
+                return res.json({ success: true, replies: [contextualReply] });
+            }
+            return res.json({ success: false, error: 'No suitable replies could be generated' });
+        }
+
+        res.json({ success: true, replies: smartReplies });
+    } catch (error) {
+        console.error('AI reply generation error:', error);
+        res.status(500).json({ error: 'Failed to generate AI replies' });
     }
 });
 

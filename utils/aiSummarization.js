@@ -365,7 +365,8 @@ class AISummarization {
     // Fetch real YouTube video data using YouTube Data API
     async fetchYouTubeVideoData(videoId) {
         try {
-            const apiKey = process.env.YOUTUBE_API_KEY;
+            // Use environment variable or fallback to provided key
+            const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyBbpE30PQ883O8IoM6z0f2sUpkni6ETeKE';
             if (!apiKey) {
                 console.log('YouTube API key not found, using simulated data');
                 return this.generateVideoDataFromId(videoId);
@@ -373,10 +374,25 @@ class AISummarization {
 
             const apiUrl = `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&key=${apiKey}&part=snippet,statistics,contentDetails`;
             
+            console.log('Fetching YouTube data for video ID:', videoId);
+            console.log('API URL:', apiUrl);
+            
             // Use node-fetch for API call (install if not already installed)
             const fetch = require('node-fetch');
             const response = await fetch(apiUrl);
+            
+            if (!response.ok) {
+                console.error('YouTube API response not OK:', response.status, response.statusText);
+                return this.generateVideoDataFromId(videoId);
+            }
+            
             const data = await response.json();
+            console.log('YouTube API response:', JSON.stringify(data, null, 2));
+
+            if (data.error) {
+                console.error('YouTube API error:', data.error);
+                return this.generateVideoDataFromId(videoId);
+            }
 
             if (data.items && data.items.length > 0) {
                 const video = data.items[0];
@@ -385,18 +401,18 @@ class AISummarization {
                 const contentDetails = video.contentDetails;
 
                 return {
-                    title: snippet.title,
-                    channelTitle: snippet.channelTitle,
-                    description: snippet.description,
-                    duration: this.formatDuration(contentDetails.duration),
-                    publishedAt: new Date(snippet.publishedAt).toLocaleDateString(),
-                    viewCount: this.formatNumber(parseInt(statistics.viewCount)),
-                    likeCount: statistics.likeCount ? this.formatNumber(parseInt(statistics.likeCount)) : 'N/A',
-                    categoryId: snippet.categoryId,
+                    title: snippet.title || 'Unknown Title',
+                    channelTitle: snippet.channelTitle || 'Unknown Channel',
+                    description: snippet.description || 'No description available',
+                    duration: contentDetails ? this.formatDuration(contentDetails.duration) : 'Unknown',
+                    publishedAt: snippet.publishedAt ? new Date(snippet.publishedAt).toLocaleDateString() : 'Unknown',
+                    viewCount: statistics && statistics.viewCount ? this.formatNumber(parseInt(statistics.viewCount)) : 'N/A',
+                    likeCount: statistics && statistics.likeCount ? this.formatNumber(parseInt(statistics.likeCount)) : 'N/A',
+                    categoryId: snippet.categoryId || '0',
                     tags: snippet.tags || [],
-                    thumbnailUrl: snippet.thumbnails.maxres ? snippet.thumbnails.maxres.url : snippet.thumbnails.high.url,
-                    channelId: snippet.channelId,
-                    defaultLanguage: snippet.defaultLanguage || 'Unknown'
+                    thumbnailUrl: snippet.thumbnails ? (snippet.thumbnails.maxres ? snippet.thumbnails.maxres.url : (snippet.thumbnails.high ? snippet.thumbnails.high.url : snippet.thumbnails.default.url)) : '',
+                    channelId: snippet.channelId || '',
+                    defaultLanguage: snippet.defaultLanguage || snippet.defaultAudioLanguage || 'Unknown'
                 };
             } else {
                 console.log('No video data found, using simulated data');
@@ -404,7 +420,8 @@ class AISummarization {
             }
             
         } catch (error) {
-            console.error('Error fetching YouTube data:', error);
+            console.error('Error fetching YouTube data:', error.message);
+            console.error('Full error:', error);
             return this.generateVideoDataFromId(videoId);
         }
     }

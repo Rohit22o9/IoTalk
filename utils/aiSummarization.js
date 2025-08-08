@@ -1,6 +1,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
 
 class AISummarization {
     constructor() {
@@ -377,8 +378,7 @@ class AISummarization {
             console.log('Fetching YouTube data for video ID:', videoId);
             console.log('API URL:', apiUrl);
             
-            // Use node-fetch for API call (install if not already installed)
-            const fetch = require('node-fetch');
+            // Use node-fetch for API call
             const response = await fetch(apiUrl);
             
             if (!response.ok) {

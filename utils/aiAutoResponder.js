@@ -63,50 +63,66 @@ class AIAutoResponder {
 
     // Generate smart replies based on conversation context
     async generateSmartReplies(conversationHistory, maxReplies = 3) {
+        console.log('Analyzing conversation history:', conversationHistory);
+        
         if (!conversationHistory || conversationHistory.length === 0) {
-            return ['Hello!', 'How can I help?', 'What\'s on your mind?'];
+            return ['Hello!', 'How can I help?', 'What\'s on your mind?', 'Namaste!', 'Kya haal hai?'];
         }
 
         const lastMessage = conversationHistory[conversationHistory.length - 1];
         const messageText = lastMessage.message.toLowerCase().trim();
         const replies = [];
 
+        console.log('Last message analyzed:', messageText);
+
         // Analyze the actual conversation flow with enhanced context
         const conversationContext = this.analyzeConversationContext(conversationHistory);
+        console.log('Conversation context:', conversationContext);
 
-        // Generate contextual replies based on the last message
-        const contextualReplies = this.generateContextualReplies(messageText, conversationContext);
-        replies.push(...contextualReplies);
+        // Priority 1: Generate highly contextual replies based on the EXACT last message content
+        const directReplies = this.generateDirectContextualReplies(messageText, lastMessage, conversationHistory);
+        if (directReplies.length > 0) {
+            replies.push(...directReplies);
+            console.log('Direct contextual replies:', directReplies);
+        }
 
-        // Analyze conversation patterns and flow
+        // Priority 2: Analyze conversation patterns and participants
         if (conversationHistory.length > 1) {
-            const recentMessages = conversationHistory.slice(-3);
-            const topicReplies = this.generateTopicBasedReplies(recentMessages);
-            replies.push(...topicReplies);
-
-            // Add conversation flow based replies
-            const flowReplies = this.generateConversationFlowReplies(conversationHistory);
-            replies.push(...flowReplies);
+            const conversationFlowReplies = this.generateAdvancedConversationFlowReplies(conversationHistory);
+            replies.push(...conversationFlowReplies);
         }
 
-        // Add sentiment-based responses with context
+        // Priority 3: Generate contextual replies based on recent conversation themes
+        const themeReplies = this.generateThemeBasedReplies(conversationHistory);
+        replies.push(...themeReplies);
+
+        // Priority 4: Language-specific responses (detect if Hindi/Hinglish and respond accordingly)
+        const languageReplies = this.generateLanguageSpecificReplies(messageText, conversationHistory);
+        replies.push(...languageReplies);
+
+        // Priority 5: Sentiment and emotion-based responses
         const sentiment = this.detectSentiment(messageText);
-        const sentimentReplies = this.getSentimentReplies(sentiment, messageText);
-        replies.push(...sentimentReplies);
+        const emotionalReplies = this.generateEmotionallyIntelligentReplies(sentiment, messageText, conversationContext);
+        replies.push(...emotionalReplies);
 
-        // Add time-aware responses
-        const timeReplies = this.generateTimeAwareReplies(messageText);
-        replies.push(...timeReplies);
-
-        // Remove duplicates and limit, prioritizing more contextual responses
-        const uniqueReplies = [...new Set(replies)];
-
-        // If we have no good replies, generate fallback responses
-        if (uniqueReplies.length === 0) {
-            return this.generateFallbackReplies(messageText, conversationContext);
+        // Priority 6: Question-specific intelligent responses
+        if (this.isQuestion(messageText)) {
+            const questionReplies = this.generateIntelligentQuestionResponses(messageText, conversationHistory);
+            replies.push(...questionReplies);
         }
 
-        return uniqueReplies.slice(0, Math.min(maxReplies, uniqueReplies.length));
+        // Remove duplicates and prioritize more contextual responses
+        const uniqueReplies = [...new Set(replies)];
+        console.log('Generated unique replies:', uniqueReplies);
+
+        // If we have good contextual replies, return them
+        if (uniqueReplies.length > 0) {
+            return uniqueReplies.slice(0, Math.min(maxReplies, uniqueReplies.length));
+        }
+
+        // Fallback with conversation-aware responses
+        console.log('Using fallback replies');
+        return this.generateIntelligentFallbackReplies(messageText, conversationContext, conversationHistory);
     }
 
     // Analyze the overall conversation context
@@ -456,34 +472,299 @@ class AIAutoResponder {
         return replies;
     }
 
-    // Generate fallback replies when no contextual replies are found
-    generateFallbackReplies(messageText, context) {
+    // Generate direct contextual replies based on exact message content
+    generateDirectContextualReplies(messageText, lastMessage, conversationHistory) {
+        const replies = [];
+        const originalMessage = lastMessage.message; // Keep original casing
+
+        // Detect specific question types with multilingual support
+        if (messageText.includes('where') || messageText.includes('kahan') || messageText.includes('kidhar')) {
+            if (messageText.includes('live') || messageText.includes('rahte') || messageText.includes('raho')) {
+                replies.push(
+                    'I\'m just a digital assistant, I don\'t have a physical location!',
+                    'I exist in the digital world! Where are you from?',
+                    'Main digital duniya mein rehta hun! Aap kahan se ho?',
+                    'I\'m everywhere and nowhere at the same time! 😄'
+                );
+            } else if (messageText.includes('from') || messageText.includes('se ho') || messageText.includes('se aaye')) {
+                replies.push(
+                    'I\'m from the world of code and algorithms!',
+                    'Born in the digital realm! What about you?',
+                    'Main code ki duniya se hun! Aap kahan se?',
+                    'I come from the land of 1s and 0s! 🤖'
+                );
+            } else {
+                replies.push(
+                    'That\'s a location question! Can you be more specific?',
+                    'Where exactly are you asking about?',
+                    'Kahan ke baare mein puch rahe ho?'
+                );
+            }
+        }
+
+        // Handle "what are you doing" more contextually
+        if (messageText.includes('what') && (messageText.includes('doing') || messageText.includes('kar rahe') || messageText.includes('kartoy'))) {
+            // Check if this question was asked recently
+            const recentDoingQuestions = conversationHistory.slice(-5).filter(msg => 
+                msg.message.toLowerCase().includes('doing') || 
+                msg.message.toLowerCase().includes('kar rahe') ||
+                msg.message.toLowerCase().includes('kartoy')
+            );
+            
+            if (recentDoingQuestions.length > 1) {
+                replies.push(
+                    'Still chatting with you! Getting better at it each time 😊',
+                    'Same thing - having this conversation! You seem curious!',
+                    'Abhi bhi tumse baat kar raha hun! Lagta hai tumko jaanna hai!',
+                    'You keep asking - I keep chatting! What about you?'
+                );
+            } else {
+                replies.push(
+                    'Just having this wonderful conversation with you!',
+                    'Chatting and learning from our conversation!',
+                    'Bas tumse baat kar raha hun aur seekh raha hun!',
+                    'Analyzing our chat and thinking of good responses!'
+                );
+            }
+        }
+
+        // Handle repeated questions intelligently
+        const lastFewMessages = conversationHistory.slice(-3);
+        const isRepeatedQuestion = lastFewMessages.filter(msg => 
+            msg.message.toLowerCase().trim() === messageText.trim()
+        ).length > 1;
+
+        if (isRepeatedQuestion) {
+            replies.push(
+                'I noticed you asked this before! Is there something specific you\'d like to know?',
+                'You seem really interested in this topic!',
+                'Same question again? Tell me more about what you\'re thinking!',
+                'Lagta hai ye topic tumhe interesting laga! Aur batao!'
+            );
+        }
+
+        // Context-aware responses based on conversation flow
+        if (conversationHistory.length > 2) {
+            const participantNames = [...new Set(conversationHistory.map(msg => msg.from))];
+            const lastSpeaker = lastMessage.from;
+            
+            // If it's a back-and-forth conversation
+            if (participantNames.length > 1) {
+                const otherParticipants = participantNames.filter(name => name !== lastSpeaker);
+                if (otherParticipants.length > 0) {
+                    replies.push(`Interesting question, ${lastSpeaker}! What do others think?`);
+                }
+            }
+        }
+
+        return replies;
+    }
+
+    // Generate advanced conversation flow replies
+    generateAdvancedConversationFlowReplies(conversationHistory) {
+        const replies = [];
+        const recentMessages = conversationHistory.slice(-5);
+        
+        // Analyze conversation momentum
+        const messageFrequency = recentMessages.length;
+        const uniqueSpeakers = new Set(recentMessages.map(msg => msg.from)).size;
+        
+        // If it's an active conversation with multiple participants
+        if (uniqueSpeakers > 1 && messageFrequency >= 3) {
+            replies.push(
+                'This is a great conversation!',
+                'I love seeing everyone engaged!',
+                'Bahut achhi discussion chal rahi hai!'
+            );
+        }
+        
+        // Check for topic shifts
+        const oldTopics = this.extractTopics(conversationHistory.slice(-10, -5));
+        const newTopics = this.extractTopics(recentMessages);
+        const topicShift = oldTopics.length > 0 && !oldTopics.some(topic => newTopics.includes(topic));
+        
+        if (topicShift) {
+            replies.push(
+                'Interesting how our conversation evolved!',
+                'Nice topic change!',
+                'Topic badal gaya, interesting!'
+            );
+        }
+
+        return replies;
+    }
+
+    // Generate theme-based replies from conversation analysis
+    generateThemeBasedReplies(conversationHistory) {
+        const replies = [];
+        const allMessages = conversationHistory.map(msg => msg.message.toLowerCase()).join(' ');
+        
+        // Detect recurring themes
+        const themes = {
+            friendship: ['friend', 'dost', 'yaar', 'bhai', 'buddy'],
+            work: ['work', 'kaam', 'job', 'office', 'meeting'],
+            fun: ['fun', 'maza', 'enjoy', 'party', 'game'],
+            food: ['eat', 'khana', 'food', 'hungry', 'bhook'],
+            study: ['study', 'padhai', 'exam', 'school', 'college']
+        };
+
+        for (const [theme, keywords] of Object.entries(themes)) {
+            const matchCount = keywords.filter(keyword => allMessages.includes(keyword)).length;
+            if (matchCount >= 2) {
+                switch (theme) {
+                    case 'friendship':
+                        replies.push('Friendship is such a beautiful thing!', 'Dosti mein kya baat hai!');
+                        break;
+                    case 'work':
+                        replies.push('Work-life balance is important!', 'Kaam important hai par aram bhi!');
+                        break;
+                    case 'fun':
+                        replies.push('Life should be fun!', 'Maza karna zaroori hai!');
+                        break;
+                    case 'food':
+                        replies.push('Food brings people together!', 'Khana sab ko pasand hai!');
+                        break;
+                    case 'study':
+                        replies.push('Learning never stops!', 'Padhai kabhi nahi rukni chahiye!');
+                        break;
+                }
+            }
+        }
+
+        return replies;
+    }
+
+    // Generate language-specific replies
+    generateLanguageSpecificReplies(messageText, conversationHistory) {
+        const replies = [];
+        
+        // Detect language patterns in recent conversation
+        const recentText = conversationHistory.slice(-3).map(msg => msg.message.toLowerCase()).join(' ');
+        
+        const hindiWords = ['kya', 'hai', 'aur', 'mein', 'hoon', 'tum', 'aap', 'kaise', 'kaisi', 'kahan', 'kab', 'kyun'];
+        const hinglishWords = ['yaar', 'bhai', 'dekho', 'suno', 'achha', 'theek', 'bas', 'arre', 'wah'];
+        
+        const hindiCount = hindiWords.filter(word => recentText.includes(word)).length;
+        const hinglishCount = hinglishWords.filter(word => recentText.includes(word)).length;
+        
+        // If conversation has Hindi/Hinglish elements, respond accordingly
+        if (hindiCount > 1 || hinglishCount > 1) {
+            if (messageText.includes('kartoy')) { // Marathi influence
+                replies.push(
+                    'Tumhi Marathi boltat ka? Mala thoda thoda samajte!',
+                    'That sounds like Marathi! I understand a little bit!',
+                    'Regional languages are so beautiful!'
+                );
+            } else {
+                replies.push(
+                    'Hindi mein baat karna achha lagta hai!',
+                    'Hinglish is such a fun way to communicate!',
+                    'Regional touch conversation ko interesting banata hai!'
+                );
+            }
+        }
+
+        return replies;
+    }
+
+    // Generate emotionally intelligent replies
+    generateEmotionallyIntelligentReplies(sentiment, messageText, context) {
+        const replies = [];
+        
+        // Advanced sentiment analysis with context
+        if (sentiment === 'positive') {
+            if (context.questionCount > 2) {
+                replies.push('Your curiosity is infectious!', 'I love your enthusiasm for learning!');
+            } else {
+                replies.push('Your positive energy is amazing!', 'Keep that great spirit up!');
+            }
+        } else if (sentiment === 'negative') {
+            replies.push(
+                'I understand that might be frustrating',
+                'Sometimes things don\'t go as planned, but that\'s okay',
+                'Mushkil waqt hai, but it will pass'
+            );
+        } else {
+            // Neutral but contextual
+            if (messageText.length > 50) {
+                replies.push('You\'re quite thoughtful in your messages', 'I appreciate the detail you share');
+            }
+        }
+
+        return replies;
+    }
+
+    // Check if message is a question
+    isQuestion(messageText) {
+        const questionWords = ['what', 'how', 'why', 'when', 'where', 'who', 'which', 'kya', 'kaise', 'kyun', 'kab', 'kahan', 'kaun', 'konsa'];
+        return messageText.includes('?') || questionWords.some(word => messageText.includes(word));
+    }
+
+    // Generate intelligent question responses
+    generateIntelligentQuestionResponses(messageText, conversationHistory) {
+        const replies = [];
+        
+        // Analyze what type of question it is
+        if (messageText.includes('think') || messageText.includes('sochte')) {
+            const previousTopics = this.extractTopics(conversationHistory.slice(-5));
+            if (previousTopics.length > 0) {
+                replies.push(
+                    `Based on our conversation, I think it relates to ${previousTopics[0]}`,
+                    'That\'s a thought-provoking question!',
+                    'Interesting perspective to think about!'
+                );
+            } else {
+                replies.push(
+                    'That\'s a great question to ponder!',
+                    'What do you think about it?',
+                    'Tumhara kya khayal hai?'
+                );
+            }
+        }
+        
+        return replies;
+    }
+
+    // Generate intelligent fallback replies with conversation awareness
+    generateIntelligentFallbackReplies(messageText, context, conversationHistory) {
         const fallbacks = [];
 
-        // Based on message length
+        // Base responses on conversation length and context
+        if (conversationHistory.length < 3) {
+            fallbacks.push(
+                'Let\'s get to know each other better!',
+                'This is the beginning of a great conversation!',
+                'Chaliye baat shuru karte hain!'
+            );
+        } else if (conversationHistory.length > 10) {
+            fallbacks.push(
+                'We\'ve been chatting for a while! This is nice!',
+                'I\'m enjoying our long conversation!',
+                'Bahut achhi baat chal rahi hai!'
+            );
+        }
+
+        // Based on message characteristics
         if (messageText.length > 100) {
-            fallbacks.push('That\'s quite detailed!', 'I see what you mean', 'Thanks for sharing that');
+            fallbacks.push('You always share such detailed thoughts!', 'I appreciate how expressive you are!');
         } else if (messageText.length < 10) {
-            fallbacks.push('Could you tell me more?', 'What do you mean?', 'Can you elaborate?');
+            fallbacks.push('Short and sweet!', 'Sometimes less is more!', 'Kam mein baat ho gayi!');
         }
 
-        // Based on punctuation
-        if (messageText.includes('!')) {
-            fallbacks.push('That sounds exciting!', 'Wow!', 'That\'s great energy!');
+        // Conversation-specific fallbacks
+        const uniqueParticipants = new Set(conversationHistory.map(msg => msg.from)).size;
+        if (uniqueParticipants > 2) {
+            fallbacks.push('Group conversations are always interesting!', 'Everyone brings something unique to the chat!');
         }
 
-        if (messageText.includes('...')) {
-            fallbacks.push('I\'m listening', 'Take your time', 'Go on...');
-        }
-
-        // Generic engaging responses
+        // Default engaging responses with multilingual touch
         if (fallbacks.length === 0) {
             fallbacks.push(
-                'That\'s interesting!',
-                'Tell me more about that',
-                'How do you feel about that?',
-                'What made you think of that?',
-                'That\'s a good point'
+                'That\'s really interesting!',
+                'Tell me more about that!',
+                'Aur batao, interesting lag raha hai!',
+                'What\'s your take on this?',
+                'I\'d love to hear more!'
             );
         }
 

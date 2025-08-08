@@ -1090,33 +1090,55 @@ app.post('/api/ai/summarize', async (req, res) => {
 
         const { messageId, type, content } = req.body;
 
-        // Simple summarization logic (you can replace with actual AI service)
-        let summary = '';
-
         const aiSummarization = require('./utils/aiSummarization');
+        let summary = '';
+        let summaryData = null;
         
         if (type === 'text') {
             if (content.length > 200) {
-                const textSummary = await aiSummarization.summarizeText(content, 100);
-                summary = textSummary || (content.substring(0, 150) + '...');
+                const textSummary = await aiSummarization.summarizeText(content, 200);
+                if (textSummary) {
+                    summary = `📝 **Text Summary**\n\n${textSummary}\n\n**Original Length**: ${content.length} characters\n**Summary Length**: ${textSummary.length} characters\n\n**Keywords**: ${aiSummarization.extractKeywords(content, 5).join(', ')}`;
+                } else {
+                    summary = `📝 **Text Analysis**\n\n${content.substring(0, 200)}...\n\n**Length**: ${content.length} characters\n**Keywords**: ${aiSummarization.extractKeywords(content, 5).join(', ')}\n\n**Note**: This text is moderately long. The content has been truncated for display.`;
+                }
             } else {
-                summary = 'This message is already concise and doesn\'t need summarization.';
+                summary = `📝 **Text Analysis**\n\n${content}\n\n**Length**: ${content.length} characters\n**Assessment**: This message is already concise and doesn't require summarization.\n\n**Keywords**: ${aiSummarization.extractKeywords(content, 5).join(', ')}`;
             }
         } else if (type === 'video_link') {
-            const videoSummary = await aiSummarization.summarizeVideoLink(content);
-            summary = videoSummary ? videoSummary.summary : 'Video link detected but could not be summarized.';
+            summaryData = await aiSummarization.summarizeVideoLink(content);
+            summary = summaryData ? summaryData.summary : '🎬 **Video Link Analysis**\n\nVideo link detected but detailed analysis could not be performed. Please click the link to view the content directly.';
         } else if (type === 'audio') {
-            summary = 'This is a voice message. Audio content analysis is not available yet, but you can play it to listen.';
+            summary = `🎵 **Audio Message Analysis**\n\n**Type**: Voice/Audio Message\n**Format**: Audio file\n\n**Content**: This is a voice message or audio file. Audio content analysis is not yet available in this version.\n\n**Recommendation**: Click the play button to listen to the audio content for complete understanding.\n\n**Note**: Future versions may include speech-to-text transcription and audio content analysis.`;
         } else if (type === 'video') {
-            summary = 'This is a video file. Video content analysis is not available yet, but you can click to view it.';
+            summary = `🎬 **Video File Analysis**\n\n**Type**: Video File\n**Format**: Video media\n\n**Content**: This is a video file shared in the conversation. Video content analysis is not yet available in this version.\n\n**Recommendation**: Click to view the video for complete understanding of the content.\n\n**Note**: Future versions may include video frame analysis and content recognition.`;
         } else {
-            summary = 'Content type not supported for summarization. Please try with text or video links.';
+            summary = `❓ **Unsupported Content Type**\n\n**Type**: ${type}\n**Status**: Content type not supported for summarization\n\n**Available Types**:\n• Text messages (over 200 characters)\n• Video links (YouTube, Vimeo, etc.)\n• Audio messages\n• Video files\n\n**Recommendation**: Try with supported content types for better analysis.`;
         }
 
-        res.json({ success: true, summary });
+        // Include additional metadata if available
+        const response = { 
+            success: true, 
+            summary,
+            metadata: {
+                contentType: type,
+                originalLength: content ? content.length : 0,
+                processingTime: new Date().toISOString(),
+                enhanced: summaryData?.enhanced || false
+            }
+        };
+
+        if (summaryData?.url) {
+            response.videoUrl = summaryData.url;
+        }
+
+        res.json(response);
     } catch (error) {
         console.error('AI summarization error:', error);
-        res.status(500).json({ error: 'Failed to generate summary' });
+        res.status(500).json({ 
+            error: 'Failed to generate summary',
+            summary: `❌ **Error Generating Summary**\n\nAn error occurred while processing the content. Please try again.\n\n**Error Type**: Processing Error\n**Recommendation**: Refresh the page and try again, or contact support if the issue persists.`
+        });
     }
 });
 

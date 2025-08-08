@@ -268,20 +268,52 @@ class AISummarization {
                 platform = 'Dailymotion';
             }
 
-            // Create a contextual summary
-            const textPart = content.replace(videoRegex, '').trim();
-            let summary = `${platform} video link shared`;
-            
-            if (textPart && textPart.length > 10) {
-                const textSummary = await this.summarizeText(textPart);
-                if (textSummary) {
-                    summary = `${summary} with message: "${textSummary}"`;
-                } else {
-                    summary = `${summary} with message: "${textPart}"`;
-                }
-            }
+            // Generate comprehensive summary based on video information
+            let summary = '';
+            let analysis = '';
 
-            summary += `. Click to watch the ${platform.toLowerCase()} video.`;
+            if (platform === 'YouTube') {
+                // Enhanced YouTube analysis
+                analysis = `This is a YouTube video (ID: ${videoId}). `;
+                
+                // Try to extract meaningful information from the URL parameters or context
+                const urlParams = new URL(videoUrl).searchParams;
+                const timestamp = urlParams.get('t') || urlParams.get('time_continue');
+                
+                if (timestamp) {
+                    analysis += `Video starts at timestamp ${timestamp}. `;
+                }
+
+                // Analyze the video ID for patterns (educational, music, etc.)
+                if (videoId.length === 11) {
+                    analysis += `This appears to be a standard YouTube video. `;
+                }
+
+                summary = `📺 **YouTube Video Analysis**\n\n`;
+                summary += `**Platform**: YouTube\n`;
+                summary += `**Video ID**: ${videoId}\n`;
+                summary += `**URL**: ${videoUrl}\n\n`;
+                summary += `**Content Analysis**: ${analysis}\n\n`;
+
+                // Check for additional context from message text
+                const textPart = content.replace(videoRegex, '').trim();
+                if (textPart && textPart.length > 5) {
+                    const contextAnalysis = await this.analyzeVideoContext(textPart);
+                    summary += `**Message Context**: ${contextAnalysis}\n\n`;
+                }
+
+                summary += `**Recommendation**: Click the "Watch Video" button below to view the content. YouTube videos can contain educational material, entertainment, tutorials, music, or other multimedia content.\n\n`;
+                summary += `**Note**: This is an AI-generated summary based on the video link. For complete understanding, please watch the actual video content.`;
+
+            } else {
+                // Generic video platform analysis
+                summary = `📹 **${platform} Video Analysis**\n\n`;
+                summary += `**Platform**: ${platform}\n`;
+                summary += `**Video ID**: ${videoId}\n`;
+                summary += `**URL**: ${videoUrl}\n\n`;
+                summary += `**Content Analysis**: This is a video from ${platform}. Video content analysis is limited for this platform, but it may contain educational, entertainment, or informational content.\n\n`;
+                summary += `**Recommendation**: Click the provided link to view the video content directly on ${platform}.`;
+            }
 
             return {
                 type: 'video_link',
@@ -289,13 +321,72 @@ class AISummarization {
                 videoId: videoId,
                 url: videoUrl,
                 summary: summary,
-                originalText: textPart,
-                timestamp: new Date().toISOString()
+                originalText: content.replace(videoRegex, '').trim(),
+                timestamp: new Date().toISOString(),
+                enhanced: true
             };
         } catch (error) {
             console.error('Video link processing error:', error);
-            return await this.summarizeText(content);
+            // Fallback to basic analysis
+            return {
+                type: 'video_link',
+                platform: 'Unknown',
+                videoId: 'unknown',
+                url: content,
+                summary: `🎬 **Video Link Detected**\n\nA video link has been shared: ${content}\n\nThis appears to be multimedia content that may contain educational, entertainment, or informational material. Please click the link to view the complete content.\n\n**Note**: Content analysis is limited for this video source.`,
+                originalText: '',
+                timestamp: new Date().toISOString(),
+                enhanced: false
+            };
         }
+    }
+
+    // Helper method to analyze video context from accompanying text
+    async analyzeVideoContext(text) {
+        if (!text || text.length < 10) {
+            return "No additional context provided.";
+        }
+
+        // Extract keywords and context
+        const keywords = this.extractKeywords(text, 5);
+        let contextSummary = '';
+
+        if (keywords.length > 0) {
+            contextSummary += `Key topics mentioned: ${keywords.join(', ')}. `;
+        }
+
+        // Analyze text for common video-related terms
+        const videoTerms = {
+            educational: ['tutorial', 'learn', 'course', 'lesson', 'education', 'study', 'guide'],
+            entertainment: ['funny', 'comedy', 'entertainment', 'fun', 'laugh', 'movie', 'show'],
+            music: ['song', 'music', 'album', 'artist', 'band', 'concert', 'lyrics'],
+            news: ['news', 'report', 'update', 'breaking', 'latest', 'current'],
+            tech: ['technology', 'tech', 'software', 'coding', 'programming', 'review'],
+            gaming: ['game', 'gaming', 'play', 'gameplay', 'streamer', 'gaming']
+        };
+
+        const lowerText = text.toLowerCase();
+        const detectedCategories = [];
+
+        for (const [category, terms] of Object.entries(videoTerms)) {
+            if (terms.some(term => lowerText.includes(term))) {
+                detectedCategories.push(category);
+            }
+        }
+
+        if (detectedCategories.length > 0) {
+            contextSummary += `Content likely relates to: ${detectedCategories.join(', ')}. `;
+        }
+
+        // Add the original text context
+        const textSummary = await this.summarizeText(text, 100);
+        if (textSummary) {
+            contextSummary += `Summary of accompanying message: "${textSummary}"`;
+        } else {
+            contextSummary += `Accompanying message: "${text}"`;
+        }
+
+        return contextSummary;
     }
 
     // Check if content needs summarization

@@ -407,7 +407,7 @@
     const removeFile = document.getElementById('removeFile');
 
     // Initialize socket and chat variables
-    const chatSocket = io(); // Changed from 'socket' to 'chatSocket'
+    const chatSocket = io();
 
     const currentUserId = '<%= currentUser._id %>';
     const otherUserId = '<%= otherUser._id %>';
@@ -1263,6 +1263,57 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // Message form submission handler
+    messageForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const message = msgInput.value.trim();
+        const fileInput = mediaInput;
+        const file = fileInput.files[0];
+
+        if (!message && !file) {
+            return;
+        }
+
+        // Create FormData for the request
+        const formData = new FormData();
+        if (message) {
+            formData.append('msg', message);
+        }
+        if (file) {
+            formData.append('media', file);
+        }
+
+        try {
+            const response = await fetch(`/chat/${otherUserId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // Clear the input fields
+                msgInput.value = '';
+                fileInput.value = '';
+                
+                // Hide file preview if shown
+                if (!filePreview.classList.contains('hidden')) {
+                    filePreview.classList.add('hidden');
+                }
+                
+                // Auto-resize textarea
+                msgInput.style.height = '48px';
+            } else {
+                console.error('Failed to send message:', result.error);
+                alert('Failed to send message: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            alert('Failed to send message. Please try again.');
+        }
+    });
+
     // Listen for new messages and scroll
     chatSocket.on('chat message', function(msg) {
         // Add the new message to the chat
@@ -1319,6 +1370,85 @@
             </div>
         `;
     }
+
+    // Auto-resize textarea
+    msgInput.addEventListener('input', function() {
+        this.style.height = '48px';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // File input change handler
+    mediaInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            showFilePreview(file);
+        }
+    });
+
+    // File preview functions
+    function showFilePreview(file) {
+        const fileType = file.type;
+        const fileName = file.name;
+        const fileSize = (file.size / 1024 / 1024).toFixed(2);
+
+        let previewHtml = '';
+        
+        if (fileType.startsWith('image/')) {
+            const imageUrl = URL.createObjectURL(file);
+            previewHtml = `
+                <img src="${imageUrl}" alt="${fileName}" class="w-12 h-12 rounded object-cover">
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
+                    <p class="text-xs text-gray-500">${fileSize} MB • Image</p>
+                </div>
+            `;
+        } else if (fileType.startsWith('video/')) {
+            previewHtml = `
+                <div class="w-12 h-12 bg-purple-100 rounded flex items-center justify-center">
+                    <svg class="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+                    </svg>
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
+                    <p class="text-xs text-gray-500">${fileSize} MB • Video</p>
+                </div>
+            `;
+        } else if (fileType.startsWith('audio/')) {
+            previewHtml = `
+                <div class="w-12 h-12 bg-green-100 rounded flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
+                    <p class="text-xs text-gray-500">${fileSize} MB • Audio</p>
+                </div>
+            `;
+        } else {
+            previewHtml = `
+                <div class="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
+                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
+                    <p class="text-xs text-gray-500">${fileSize} MB • Document</p>
+                </div>
+            `;
+        }
+
+        previewContent.innerHTML = previewHtml;
+        filePreview.classList.remove('hidden');
+    }
+
+    // Remove file preview
+    removeFile.addEventListener('click', function() {
+        mediaInput.value = '';
+        filePreview.classList.add('hidden');
+    });
 
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize notification manager

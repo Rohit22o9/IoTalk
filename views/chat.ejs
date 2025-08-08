@@ -296,7 +296,7 @@
     </div>
 
     <!-- Message Input -->
-    <footer class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200" style="z-index: 1000;">
+    <footer id="message-footer" class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-secondary-200" style="z-index: 1000;">
       <div class="p-4">
         <form id="message-form" enctype="multipart/form-data" class="flex items-center space-x-3">
           <input type="file" id="media-input" name="media" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar">
@@ -584,6 +584,10 @@
     });
 
     function showIncomingCallNotification(data) {
+        // Hide the message footer
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'none';
+        
         // Create incoming call interface
         const callInterface = document.createElement('div');
         callInterface.id = 'incoming-call-interface';
@@ -694,10 +698,18 @@
         if (notification) {
             notification.remove();
         }
+        
+        // Show the message footer back
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'block';
     }
 
     // Show outgoing call interface (when initiating call)
     function showOutgoingCallInterface(type) {
+        // Hide the message footer
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'none';
+        
         const callInterface = document.createElement('div');
         callInterface.id = 'call-interface';
         callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 z-50 flex flex-col';
@@ -751,6 +763,10 @@
 
     // Show active call interface (when call is connected)
     function showActiveCallInterface(type) {
+        // Hide the message footer
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'none';
+        
         const callInterface = document.createElement('div');
         callInterface.id = 'call-interface';
         callInterface.className = 'fixed inset-0 bg-black z-50 flex flex-col';
@@ -974,6 +990,10 @@
         if (incomingInterface) {
             incomingInterface.remove();
         }
+
+        // Show the message footer back
+        const footer = document.getElementById('message-footer');
+        if (footer) footer.style.display = 'block';
 
         // Reset call state
         currentCall = null;

@@ -1093,18 +1093,24 @@ app.post('/api/ai/summarize', async (req, res) => {
         // Simple summarization logic (you can replace with actual AI service)
         let summary = '';
 
+        const aiSummarization = require('./utils/aiSummarization');
+        
         if (type === 'text') {
             if (content.length > 200) {
-                summary = content.substring(0, 150) + '... (This is a summary of a long message)';
+                const textSummary = await aiSummarization.summarizeText(content, 100);
+                summary = textSummary || (content.substring(0, 150) + '...');
             } else {
-                summary = 'Message is already concise.';
+                summary = 'This message is already concise and doesn\'t need summarization.';
             }
+        } else if (type === 'video_link') {
+            const videoSummary = await aiSummarization.summarizeVideoLink(content);
+            summary = videoSummary ? videoSummary.summary : 'Video link detected but could not be summarized.';
         } else if (type === 'audio') {
-            summary = 'This is a voice message. Audio summarization is not available yet.';
+            summary = 'This is a voice message. Audio content analysis is not available yet, but you can play it to listen.';
         } else if (type === 'video') {
-            summary = 'This is a video message. Video summarization is not available yet.';
+            summary = 'This is a video file. Video content analysis is not available yet, but you can click to view it.';
         } else {
-            summary = 'Content type not supported for summarization.';
+            summary = 'Content type not supported for summarization. Please try with text or video links.';
         }
 
         res.json({ success: true, summary });

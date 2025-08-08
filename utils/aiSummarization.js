@@ -229,6 +229,8 @@ class AISummarization {
         switch (type) {
             case 'text':
                 return await this.summarizeText(content);
+            case 'video_link':
+                return await this.summarizeVideoLink(content);
             case 'youtube':
                 return await this.summarizeYouTubeLink(content);
             case 'web_link':
@@ -240,6 +242,59 @@ class AISummarization {
                 return await this.summarizeMediaFile(content, type);
             default:
                 return null;
+        }
+    }
+
+    // Enhanced video link summarization
+    async summarizeVideoLink(content) {
+        try {
+            // Extract video URLs from text
+            const videoRegex = /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/video\/|dailymotion\.com\/video\/))([a-zA-Z0-9_-]+)/g;
+            const matches = [...content.matchAll(videoRegex)];
+            
+            if (matches.length === 0) {
+                return await this.summarizeText(content);
+            }
+
+            const videoUrl = matches[0][0];
+            let platform = 'Unknown';
+            let videoId = matches[0][1];
+
+            if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                platform = 'YouTube';
+            } else if (videoUrl.includes('vimeo.com')) {
+                platform = 'Vimeo';
+            } else if (videoUrl.includes('dailymotion.com')) {
+                platform = 'Dailymotion';
+            }
+
+            // Create a contextual summary
+            const textPart = content.replace(videoRegex, '').trim();
+            let summary = `${platform} video link shared`;
+            
+            if (textPart && textPart.length > 10) {
+                const textSummary = await this.summarizeText(textPart);
+                if (textSummary) {
+                    summary = `${summary} with message: "${textSummary}"`;
+                } else {
+                    summary = `${summary} with message: "${textPart}"`;
+                }
+            }
+
+            summary += `. Click to watch the ${platform.toLowerCase()} video.`;
+
+            return {
+                type: 'video_link',
+                platform: platform,
+                videoId: videoId,
+                url: videoUrl,
+                summary: summary,
+                originalText: textPart,
+                timestamp: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Video link processing error:', error);
+            return await this.summarizeText(content);
         }
     }
 

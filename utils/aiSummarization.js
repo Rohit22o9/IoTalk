@@ -1,119 +1,119 @@
 
-const fetch = require('node-fetch');
 const fs = require('fs');
-const FormData = require('form-data');
+const path = require('path');
 
 class AISummarization {
     constructor() {
-        this.openaiApiKey = process.env.OPENAI_API_KEY;
+        // Initialize local summarization without external APIs
+        this.stopWords = [
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+            'of', 'with', 'by', 'is', 'are', 'was', 'were', 'been', 'be', 'have',
+            'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+            'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i',
+            'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them'
+        ];
     }
 
-    // Summarize text using OpenAI GPT
+    // Extractive text summarization using frequency analysis
     async summarizeText(text, maxLength = 100) {
-        if (!this.openaiApiKey) {
-            console.warn('OpenAI API key not configured');
-            return null;
-        }
-
         if (!text || text.length < 50) {
             return null; // Don't summarize very short texts
         }
 
         try {
-            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.openaiApiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'gpt-3.5-turbo',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `You are a helpful assistant that summarizes text concisely. Keep summaries under ${maxLength} characters and capture the main points.`
-                        },
-                        {
-                            role: 'user',
-                            content: `Please summarize this text: ${text}`
-                        }
-                    ],
-                    max_tokens: 150,
-                    temperature: 0.3
-                })
-            });
-
-            const data = await response.json();
-            
-            if (data.choices && data.choices[0]) {
-                return data.choices[0].message.content.trim();
+            // Split into sentences
+            const sentences = this.splitIntoSentences(text);
+            if (sentences.length <= 2) {
+                return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
             }
+
+            // Calculate sentence scores
+            const sentenceScores = this.calculateSentenceScores(sentences, text);
             
-            return null;
+            // Select top sentences
+            const topSentences = this.selectTopSentences(sentences, sentenceScores, maxLength);
+            
+            return topSentences.join(' ').trim();
         } catch (error) {
             console.error('Text summarization error:', error);
-            return null;
+            return text.length > maxLength ? text.substring(0, maxLength) + '...' : null;
         }
     }
 
-    // Convert audio/video to text using OpenAI Whisper
-    async transcribeAudio(audioPath) {
-        if (!this.openaiApiKey) {
-            console.warn('OpenAI API key not configured');
-            return null;
-        }
-
-        try {
-            const formData = new FormData();
-            formData.append('file', fs.createReadStream(audioPath));
-            formData.append('model', 'whisper-1');
-            formData.append('response_format', 'text');
-
-            const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.openaiApiKey}`,
-                    ...formData.getHeaders()
-                },
-                body: formData
-            });
-
-            const transcription = await response.text();
-            return transcription.trim();
-        } catch (error) {
-            console.error('Audio transcription error:', error);
-            return null;
-        }
+    splitIntoSentences(text) {
+        // Simple sentence splitting (can be improved with better NLP)
+        return text.match(/[^\.!?]+[\.!?]+/g) || [text];
     }
 
-    // Summarize audio/video content
-    async summarizeAudioVideo(mediaPath) {
-        try {
-            // First transcribe the audio
-            const transcription = await this.transcribeAudio(mediaPath);
-            
-            if (!transcription || transcription.length < 50) {
-                return null;
-            }
-
-            // Then summarize the transcription
-            const summary = await this.summarizeText(transcription, 150);
+    calculateSentenceScores(sentences, fullText) {
+        // Calculate word frequencies
+        const wordFreq = this.calculateWordFrequencies(fullText);
+        
+        const sentenceScores = sentences.map(sentence => {
+            const words = this.tokenize(sentence);
+            const score = words.reduce((sum, word) => {
+                return sum + (wordFreq[word] || 0);
+            }, 0);
             
             return {
-                transcript: transcription,
-                summary: summary
+                sentence: sentence.trim(),
+                score: score / words.length, // Average word frequency
+                length: sentence.length,
+                position: sentences.indexOf(sentence) // Position importance
             };
-        } catch (error) {
-            console.error('Audio/Video summarization error:', error);
-            return null;
-        }
+        });
+
+        return sentenceScores;
     }
 
-    // Extract and summarize YouTube content (basic implementation)
+    calculateWordFrequencies(text) {
+        const words = this.tokenize(text);
+        const freq = {};
+        
+        words.forEach(word => {
+            if (!this.stopWords.includes(word)) {
+                freq[word] = (freq[word] || 0) + 1;
+            }
+        });
+
+        return freq;
+    }
+
+    tokenize(text) {
+        return text.toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .split(/\s+/)
+            .filter(word => word.length > 2 && !this.stopWords.includes(word));
+    }
+
+    selectTopSentences(sentences, sentenceScores, maxLength) {
+        // Sort by score (descending)
+        const sortedSentences = sentenceScores.sort((a, b) => {
+            // Consider both score and position (earlier sentences get slight boost)
+            const scoreA = a.score - (a.position * 0.1);
+            const scoreB = b.score - (b.position * 0.1);
+            return scoreB - scoreA;
+        });
+
+        let summary = '';
+        const selected = [];
+
+        for (const item of sortedSentences) {
+            if (summary.length + item.sentence.length <= maxLength) {
+                selected.push(item);
+                summary += item.sentence + ' ';
+            }
+        }
+
+        // Sort selected sentences by original position
+        selected.sort((a, b) => a.position - b.position);
+        
+        return selected.map(item => item.sentence);
+    }
+
+    // Basic YouTube link detection and metadata extraction
     async summarizeYouTubeLink(url) {
         try {
-            // Basic YouTube URL validation
             const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
             const match = url.match(youtubeRegex);
             
@@ -123,17 +123,105 @@ class AISummarization {
 
             const videoId = match[1];
             
-            // This is a simplified implementation
-            // In production, you would use YouTube Data API or youtube-transcript library
             return {
-                summary: `YouTube video: ${url}`,
+                type: 'youtube',
                 videoId: videoId,
-                note: 'YouTube transcript summarization requires additional API setup'
+                url: url,
+                summary: `YouTube video shared: ${url}`,
+                note: 'This is a YouTube video link. Click to watch the content.',
+                timestamp: new Date().toISOString()
             };
         } catch (error) {
-            console.error('YouTube summarization error:', error);
+            console.error('YouTube link processing error:', error);
             return null;
         }
+    }
+
+    // Local URL content analysis (basic)
+    async summarizeWebLink(url) {
+        try {
+            // Basic URL validation
+            const urlRegex = /^https?:\/\/.+/i;
+            if (!urlRegex.test(url)) {
+                return null;
+            }
+
+            // Extract domain
+            const domain = new URL(url).hostname;
+            
+            return {
+                type: 'web_link',
+                url: url,
+                domain: domain,
+                summary: `Web link shared: ${domain}`,
+                note: 'This is a web link. Click to visit the website.',
+                timestamp: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Web link processing error:', error);
+            return null;
+        }
+    }
+
+    // Media file analysis (local)
+    async summarizeMediaFile(filePath, mediaType) {
+        try {
+            if (!fs.existsSync(filePath)) {
+                return null;
+            }
+
+            const stats = fs.statSync(filePath);
+            const fileSize = this.formatFileSize(stats.size);
+            const fileName = path.basename(filePath);
+            const extension = path.extname(filePath).toLowerCase();
+
+            let summary = '';
+            let note = '';
+
+            switch (mediaType) {
+                case 'image':
+                    summary = `Image shared: ${fileName}`;
+                    note = `Image file (${fileSize})`;
+                    break;
+                case 'audio':
+                    summary = `Audio shared: ${fileName}`;
+                    note = `Audio file (${fileSize})`;
+                    break;
+                case 'video':
+                    summary = `Video shared: ${fileName}`;
+                    note = `Video file (${fileSize})`;
+                    break;
+                case 'document':
+                    summary = `Document shared: ${fileName}`;
+                    note = `Document file (${fileSize})`;
+                    break;
+                default:
+                    summary = `File shared: ${fileName}`;
+                    note = `File (${fileSize})`;
+            }
+
+            return {
+                type: 'media',
+                mediaType: mediaType,
+                fileName: fileName,
+                fileSize: fileSize,
+                extension: extension,
+                summary: summary,
+                note: note,
+                timestamp: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Media file analysis error:', error);
+            return null;
+        }
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
     // Main summarization function
@@ -141,11 +229,15 @@ class AISummarization {
         switch (type) {
             case 'text':
                 return await this.summarizeText(content);
-            case 'audio':
-            case 'video':
-                return await this.summarizeAudioVideo(content);
             case 'youtube':
                 return await this.summarizeYouTubeLink(content);
+            case 'web_link':
+                return await this.summarizeWebLink(content);
+            case 'image':
+            case 'audio':
+            case 'video':
+            case 'document':
+                return await this.summarizeMediaFile(content, type);
             default:
                 return null;
         }
@@ -154,19 +246,58 @@ class AISummarization {
     // Check if content needs summarization
     shouldSummarize(content, type = 'text') {
         if (type === 'text') {
-            return content && content.length > 200; // Summarize texts longer than 200 chars
+            return content && content.length > 200;
         }
         
-        if (type === 'audio' || type === 'video') {
-            return true; // Always offer summarization for media
+        if (['audio', 'video', 'image', 'document'].includes(type)) {
+            return true;
         }
         
         if (type === 'youtube') {
             const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)/;
             return youtubeRegex.test(content);
         }
+
+        if (type === 'web_link') {
+            const urlRegex = /^https?:\/\/.+/i;
+            return urlRegex.test(content);
+        }
         
         return false;
+    }
+
+    // Keyword extraction from text
+    extractKeywords(text, maxKeywords = 5) {
+        const words = this.tokenize(text);
+        const wordFreq = {};
+        
+        words.forEach(word => {
+            wordFreq[word] = (wordFreq[word] || 0) + 1;
+        });
+
+        const sortedWords = Object.entries(wordFreq)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, maxKeywords)
+            .map(([word]) => word);
+
+        return sortedWords;
+    }
+
+    // Create a brief content summary for notifications
+    createNotificationSummary(content, maxLength = 50) {
+        if (!content) return '';
+        
+        if (content.length <= maxLength) return content;
+        
+        // Try to cut at word boundary
+        const truncated = content.substring(0, maxLength);
+        const lastSpace = truncated.lastIndexOf(' ');
+        
+        if (lastSpace > maxLength * 0.7) {
+            return truncated.substring(0, lastSpace) + '...';
+        }
+        
+        return truncated + '...';
     }
 }
 

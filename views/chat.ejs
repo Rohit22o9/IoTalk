@@ -100,13 +100,41 @@
 
         <div class="flex <%= isOwn ? 'justify-end' : 'justify-start' %>">
           <% if (isAudio && chat.media) { %>
+            <!-- Voice message container -->
             <div class="max-w-xs lg:max-w-md">
+              <div class="voice-message-container relative group">
+                <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
+                  <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
+                  </svg>
+                  <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                  </svg>
+                </button>
+                <div class="voice-progress-bar-container">
+                  <div class="voice-progress"></div>
+                </div>
+                <div class="voice-duration">0:00</div>
+                <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
+                        class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600 shadow-lg">
+                  📝
+                </button>
+              </div>
+              <div class="flex items-center justify-between mt-1 px-4 pb-3">
+                <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
+                  <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
+                </span>
+                <% if (chat.moderationResult && chat.moderationResult.flagged) { %>
+                  <span class="text-xs text-red-400" title="Message was moderated">⚠️</span>
+                <% } %>
+              </div>
+            </div>
           <% } else { %>
             <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl
                         <%= isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20' %> shadow-lg">
           <% } %>
 
-            <% if (chat.media) { %>
+            <% if (chat.media && !isAudio) { %>
               <% if (isImage) { %>
                 <div class="mb-2">
                   <img src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>"
@@ -133,25 +161,6 @@
                   <button onclick="summarizeContent('<%= chat._id %>', 'video', '<%= chat.media %>'); event.stopPropagation();"
                           class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded hover:bg-primary-600">
                     📝 Summarize
-                  </button>
-                </div>
-              <% } else if (isAudio) { %>
-                <div class="voice-message-container relative group">
-                  <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
-                    <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
-                    </svg>
-                    <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
-                    </svg>
-                  </button>
-                  <div class="voice-progress-bar-container">
-                    <div class="voice-progress"></div>
-                  </div>
-                  <div class="voice-duration">0:00</div>
-                  <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
-                          class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600 shadow-lg">
-                    📝
                   </button>
                 </div>
               <% } else { %>
@@ -184,7 +193,7 @@
               <% } %>
             <% } %>
 
-            <% if (chat.msg) { %>
+            <% if (chat.msg && !isAudio) { %>
               <div class="relative group">
                 <p class="text-sm leading-relaxed"><%= chat.msg %></p>
                 <% if (chat.msg.length > 200) { %>
@@ -196,16 +205,7 @@
               </div>
             <% } %>
 
-            <% if (isAudio && chat.media) { %>
-              <div class="flex items-center justify-between mt-1 px-4 pb-3">
-                <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
-                  <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
-                </span>
-                <% if (chat.moderationResult && chat.moderationResult.flagged) { %>
-                  <span class="text-xs text-red-400" title="Message was moderated">⚠️</span>
-                <% } %>
-              </div>
-            <% } else { %>
+            <% if (!isAudio) { %>
               <div class="flex items-center justify-between mt-2">
                 <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
                   <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
@@ -214,8 +214,8 @@
                   <span class="text-xs text-red-400" title="Message was moderated">⚠️</span>
                 <% } %>
               </div>
-            <% } %>
-          </div>
+            </div>
+          <% } %>
         </div>
       <% }); %>
     </main>
@@ -371,14 +371,8 @@
     const previewContent = document.getElementById('previewContent');
     const removeFile = document.getElementById('removeFile');
 
-    // Initialize socket only if not already initialized
-    let socket;
-    if (typeof window.chatSocket === 'undefined') {
-      socket = io();
-      window.chatSocket = socket;
-    } else {
-      socket = window.chatSocket;
-    }
+    // Initialize socket and chat variables
+    const chatSocket = io(); // Changed from 'socket' to 'chatSocket'
 
     const currentUserId = '<%= currentUser._id %>';
     const otherUserId = '<%= otherUser._id %>';
@@ -386,10 +380,8 @@
     const roomId = [currentUserId, otherUserId].sort().join('_');
 
     // Join room and set user online when socket connects
-    if (socket) {
-        socket.emit('userOnline', currentUserId);
-        socket.emit('joinRoom', roomId);
-    }
+    chatSocket.emit('userOnline', currentUserId);
+    chatSocket.emit('joinRoom', roomId);
 
     // Personal call functionality
     let currentCall = null;
@@ -428,38 +420,38 @@
     }
 
     // Listen for incoming calls
-    socket.on('incoming-call', (data) => {
+    chatSocket.on('incoming-call', (data) => {
         showIncomingCallNotification(data);
     });
 
     // Listen for call responses
-    socket.on('call-accepted', (data) => {
+    chatSocket.on('call-accepted', (data) => {
         if (currentCall && currentCall.callId === data.callId) {
             console.log('Call accepted by', data.receiver.username);
         }
     });
 
-    socket.on('call-declined', (data) => {
+    chatSocket.on('call-declined', (data) => {
         if (currentCall && currentCall.callId === data.callId) {
             alert('Call declined');
             endCall();
         }
     });
 
-    socket.on('call-ended', (data) => {
+    chatSocket.on('call-ended', (data) => {
         if (currentCall && currentCall.callId === data.callId) {
             endCall();
         }
     });
 
-    socket.on('call-timeout', (data) => {
+    chatSocket.on('call-timeout', (data) => {
         if (currentCall && currentCall.callId === data.callId) {
             alert('Call timeout - no response');
             endCall();
         }
     });
 
-    socket.on('call-cancelled', (data) => {
+    chatSocket.on('call-cancelled', (data) => {
         hideCallNotification();
     });
 
@@ -786,14 +778,12 @@
     }
 
     // Listen for new messages and scroll
-    if (socket) {
-        socket.on('chat message', function(msg) {
-            // Add the new message to the chat
-            const messageHtml = createMessageElement(msg);
-            messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
-            scrollToBottom();
-        });
-    }
+    chatSocket.on('chat message', function(msg) {
+        // Add the new message to the chat
+        const messageHtml = createMessageElement(msg);
+        messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+        scrollToBottom();
+    });
 
     function createMessageElement(chat) {
         const isOwn = chat.from._id === currentUserId;

@@ -40,50 +40,75 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      background: rgba(255, 255, 255, 0.8);
-      backdrop-filter: blur(5px);
-      padding: 8px 12px;
-      border-radius: 1rem;
-      max-width: 70%;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 10px 15px;
+      border-radius: 1.5rem;
+      max-width: 280px;
       word-break: break-word;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .voice-message-container:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
     }
     .voice-play-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
-      background-color: #3b82f6;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
       color: white;
       cursor: pointer;
-      transition: background-color 0.2s ease;
+      transition: all 0.2s ease;
       flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.2);
     }
     .voice-play-btn:hover {
-      background-color: #2563eb;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+    .voice-play-btn:active {
+      transform: scale(0.95);
     }
     .voice-progress-bar-container {
       flex-grow: 1;
-      height: 6px;
-      background-color: rgba(255, 255, 255, 0.5);
-      border-radius: 3px;
+      height: 8px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.6));
+      border-radius: 4px;
       cursor: pointer;
       position: relative;
       overflow: hidden;
+      margin: 0 8px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
     }
     .voice-progress {
       height: 100%;
-      background-color: #3b82f6;
-      border-radius: 3px;
+      background: linear-gradient(90deg, #3b82f6, #2563eb);
+      border-radius: 4px;
       width: 0%;
+      transition: width 0.1s ease;
+      box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
     }
     .voice-duration {
       font-size: 0.75rem;
-      color: #64748b;
-      min-width: 40px;
+      font-weight: 600;
+      color: #475569;
+      min-width: 45px;
       text-align: right;
       flex-shrink: 0;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      background: rgba(255, 255, 255, 0.5);
+      padding: 2px 6px;
+      border-radius: 8px;
+      backdrop-filter: blur(5px);
     }
   </style>
 </head>
@@ -184,11 +209,12 @@
                 <div class="mb-2">
                   <div class="voice-message-container relative group">
                     <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
-                      <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
+                      <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166a1 1 0 00-1.197-.773 1 1 0 00-.773 1.197l.62 4.361a1 1 0 01-.467 1.062L10 20v-8.752c0-.248.537-.484 1.2-.659l3.493-1.747Z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19v-6.752c0-.248.537-.484 1.2-.659l3.493-1.747a1 1 0 00.595-.883L14.752 11.166z"/>
                       </svg>
-                      <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
+                      <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                       </svg>
                     </button>
                     <div class="voice-progress-bar-container">
@@ -196,7 +222,7 @@
                     </div>
                     <div class="voice-duration">0:00</div>
                     <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
-                            class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600">
+                            class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600 shadow-lg">
                       📝
                     </button>
                   </div>

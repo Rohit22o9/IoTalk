@@ -71,25 +71,46 @@ class AIAutoResponder {
 
         const replies = [];
 
-        // Check for questions
-        if (messageText.includes('?')) {
-            replies.push(...this.smartReplyTemplates.question.slice(0, 2));
+        // Check for specific greetings and common phrases
+        if (messageText.includes('hello') || messageText.includes('hi') || messageText.includes('hey')) {
+            replies.push('Hello!', 'Hey there!', 'Hi! How are you?');
+        } else if (messageText.includes('how are you')) {
+            replies.push('I\'m doing well, thanks!', 'Great, how about you?', 'All good here!');
+        } else if (messageText.includes('thank')) {
+            replies.push('You\'re welcome!', 'No problem!', 'Happy to help!');
+        } else if (messageText.includes('good morning')) {
+            replies.push('Good morning!', 'Morning! Have a great day!', 'Good morning to you too!');
+        } else if (messageText.includes('good night') || messageText.includes('goodnight')) {
+            replies.push('Good night!', 'Sweet dreams!', 'Night! Sleep well!');
+        } else if (messageText.includes('what') && messageText.includes('doing')) {
+            replies.push('Just chatting with you!', 'Not much, what about you?', 'Just here helping out!');
+        } else if (messageText.includes('bye') || messageText.includes('goodbye')) {
+            replies.push('Goodbye!', 'See you later!', 'Take care!');
+        } else if (messageText.includes('?')) {
+            // For questions, provide contextual responses
+            if (messageText.includes('time')) {
+                replies.push(`It's ${new Date().toLocaleTimeString()}`, 'Let me check the time for you');
+            } else if (messageText.includes('weather')) {
+                replies.push('I don\'t have weather info, but you could check a weather app!', 'Sorry, I can\'t check the weather right now');
+            } else {
+                replies.push(...this.smartReplyTemplates.question.slice(0, 2));
+            }
+        } else {
+            // Check sentiment for other messages
+            const sentiment = this.detectSentiment(lastMessage.message);
+            if (sentiment === 'positive') {
+                replies.push(...this.smartReplyTemplates.positive.slice(0, 2));
+            } else if (sentiment === 'negative') {
+                replies.push(...this.smartReplyTemplates.negative.slice(0, 2));
+            } else {
+                // For neutral messages, provide contextual acknowledgments
+                replies.push('I see', 'Interesting', 'Got it', 'That makes sense');
+            }
         }
-
-        // Check sentiment
-        const sentiment = this.detectSentiment(lastMessage.message);
-        if (sentiment === 'positive') {
-            replies.push(...this.smartReplyTemplates.positive.slice(0, 2));
-        } else if (sentiment === 'negative') {
-            replies.push(...this.smartReplyTemplates.negative.slice(0, 2));
-        }
-
-        // Add acknowledgment responses
-        replies.push(...this.smartReplyTemplates.acknowledgment.slice(0, 1));
 
         // Remove duplicates and limit
         const uniqueReplies = [...new Set(replies)];
-        return uniqueReplies.slice(0, maxReplies);
+        return uniqueReplies.slice(0, Math.min(maxReplies, uniqueReplies.length));
     }
 
     // Generate contextual response for group chats

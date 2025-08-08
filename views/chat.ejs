@@ -1194,18 +1194,32 @@
             if (result.success && result.replies && result.replies.length > 0) {
                 showSmartReplies(result.replies);
             } else {
-                alert('No AI replies available at the moment');
+                // Fallback to some basic replies if no context is available
+                const fallbackReplies = [
+                    'How can I help you?',
+                    'What would you like to know?',
+                    'I\'m here if you need anything',
+                    'Feel free to ask me anything'
+                ];
+                showSmartReplies(fallbackReplies);
             }
         } catch (error) {
             console.error('Error generating AI reply:', error);
-            alert('Failed to generate AI reply');
+            // Show fallback replies even on error
+            const fallbackReplies = [
+                'Thanks for your message',
+                'I understand',
+                'That\'s interesting',
+                'Tell me more'
+            ];
+            showSmartReplies(fallbackReplies);
         } finally {
             const aiBtn = document.getElementById('ai-reply-btn');
             aiBtn.disabled = false;
             aiBtn.innerHTML = `
                 <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                </svg>
+            </svg>
             `;
         }
     }
@@ -1228,10 +1242,35 @@
     }
 
     // Select and use smart reply
-    function selectSmartReply(reply) {
+    async function selectSmartReply(reply) {
         msgInput.value = reply;
         hideSmartReplies();
         msgInput.focus();
+        
+        // Automatically send the reply
+        const formData = new FormData();
+        formData.append('msg', reply);
+
+        try {
+            const response = await fetch(`/chat/${otherUserId}`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Clear the input field
+                msgInput.value = '';
+                msgInput.style.height = '48px';
+            } else {
+                console.error('Failed to send smart reply:', result.error);
+                alert('Failed to send message: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error sending smart reply:', error);
+            alert('Failed to send message. Please try again.');
+        }
     }
 
     // Missing summarizeContent function

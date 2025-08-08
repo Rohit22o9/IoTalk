@@ -35,7 +35,7 @@
       word-wrap: break-word;
       word-break: break-word;
     }
-    
+
   </style>
 </head>
 
@@ -197,8 +197,8 @@
             <% } %>
 
             <% if (isAudio && chat.media) { %>
-              <div class="flex items-center justify-between mt-1">
-                <span class="text-xs text-secondary-500">
+              <div class="flex items-center justify-between mt-1 px-4 pb-3">
+                <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
                   <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
                 </span>
                 <% if (chat.moderationResult && chat.moderationResult.flagged) { %>
@@ -676,17 +676,17 @@
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const fileName = `voice_${Date.now()}.webm`;
                 const file = new File([audioBlob], fileName, { type: 'audio/webm' });
-                
+
                 // Create FormData and send
                 const formData = new FormData();
                 formData.append('media', file);
-                
+
                 try {
                     const response = await fetch(`/chat/${otherUserId}`, {
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     const result = await response.json();
                     if (result.success) {
                         console.log('Voice message sent successfully:', result);
@@ -696,7 +696,7 @@
                 } catch (error) {
                     console.error('Error sending voice message:', error);
                 }
-                
+
                 // Clean up
                 stream.getTracks().forEach(track => track.stop());
             };
@@ -739,18 +739,18 @@
             const durationEl = container.querySelector('.voice-duration');
             const playIcon = button.querySelector('.play-icon');
             const pauseIcon = button.querySelector('.pause-icon');
-            
+
             if (!button.audio) {
                 button.audio = new Audio(audioSrc);
                 button.audio.addEventListener('timeupdate', () => {
                     const progress = (button.audio.currentTime / button.audio.duration) * 100;
                     progressBar.style.width = progress + '%';
-                    
+
                     const minutes = Math.floor(button.audio.currentTime / 60);
                     const seconds = Math.floor(button.audio.currentTime % 60);
                     durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
                 });
-                
+
                 button.audio.addEventListener('ended', () => {
                     playIcon.classList.remove('hidden');
                     pauseIcon.classList.add('hidden');
@@ -761,7 +761,7 @@
                     durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
                 });
             }
-            
+
             if (button.audio.paused) {
                 button.audio.play();
                 playIcon.classList.add('hidden');
@@ -800,13 +800,13 @@
         const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : '';
         const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
         const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext);
-        const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
-        
+        const isAudio = ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
+
         let mediaContent = '';
         if (chat.media) {
             const ext = chat.media.split('.').pop().toLowerCase();
             const isAudio = ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
-            
+
             if (isAudio) {
                 mediaContent = `
                     <div class="mb-2">
@@ -828,7 +828,7 @@
                 `;
             }
         }
-        
+
         return `
             <div class="flex ${isOwn ? 'justify-end' : 'justify-start'}">
                 <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg">
@@ -844,7 +844,7 @@
         `;
     }
 
-    
+
   </script>
 </body>
 </html>

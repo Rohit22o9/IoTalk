@@ -60,57 +60,170 @@ class AIAutoResponder {
         return this.enabledUsers.has(userId);
     }
 
-    // Generate smart replies based on local patterns
+    // Generate smart replies based on conversation context
     async generateSmartReplies(conversationHistory, maxReplies = 3) {
         if (!conversationHistory || conversationHistory.length === 0) {
-            return [];
+            return ['Hello!', 'How can I help?', 'What\'s on your mind?'];
         }
 
         const lastMessage = conversationHistory[conversationHistory.length - 1];
-        const messageText = lastMessage.message.toLowerCase();
-
+        const messageText = lastMessage.message.toLowerCase().trim();
         const replies = [];
 
-        // Check for specific greetings and common phrases
-        if (messageText.includes('hello') || messageText.includes('hi') || messageText.includes('hey')) {
-            replies.push('Hello!', 'Hey there!', 'Hi! How are you?');
-        } else if (messageText.includes('how are you')) {
-            replies.push('I\'m doing well, thanks!', 'Great, how about you?', 'All good here!');
-        } else if (messageText.includes('thank')) {
-            replies.push('You\'re welcome!', 'No problem!', 'Happy to help!');
-        } else if (messageText.includes('good morning')) {
-            replies.push('Good morning!', 'Morning! Have a great day!', 'Good morning to you too!');
-        } else if (messageText.includes('good night') || messageText.includes('goodnight')) {
-            replies.push('Good night!', 'Sweet dreams!', 'Night! Sleep well!');
-        } else if (messageText.includes('what') && messageText.includes('doing')) {
-            replies.push('Just chatting with you!', 'Not much, what about you?', 'Just here helping out!');
-        } else if (messageText.includes('bye') || messageText.includes('goodbye')) {
-            replies.push('Goodbye!', 'See you later!', 'Take care!');
-        } else if (messageText.includes('?')) {
-            // For questions, provide contextual responses
-            if (messageText.includes('time')) {
-                replies.push(`It's ${new Date().toLocaleTimeString()}`, 'Let me check the time for you');
-            } else if (messageText.includes('weather')) {
-                replies.push('I don\'t have weather info, but you could check a weather app!', 'Sorry, I can\'t check the weather right now');
-            } else {
-                replies.push(...this.smartReplyTemplates.question.slice(0, 2));
-            }
-        } else {
-            // Check sentiment for other messages
-            const sentiment = this.detectSentiment(lastMessage.message);
-            if (sentiment === 'positive') {
-                replies.push(...this.smartReplyTemplates.positive.slice(0, 2));
-            } else if (sentiment === 'negative') {
-                replies.push(...this.smartReplyTemplates.negative.slice(0, 2));
-            } else {
-                // For neutral messages, provide contextual acknowledgments
-                replies.push('I see', 'Interesting', 'Got it', 'That makes sense');
-            }
+        // Analyze the actual conversation flow
+        const conversationContext = this.analyzeConversationContext(conversationHistory);
+        
+        // Generate contextual replies based on the last message
+        const contextualReplies = this.generateContextualReplies(messageText, conversationContext);
+        replies.push(...contextualReplies);
+
+        // If we have conversation history, analyze patterns
+        if (conversationHistory.length > 1) {
+            const recentMessages = conversationHistory.slice(-3);
+            const topicReplies = this.generateTopicBasedReplies(recentMessages);
+            replies.push(...topicReplies);
         }
+
+        // Add sentiment-based responses
+        const sentiment = this.detectSentiment(messageText);
+        const sentimentReplies = this.getSentimentReplies(sentiment, messageText);
+        replies.push(...sentimentReplies);
 
         // Remove duplicates and limit
         const uniqueReplies = [...new Set(replies)];
         return uniqueReplies.slice(0, Math.min(maxReplies, uniqueReplies.length));
+    }
+
+    // Analyze the overall conversation context
+    analyzeConversationContext(conversationHistory) {
+        const context = {
+            topics: [],
+            sentiment: 'neutral',
+            questionCount: 0,
+            isOngoing: true,
+            lastSpeaker: null
+        };
+
+        if (conversationHistory.length === 0) return context;
+
+        // Extract topics from recent messages
+        const recentMessages = conversationHistory.slice(-5);
+        const allText = recentMessages.map(m => m.message.toLowerCase()).join(' ');
+        
+        // Detect topics
+        context.topics = this.extractTopics(recentMessages);
+        
+        // Count questions
+        context.questionCount = recentMessages.filter(m => m.message.includes('?')).length;
+        
+        // Get last speaker
+        context.lastSpeaker = conversationHistory[conversationHistory.length - 1].from;
+        
+        // Analyze overall sentiment
+        const sentiments = recentMessages.map(m => this.detectSentiment(m.message));
+        const posCount = sentiments.filter(s => s === 'positive').length;
+        const negCount = sentiments.filter(s => s === 'negative').length;
+        
+        if (posCount > negCount) context.sentiment = 'positive';
+        else if (negCount > posCount) context.sentiment = 'negative';
+        
+        return context;
+    }
+
+    // Generate replies based on the specific content of the last message
+    generateContextualReplies(messageText, context) {
+        const replies = [];
+
+        // Handle specific greetings
+        if (/^(hi|hello|hey)\b/i.test(messageText)) {
+            if (context.topics.includes('time') || messageText.includes('morning')) {
+                replies.push('Good morning!', 'Morning! Hope you have a great day!');
+            } else if (messageText.includes('evening')) {
+                replies.push('Good evening!', 'Evening! How was your day?');
+            } else {
+                replies.push('Hello there!', 'Hey! How are you doing?', 'Hi! What\'s up?');
+            }
+            return replies;
+        }
+
+        // Handle questions specifically
+        if (messageText.includes('?')) {
+            if (messageText.includes('how are you') || messageText.includes('how\'re you')) {
+                replies.push('I\'m doing well, thanks! How about you?', 'Great, thanks for asking!', 'All good here! How are things with you?');
+            } else if (messageText.includes('what are you doing') || messageText.includes('what\'re you doing')) {
+                replies.push('Just chatting with you!', 'Not much, just here to help!', 'Having a nice conversation with you!');
+            } else if (messageText.includes('how was your day') || messageText.includes('how\'s your day')) {
+                replies.push('It\'s been good, thanks!', 'Pretty good day so far!', 'Going well, how about yours?');
+            } else if (messageText.includes('what time') || messageText.includes('what\'s the time')) {
+                replies.push(`It's ${new Date().toLocaleTimeString()}`, 'Let me check the time for you');
+            } else if (messageText.includes('where') || messageText.includes('when') || messageText.includes('why')) {
+                replies.push('That\'s a good question!', 'I\'m not sure about that', 'What do you think?');
+            } else {
+                // Generic question responses
+                replies.push('Hmm, let me think about that', 'That\'s interesting!', 'Good question!');
+            }
+            return replies;
+        }
+
+        // Handle statements about activities
+        if (messageText.includes('working') || messageText.includes('studying')) {
+            replies.push('That sounds productive!', 'Hope it\'s going well!', 'What are you working on?');
+        } else if (messageText.includes('eating') || messageText.includes('lunch') || messageText.includes('dinner')) {
+            replies.push('Enjoy your meal!', 'What are you having?', 'That sounds tasty!');
+        } else if (messageText.includes('watching') || messageText.includes('movie') || messageText.includes('show')) {
+            replies.push('What are you watching?', 'Sounds entertaining!', 'Is it good?');
+        } else if (messageText.includes('tired') || messageText.includes('sleepy')) {
+            replies.push('You should get some rest!', 'Take care of yourself!', 'Maybe time for a break?');
+        } else if (messageText.includes('excited') || messageText.includes('happy')) {
+            replies.push('That\'s wonderful!', 'I\'m happy for you!', 'What\'s got you excited?');
+        }
+
+        // Handle thank you messages
+        if (messageText.includes('thank') || messageText.includes('thanks')) {
+            replies.push('You\'re welcome!', 'No problem!', 'Happy to help!', 'Anytime!');
+            return replies;
+        }
+
+        // Handle goodbye messages
+        if (messageText.includes('bye') || messageText.includes('see you') || messageText.includes('talk later')) {
+            replies.push('Goodbye!', 'See you later!', 'Take care!', 'Talk to you soon!');
+            return replies;
+        }
+
+        return replies;
+    }
+
+    // Generate replies based on detected topics in conversation
+    generateTopicBasedReplies(recentMessages) {
+        const replies = [];
+        const topics = this.extractTopics(recentMessages);
+
+        if (topics.includes('work')) {
+            replies.push('How\'s work going?', 'Hope your work day is productive!');
+        }
+        if (topics.includes('food')) {
+            replies.push('That sounds delicious!', 'I love food discussions!');
+        }
+        if (topics.includes('entertainment')) {
+            replies.push('Sounds fun!', 'What do you recommend?');
+        }
+        if (topics.includes('weather')) {
+            replies.push('The weather can really affect our mood!', 'Hope it\'s nice where you are!');
+        }
+
+        return replies;
+    }
+
+    // Get sentiment-appropriate replies
+    getSentimentReplies(sentiment, messageText) {
+        if (sentiment === 'positive') {
+            return ['That\'s great to hear!', 'Awesome!', 'I\'m glad!'];
+        } else if (sentiment === 'negative') {
+            return ['I\'m sorry to hear that', 'That sounds tough', 'Hope things get better'];
+        } else {
+            // Neutral - provide engaging responses
+            return ['Tell me more', 'That\'s interesting', 'I see'];
+        }
     }
 
     // Generate contextual response for group chats

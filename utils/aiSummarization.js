@@ -1,7 +1,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
+const https = require('https');
 
 class AISummarization {
     constructor() {
@@ -378,15 +378,8 @@ class AISummarization {
             console.log('Fetching YouTube data for video ID:', videoId);
             console.log('API URL:', apiUrl);
             
-            // Use node-fetch for API call
-            const response = await fetch(apiUrl);
-            
-            if (!response.ok) {
-                console.error('YouTube API response not OK:', response.status, response.statusText);
-                return this.generateVideoDataFromId(videoId);
-            }
-            
-            const data = await response.json();
+            // Use native https module for API call
+            const data = await this.makeHttpsRequest(apiUrl);
             console.log('YouTube API response:', JSON.stringify(data, null, 2));
 
             if (data.error) {
@@ -424,6 +417,37 @@ class AISummarization {
             console.error('Full error:', error);
             return this.generateVideoDataFromId(videoId);
         }
+    }
+
+    // Helper method to make HTTPS requests
+    makeHttpsRequest(url) {
+        return new Promise((resolve, reject) => {
+            https.get(url, (response) => {
+                let data = '';
+                
+                response.on('data', (chunk) => {
+                    data += chunk;
+                });
+                
+                response.on('end', () => {
+                    try {
+                        const jsonData = JSON.parse(data);
+                        if (response.statusCode >= 200 && response.statusCode < 300) {
+                            resolve(jsonData);
+                        } else {
+                            console.error('API response error:', response.statusCode, jsonData);
+                            reject(new Error(`HTTP ${response.statusCode}: ${jsonData.error?.message || 'Unknown error'}`));
+                        }
+                    } catch (error) {
+                        console.error('JSON parse error:', error);
+                        reject(error);
+                    }
+                });
+            }).on('error', (error) => {
+                console.error('HTTPS request error:', error);
+                reject(error);
+            });
+        });
     }
 
     // Generate realistic video data based on video ID patterns and common content

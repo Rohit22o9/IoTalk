@@ -1670,7 +1670,7 @@
                 if (messageText) {
                     const isOwn = container.classList.contains('justify-end') || 
                                  container.querySelector('.justify-end') !== null;
-                    
+
                     chatMessages.push({
                         from: username,
                         message: messageText,
@@ -1765,7 +1765,7 @@
                     <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                     <h3 class="text-sm font-semibold text-gray-700">🤖 AI Suggested Replies</h3>
                 </div>
-                <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                <button onclick="closeGroupAISuggestions()" class="text-gray-400 hover:text-gray-600 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
@@ -1773,7 +1773,7 @@
             </div>
             <div class="space-y-2 max-h-48 overflow-y-auto">
                 ${replies.map((reply, index) => `
-                    <button onclick="selectGroupAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'")}\`); this.parentElement.parentElement.parentElement.remove();" 
+                    <button onclick="selectGroupAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'").replace(/\n/g, '\\n')}\`)" 
                             class="w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg text-sm transition-all duration-200 transform hover:scale-[1.02] border border-blue-100 hover:border-blue-200">
                         <div class="flex items-start space-x-2">
                             <div class="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>

@@ -1,9 +1,8 @@
-
 class AIAutoResponder {
     constructor() {
         this.enabledUsers = new Set();
         this.enabledGroups = new Set();
-        
+
         // Local response patterns - completely privacy-focused
         this.loadResponsePatterns();
     }
@@ -72,7 +71,7 @@ class AIAutoResponder {
 
         // Analyze the actual conversation flow with enhanced context
         const conversationContext = this.analyzeConversationContext(conversationHistory);
-        
+
         // Generate contextual replies based on the last message
         const contextualReplies = this.generateContextualReplies(messageText, conversationContext);
         replies.push(...contextualReplies);
@@ -99,7 +98,7 @@ class AIAutoResponder {
 
         // Remove duplicates and limit, prioritizing more contextual responses
         const uniqueReplies = [...new Set(replies)];
-        
+
         // If we have no good replies, generate fallback responses
         if (uniqueReplies.length === 0) {
             return this.generateFallbackReplies(messageText, conversationContext);
@@ -123,24 +122,24 @@ class AIAutoResponder {
         // Extract topics from recent messages
         const recentMessages = conversationHistory.slice(-5);
         const allText = recentMessages.map(m => m.message.toLowerCase()).join(' ');
-        
+
         // Detect topics
         context.topics = this.extractTopics(recentMessages);
-        
+
         // Count questions
         context.questionCount = recentMessages.filter(m => m.message.includes('?')).length;
-        
+
         // Get last speaker
         context.lastSpeaker = conversationHistory[conversationHistory.length - 1].from;
-        
+
         // Analyze overall sentiment
         const sentiments = recentMessages.map(m => this.detectSentiment(m.message));
         const posCount = sentiments.filter(s => s === 'positive').length;
         const negCount = sentiments.filter(s => s === 'negative').length;
-        
+
         if (posCount > negCount) context.sentiment = 'positive';
         else if (negCount > posCount) context.sentiment = 'negative';
-        
+
         return context;
     }
 
@@ -346,12 +345,12 @@ class AIAutoResponder {
 
         const recentMessages = conversationHistory.slice(-3);
         const topics = this.extractTopics(recentMessages);
-        
+
         // Generate relevant responses based on topics
         if (topics.includes('time')) {
             return `It's ${new Date().toLocaleTimeString()} right now.`;
         }
-        
+
         if (topics.includes('weather')) {
             return 'I don\'t have access to weather data, but you could check a weather app!';
         }
@@ -359,37 +358,39 @@ class AIAutoResponder {
         return null;
     }
 
+    // Enhanced topic extraction with better keyword matching
     extractTopics(messages) {
         const topicKeywords = {
-            time: ['time', 'clock', 'hour', 'minute', 'when'],
-            weather: ['weather', 'rain', 'sunny', 'cloudy', 'temperature', 'hot', 'cold'],
-            food: ['eat', 'food', 'hungry', 'lunch', 'dinner', 'breakfast', 'restaurant'],
-            work: ['work', 'job', 'office', 'meeting', 'project', 'task', 'deadline'],
-            entertainment: ['movie', 'music', 'game', 'show', 'book', 'video', 'watch']
+            time: ['time', 'clock', 'hour', 'minute', 'when', 'today', 'tomorrow', 'yesterday', 'now', 'later'],
+            weather: ['weather', 'rain', 'sunny', 'cloudy', 'temperature', 'hot', 'cold', 'warm', 'snow', 'storm'],
+            food: ['eat', 'food', 'hungry', 'lunch', 'dinner', 'breakfast', 'restaurant', 'cooking', 'recipe', 'delicious'],
+            work: ['work', 'job', 'office', 'meeting', 'project', 'task', 'deadline', 'boss', 'colleague', 'business'],
+            entertainment: ['movie', 'music', 'game', 'show', 'book', 'video', 'watch', 'play', 'fun', 'entertainment'],
+            technology: ['computer', 'phone', 'app', 'software', 'internet', 'website', 'tech', 'digital', 'online'],
+            travel: ['travel', 'trip', 'vacation', 'flight', 'hotel', 'visit', 'journey', 'explore', 'destination'],
+            health: ['health', 'doctor', 'medicine', 'exercise', 'gym', 'fit', 'sick', 'tired', 'rest', 'sleep'],
+            family: ['family', 'mom', 'dad', 'parent', 'child', 'brother', 'sister', 'relative', 'home', 'house'],
+            education: ['school', 'study', 'learn', 'class', 'teacher', 'student', 'exam', 'homework', 'university']
         };
 
         const foundTopics = [];
         const allText = messages.map(m => m.message.toLowerCase()).join(' ');
 
         for (const [topic, keywords] of Object.entries(topicKeywords)) {
-            if (keywords.some(keyword => allText.includes(keyword))) {
+            const matchCount = keywords.filter(keyword => allText.includes(keyword)).length;
+            if (matchCount >= 1) {
                 foundTopics.push(topic);
             }
         }
 
         return foundTopics;
     }
-}
-
-module.exports = new AIAutoResponder();
-
-
 
     // Generate replies based on conversation flow patterns
     generateConversationFlowReplies(conversationHistory) {
         const replies = [];
         const recent = conversationHistory.slice(-5);
-        
+
         // Check for question-answer patterns
         const hasRecentQuestion = recent.some(msg => msg.message.includes('?'));
         if (hasRecentQuestion && !recent[recent.length - 1].message.includes('?')) {
@@ -478,31 +479,6 @@ module.exports = new AIAutoResponder();
 
         return fallbacks.slice(0, 3);
     }
+}
 
-    // Enhanced topic extraction with better keyword matching
-    extractTopics(messages) {
-        const topicKeywords = {
-            time: ['time', 'clock', 'hour', 'minute', 'when', 'today', 'tomorrow', 'yesterday', 'now', 'later'],
-            weather: ['weather', 'rain', 'sunny', 'cloudy', 'temperature', 'hot', 'cold', 'warm', 'snow', 'storm'],
-            food: ['eat', 'food', 'hungry', 'lunch', 'dinner', 'breakfast', 'restaurant', 'cooking', 'recipe', 'delicious'],
-            work: ['work', 'job', 'office', 'meeting', 'project', 'task', 'deadline', 'boss', 'colleague', 'business'],
-            entertainment: ['movie', 'music', 'game', 'show', 'book', 'video', 'watch', 'play', 'fun', 'entertainment'],
-            technology: ['computer', 'phone', 'app', 'software', 'internet', 'website', 'tech', 'digital', 'online'],
-            travel: ['travel', 'trip', 'vacation', 'flight', 'hotel', 'visit', 'journey', 'explore', 'destination'],
-            health: ['health', 'doctor', 'medicine', 'exercise', 'gym', 'fit', 'sick', 'tired', 'rest', 'sleep'],
-            family: ['family', 'mom', 'dad', 'parent', 'child', 'brother', 'sister', 'relative', 'home', 'house'],
-            education: ['school', 'study', 'learn', 'class', 'teacher', 'student', 'exam', 'homework', 'university']
-        };
-
-        const foundTopics = [];
-        const allText = messages.map(m => m.message.toLowerCase()).join(' ');
-
-        for (const [topic, keywords] of Object.entries(topicKeywords)) {
-            const matchCount = keywords.filter(keyword => allText.includes(keyword)).length;
-            if (matchCount >= 1) {
-                foundTopics.push(topic);
-            }
-        }
-
-        return foundTopics;
-    }
+module.exports = new AIAutoResponder();

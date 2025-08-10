@@ -661,7 +661,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        receiver: '<%= otherUser._id %>',
+                        receiverId: '<%= otherUser._id %>',
                         type: 'audio'
                     })
                 });
@@ -686,7 +686,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        receiver: '<%= otherUser._id %>',
+                        receiverId: '<%= otherUser._id %>',
                         type: 'video'
                     })
                 });

@@ -1954,29 +1954,22 @@ io.on('connection', (socket) => {
         });
     });
 
-    // WebRTC signaling
+    // WebRTC signaling for calls
     socket.on('call-offer', (data) => {
-        socket.to(data.to).emit('call-offer', {
-            offer: data.offer,
-            from: data.from,
-            callId: data.callId
-        });
+        socket.to(`call-${data.callId}`).emit('call-offer', data);
     });
 
     socket.on('call-answer', (data) => {
-        socket.to(data.to).emit('call-answer', {
-            answer: data.answer,
-            from: data.from,
-            callId: data.callId
-        });
+        socket.to(`call-${data.callId}`).emit('call-answer', data);
     });
 
     socket.on('ice-candidate', (data) => {
-        socket.to(data.to).emit('ice-candidate', {
-            candidate: data.candidate,
-            from: data.from,
-            callId: data.callId
-        });
+        socket.to(`call-${data.callId}`).emit('ice-candidate', data);
+    });
+
+    socket.on('join-call-room', (callId) => {
+        socket.join(`call-${callId}`);
+        console.log(`User joined call room: call-${callId}`);
     });
 
     // Group call WebRTC signaling

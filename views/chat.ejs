@@ -61,12 +61,12 @@
           </div>
         </div>
         <div class="flex space-x-2">
-          <button onclick="initiateCall('audio')" class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl" title="Audio Call">
+          <button onclick="initiateAudioCall()" class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl" title="Audio Call">
             <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
             </svg>
           </button>
-          <button onclick="initiateCall('video')" class="p-3 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl" title="Video Call">
+          <button onclick="initiateVideoCall()" class="p-3 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl" title="Video Call">
             <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
             </svg>
@@ -390,1443 +390,340 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
   <script>
-    // Initialize chat variables
-    const messagesContainer = document.getElementById('messages-container');
-    const messageForm = document.getElementById('message-form');
-    const msgInput = document.getElementById('message-input');
-    const mediaInput = document.getElementById('media-input');
-    const typingIndicator = document.getElementById('typing-indicator');
-    const typingIndicatorContainer = document.getElementById('typing-indicator-container');
-    const typingText = document.getElementById('typing-text');
-    const filePreview = document.getElementById('filePreview');
-    const previewContent = document.getElementById('previewContent');
-    const removeFile = document.getElementById('removeFile');
+        // Call handling variables
+        let localStream = null;
+        let remoteStream = null;
+        let peerConnection = null;
+        let currentCall = null;
+        let isCallActive = false;
 
-    // Initialize socket and chat variables
-    const chatSocket = io();
+        // WebRTC configuration
+        const rtcConfiguration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
 
-    // Handle chat navigation
-    function handleChatNavigation(userId) {
-        try {
-            window.location.href = `/chat/${userId}`;
-            return false;
-        } catch (error) {
-            console.error('Navigation error:', error);
-            return true; // Allow default navigation
+        // Check for pending call data from dashboard
+        const pendingCallData = sessionStorage.getItem('pendingCallData');
+        if (pendingCallData) {
+            const callData = JSON.parse(pendingCallData);
+            sessionStorage.removeItem('pendingCallData');
+
+            if (callData.callAccepted) {
+                // Initialize call interface immediately
+                setTimeout(() => {
+                    initializeCall(callData.callId, callData.type, callData.isReceiver);
+                }, 1000);
+            }
         }
-    }
 
-    // Check for pending call data from dashboard
-    document.addEventListener('DOMContentLoaded', function() {
-        if (window.pendingCallData) {
-            // Set up the call immediately
-            currentCall = {
-                callId: window.pendingCallData.callId,
-                type: window.pendingCallData.type,
-                isInitiator: false,
-                status: 'connecting'
-            };
+        async function initializeCall(callId, type, isReceiver = false) {
+            try {
+                currentCall = { callId, type, isReceiver };
+                isCallActive = true;
 
-            localStream = window.pendingCallData.localStream;
-
-            // Create peer connection and show active call interface
-            createPeerConnection().then(() => {
-                showActiveCallInterface(currentCall.type);
-            });
-
-            // Clear the pending call data
-            delete window.pendingCallData;
-        }
-    });
-
-    const currentUserId = '<%= currentUser._id %>';
-    const otherUserId = '<%= otherUser._id %>';
-    const currentUsername = '<%= currentUser.username %>';
-    const roomId = [currentUserId, otherUserId].sort().join('_');
-
-    // Join room and set user online when socket connects
-    chatSocket.emit('userOnline', currentUserId);
-    chatSocket.emit('joinRoom', roomId);
-
-    // Personal call functionality
-    let currentCall = null;
-    let localStream = null;
-    let peerConnection = null;
-    let callStartTime = null;
-    let callTimer = null;
-
-    // WebRTC configuration
-    const rtcConfiguration = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-    };
-
-    // Initialize call functionality
-    async function initiateCall(type) {
-        try {
-            // Get user media first
-            const constraints = {
-                audio: true,
-                video: type === 'video'
-            };
-            localStream = await navigator.mediaDevices.getUserMedia(constraints);
-
-            const response = await fetch('/call/initiate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    receiverId: otherUserId,
-                    type: type
-                })
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                currentCall = {
-                    callId: data.callId,
-                    type: type,
-                    isInitiator: true,
-                    status: 'calling'
+                // Get user media
+                const constraints = {
+                    audio: true,
+                    video: type === 'video'
                 };
 
-                // Create peer connection
-                await createPeerConnection();
-                showOutgoingCallInterface(type);
-            } else {
-                // Stop tracks if call failed
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                    localStream = null;
-                }
-                alert(data.error || 'Failed to initiate call');
-            }
-        } catch (error) {
-            console.error('Error initiating call:', error);
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            alert('Failed to access camera/microphone or initiate call');
-        }
-    }
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                showCallInterface(type);
 
-    // Create WebRTC peer connection
-    async function createPeerConnection() {
-        peerConnection = new RTCPeerConnection(rtcConfiguration);
-
-        // Add local stream tracks
-        if (localStream) {
-            localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, localStream);
-            });
-        }
-
-        // Handle remote stream
-        peerConnection.ontrack = (event) => {
-            const remoteVideo = document.getElementById('remote-video');
-            if (remoteVideo && event.streams[0]) {
-                remoteVideo.srcObject = event.streams[0];
-            }
-        };
-
-        // Handle ICE candidates
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate && currentCall) {
-                chatSocket.emit('ice-candidate', {
-                    candidate: event.candidate,
-                    to: otherUserId,
-                    from: currentUserId,
-                    callId: currentCall.callId
-                });
-            }
-        };
-
-        // Handle connection state changes
-        peerConnection.onconnectionstatechange = () => {
-            console.log('Connection state:', peerConnection.connectionState);
-            if (peerConnection.connectionState === 'connected') {
-                startCallTimer();
-            } else if (peerConnection.connectionState === 'disconnected' ||
-                      peerConnection.connectionState === 'failed') {
-                endCall();
-            }
-        };
-
-        // Create and send offer if initiator
-        if (currentCall && currentCall.isInitiator) {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-
-            chatSocket.emit('call-offer', {
-                offer: offer,
-                to: otherUserId,
-                from: currentUserId,
-                callId: currentCall.callId
-            });
-        }
-    }
-
-    // Listen for incoming calls
-    chatSocket.on('incoming-call', (data) => {
-        // Hide footer when receiving call
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'none';
-        showIncomingCallNotification(data);
-    });
-
-    // Listen for call responses
-    chatSocket.on('call-accepted', async (data) => {
-        if (currentCall && currentCall.callId === data.callId) {
-            console.log('Call accepted by', data.receiver.username);
-            currentCall.status = 'connected';
-            updateCallInterface('connected');
-        }
-    });
-
-    chatSocket.on('call-declined', (data) => {
-        if (currentCall && currentCall.callId === data.callId) {
-            showCallStatus('Call declined', 'declined');
-            setTimeout(() => endCall(), 2000);
-        }
-    });
-
-    chatSocket.on('call-ended', (data) => {
-        if (currentCall && currentCall.callId === data.callId) {
-            endCall();
-        }
-    });
-
-    chatSocket.on('call-timeout', (data) => {
-        if (currentCall && currentCall.callId === data.callId) {
-            showCallStatus('No answer', 'timeout');
-            setTimeout(() => endCall(), 2000);
-        }
-    });
-
-    chatSocket.on('call-cancelled', (data) => {
-        hideCallNotification();
-    });
-
-    // WebRTC signaling handlers
-    chatSocket.on('call-offer', async (data) => {
-        if (currentCall && currentCall.callId === data.callId && !currentCall.isInitiator) {
-            try {
-                await peerConnection.setRemoteDescription(data.offer);
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-
-                chatSocket.emit('call-answer', {
-                    answer: answer,
-                    to: data.from,
-                    from: currentUserId,
-                    callId: data.callId
-                });
-            } catch (error) {
-                console.error('Error handling call offer:', error);
-            }
-        }
-    });
-
-    chatSocket.on('call-answer', async (data) => {
-        if (currentCall && currentCall.callId === data.callId && currentCall.isInitiator) {
-            try {
-                await peerConnection.setRemoteDescription(data.answer);
-            } catch (error) {
-                console.error('Error handling call answer:', error);
-            }
-        }
-    });
-
-    chatSocket.on('ice-candidate', async (data) => {
-        if (currentCall && currentCall.callId === data.callId && peerConnection) {
-            try {
-                await peerConnection.addIceCandidate(data.candidate);
-            } catch (error) {
-                console.error('Error adding ICE candidate:', error);
-            }
-        }
-    });
-
-    function showIncomingCallNotification(data) {
-        // Hide the message footer
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'none';
-
-        // Create incoming call interface
-        const callInterface = document.createElement('div');
-        callInterface.id = 'incoming-call-interface';
-        callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 z-50 flex flex-col';
-
-        callInterface.innerHTML = `
-            <div class="flex-1 flex flex-col items-center justify-center p-8">
-                <div class="text-center text-white mb-8">
-                    <div class="relative mb-6">
-                        <img src="${data.caller.avatar || '/avatars/default-avatar.png'}"
-                             alt="${data.caller.username}"
-                             class="w-32 h-32 rounded-full mx-auto border-4 border-white shadow-2xl animate-pulse">
-                        <div class="absolute inset-0 w-32 h-32 rounded-full border-4 border-white animate-ping mx-auto"></div>
-                    </div>
-                    <h2 class="text-3xl font-bold mb-2">${data.caller.username}</h2>
-                    <p class="text-xl text-blue-200">Incoming ${data.type} call</p>
-                    <div class="flex items-center justify-center mt-4 space-x-2">
-                        <div class="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                        <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                        <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="p-8">
-                <div class="flex justify-center space-x-12">
-                    <button onclick="declineCall('${data.callId}')"
-                            class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all duration-200 transform hover:scale-110 shadow-2xl">
-                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v1.5a1.5 1.5 0 001.5 1.5H7a1 1 0 001-1V4a1 1 0 011-1h2a1 1 0 011 1v1.5a1 1 0 001-1V4a1 1 0 011-1h1.5A1.5 1.5 0 0017 4v12a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 013 16V4a1 1 0 011-1z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                    <button onclick="acceptCall('${data.callId}', '${data.type}')"
-                            class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white hover:bg-green-600 transition-all duration-200 transform hover:scale-110 shadow-2xl">
-                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                        </svg>
-                    </button>
-                </div>
-                <div class="text-center mt-6">
-                    <p class="text-white text-sm">Swipe up to decline • Tap to accept</p>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(callInterface);
-    }
-
-    async function acceptCall(callId, type) {
-        try {
-            // Get user media
-            const constraints = {
-                audio: true,
-                video: type === 'video'
-            };
-            localStream = await navigator.mediaDevices.getUserMedia(constraints);
-
-            const response = await fetch(`/call/${callId}/respond`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ action: 'accept' })
-            });
-
-            const data = await response.json();
-            if (data.success) {
-                currentCall = {
-                    callId: callId,
-                    type: type,
-                    isInitiator: false,
-                    status: 'connecting'
-                };
-
-                // Create peer connection
-                await createPeerConnection();
-                showActiveCallInterface(type);
-                hideCallNotification();
-            }
-        } catch (error) {
-            console.error('Error accepting call:', error);
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            alert('Failed to access camera/microphone');
-        }
-    }
-
-    function declineCall(callId) {
-        fetch(`/call/${callId}/respond`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ action: 'decline' })
-        })
-        .then(() => {
-            hideCallNotification();
-        })
-        .catch(error => {
-            console.error('Error declining call:', error);
-        });
-    }
-
-    function hideCallNotification() {
-        const notification = document.getElementById('incoming-call-interface');
-        if (notification) {
-            notification.remove();
-        }
-
-        // Show the message footer back
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'block';
-    }
-
-    // Show outgoing call interface (when initiating call)
-    function showOutgoingCallInterface(type) {
-        // Hide the message footer
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'none';
-
-        const callInterface = document.createElement('div');
-        callInterface.id = 'call-interface';
-        callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 z-50 flex flex-col';
-
-        callInterface.innerHTML = `
-            <div class="flex-1 flex flex-col items-center justify-center p-8">
-                <div class="text-center text-white mb-8">
-                    <div class="relative mb-6">
-                        <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>"
-                             alt="<%= otherUser.username %>"
-                             class="w-32 h-32 rounded-full mx-auto border-4 border-white shadow-2xl">
-                    </div>
-                    <h2 class="text-3xl font-bold mb-2"><%= otherUser.username %></h2>
-                    <p class="text-xl text-blue-200" id="call-status">Calling...</p>
-                    <div class="flex items-center justify-center mt-4 space-x-2">
-                        <div class="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                        <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                        <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="p-8">
-                <div class="flex justify-center">
-                    <button onclick="endCall()"
-                            class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all duration-200 transform hover:scale-110 shadow-2xl">
-                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v1.5a1.5 1.5 0 001.5 1.5H7a1 1 0 001-1V4a1 1 0 011-1h2a1 1 0 011 1v1.5a1 1 0 001-1V4a1 1 0 011-1h1.5A1.5 1.5 0 0017 4v12a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 013 16V4a1 1 0 011-1z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(callInterface);
-
-        // Set local video for preview if video call
-        setTimeout(() => {
-            if (type === 'video' && localStream) {
-                const videoPreview = document.createElement('video');
-                videoPreview.id = 'local-video-preview';
-                videoPreview.autoplay = true;
-                videoPreview.muted = true;
-                videoPreview.srcObject = localStream;
-                videoPreview.className = 'fixed top-4 right-4 w-32 h-24 bg-gray-800 rounded-lg border-2 border-white shadow-lg';
-                callInterface.appendChild(videoPreview);
-            }
-        }, 100);
-    }
-
-    // Show active call interface (when call is connected)
-    function showActiveCallInterface(type) {
-        // Hide the message footer
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'none';
-
-        const callInterface = document.createElement('div');
-        callInterface.id = 'call-interface';
-        callInterface.className = 'fixed inset-0 bg-black z-50 flex flex-col';
-
-        const isVideo = type === 'video';
-
-        callInterface.innerHTML = `
-            <div class="flex-1 relative ${isVideo ? 'bg-black' : 'bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900'}">
-                ${isVideo ? `
-                    <!-- Video call layout -->
-                    <video id="remote-video" autoplay class="w-full h-full object-cover"></video>
-                    <video id="local-video" autoplay muted class="absolute top-4 right-4 w-32 h-24 bg-gray-800 rounded-lg border-2 border-white shadow-lg object-cover"></video>
-                ` : `
-                    <!-- Audio call layout -->
-                    <div class="flex flex-col items-center justify-center h-full text-white">
-                        <div class="relative mb-8">
-                            <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>"
-                                 alt="<%= otherUser.username %>"
-                                 class="w-40 h-40 rounded-full border-4 border-white shadow-2xl">
-                        </div>
-                        <h2 class="text-3xl font-bold mb-2"><%= otherUser.username %></h2>
-                        <p class="text-xl text-blue-200" id="call-timer">00:00</p>
-                    </div>
-                `}
-
-                <!-- Call timer for video calls -->
-                ${isVideo ? `
-                    <div class="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full">
-                        <span id="call-timer">00:00</span>
-                    </div>
-                ` : ''}
-
-                <!-- Call status overlay -->
-                <div id="call-status-overlay" class="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center hidden">
-                    <div class="text-center text-white">
-                        <h3 class="text-2xl font-bold mb-2" id="status-message">Connecting...</h3>
-                        <div class="flex items-center justify-center space-x-2">
-                            <div class="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                            <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-                            <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Call controls -->
-            <div class="bg-gray-900 bg-opacity-80 p-6">
-                <div class="flex justify-center space-x-6">
-                    <button id="toggle-audio" onclick="toggleAudio()"
-                            class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center text-white hover:bg-gray-700 transition-all duration-200">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" clip-rule="evenodd"></path>
-                            <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5H10.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"></path>
-                        </svg>
-                    </button>
-
-                    ${isVideo ? `
-                        <button id="toggle-video" onclick="toggleVideo()"
-                                class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center text-white hover:bg-gray-700 transition-all duration-200">
-                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
-                            </svg>
-                        </button>
-                    ` : ''}
-
-                    <button onclick="endCall()"
-                            class="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-all duration-200">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v1.5a1.5 1.5 0 001.5 1.5H7a1 1 0 001-1V4a1 1 0 011-1h2a1 1 0 011 1v1.5a1 1 0 001-1V4a1 1 0 011-1h1.5A1.5 1.5 0 0017 4v12a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 013 16V4a1 1 0 011-1z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(callInterface);
-
-        // Set video streams
-        if (localStream) {
-            const localVideo = document.getElementById('local-video');
-            if (localVideo) {
-                localVideo.srcObject = localStream;
-            }
-        }
-    }
-
-    // Update call interface based on status
-    function updateCallInterface(status) {
-        const statusElement = document.getElementById('call-status');
-        const statusOverlay = document.getElementById('call-status-overlay');
-        const statusMessage = document.getElementById('status-message');
-
-        // Ensure footer is hidden during any call state
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'none';
-
-        if (status === 'connected') {
-            if (statusElement) {
-                statusElement.textContent = 'Connected';
-            }
-            if (statusOverlay) {
-                statusOverlay.classList.add('hidden');
-            }
-
-            // Replace interface with active call interface if it's an outgoing call
-            if (currentCall && currentCall.status === 'calling') {
-                const oldInterface = document.getElementById('call-interface');
-                if (oldInterface) {
-                    oldInterface.remove();
-                }
-                showActiveCallInterface(currentCall.type);
-                startCallTimer();
-            }
-        } else if (status === 'connecting') {
-            if (statusMessage) {
-                statusMessage.textContent = 'Connecting...';
-            }
-            if (statusOverlay) {
-                statusOverlay.classList.remove('hidden');
-            }
-        }
-    }
-
-    // Show call status messages
-    function showCallStatus(message, type) {
-        // Always hide footer during call status updates
-        const footer = document.getElementById('message-footer');
-        if (footer) footer.style.display = 'none';
-
-        const statusElement = document.getElementById('call-status');
-        if (statusElement) {
-            statusElement.textContent = message;
-        }
-
-        const statusMessage = document.getElementById('status-message');
-        if (statusMessage) {
-            statusMessage.textContent = message;
-        }
-    }
-
-    // Start call timer
-    function startCallTimer() {
-        if (callTimer) {
-            clearInterval(callTimer);
-        }
-
-        callStartTime = Date.now();
-        callTimer = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
-            const minutes = Math.floor(elapsed / 60);
-            const seconds = elapsed % 60;
-            const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-            const timerElement = document.getElementById('call-timer');
-            if (timerElement) {
-                timerElement.textContent = timeString;
-            }
-        }, 1000);
-    }
-
-    function toggleAudio() {
-        if (localStream) {
-            const audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                const button = document.getElementById('toggle-audio');
-                if (button) {
-                    button.classList.toggle('bg-red-500', !audioTrack.enabled);
-                    button.classList.toggle('bg-gray-600', audioTrack.enabled);
-                }
-            }
-        }
-    }
-
-    function toggleVideo() {
-        if (localStream) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                const button = document.getElementById('toggle-video');
-                if (button) {
-                    button.classList.toggle('bg-red-500', !videoTrack.enabled);
-                    button.classList.toggle('bg-gray-600', videoTrack.enabled);
-                }
-
-                // Show/hide local video
+                // Set local video
                 const localVideo = document.getElementById('local-video');
                 if (localVideo) {
-                    localVideo.style.display = videoTrack.enabled ? 'block' : 'none';
+                    localVideo.srcObject = localStream;
                 }
-            }
-        }
-    }
 
-    function endCall() {
-        // Clear call timer
-        if (callTimer) {
-            clearInterval(callTimer);
-            callTimer = null;
-        }
+                // Join the call room for signaling
+                socket.emit('join-call-room', callId);
 
-        if (currentCall) {
-            fetch(`/call/${currentCall.callId}/end`, {
-                method: 'POST'
-            }).catch(error => {
-                console.error('Error ending call:', error);
-            });
-        }
+                // Initialize peer connection
+                peerConnection = new RTCPeerConnection(rtcConfiguration);
 
-        // Clean up WebRTC
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-            localStream = null;
-        }
+                // Add local stream to peer connection
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
 
-        if (peerConnection) {
-            peerConnection.close();
-            peerConnection = null;
-        }
-
-        // Remove call interface
-        const callInterface = document.getElementById('call-interface');
-        if (callInterface) {
-            callInterface.remove();
-        }
-
-        // Remove incoming call interface
-        const incomingInterface = document.getElementById('incoming-call-interface');
-        if (incomingInterface) {
-            incomingInterface.remove();
-        }
-
-        // Show the message footer back
-        const footer = document.getElementById('message-footer');
-        if (footer) {
-            footer.style.display = 'block';
-            footer.style.visibility = 'visible';
-        }
-
-        // Reset call state
-        currentCall = null;
-        callStartTime = null;
-    }
-
-    // Voice recording functionality
-    let mediaRecorder;
-    let audioChunks = [];
-
-    async function startVoiceRecording() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const fileName = `voice_${Date.now()}.webm`;
-                const file = new File([audioBlob], fileName, { type: 'audio/webm' });
-
-                // Create FormData and send
-                const formData = new FormData();
-                formData.append('media', file);
-
-                try {
-                    const response = await fetch(`/chat/${otherUserId}`, {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const result = await response.json();
-                    if (result.success) {
-                        console.log('Voice message sent successfully:', result);
-                    } else {
-                        console.error('Failed to send voice message:', result.error);
+                // Handle remote stream
+                peerConnection.ontrack = (event) => {
+                    remoteStream = event.streams[0];
+                    const remoteVideo = document.getElementById('remote-video');
+                    if (remoteVideo) {
+                        remoteVideo.srcObject = remoteStream;
                     }
-                } catch (error) {
-                    console.error('Error sending voice message:', error);
-                }
+                };
 
-                // Clean up
-                stream.getTracks().forEach(track => track.stop());
-            };
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('ice-candidate', {
+                            callId: callId,
+                            candidate: event.candidate
+                        });
+                    }
+                };
 
-            mediaRecorder.start();
-            document.getElementById('voice-recording-modal').classList.remove('hidden');
-        } catch (error) {
-            console.error('Error starting voice recording:', error);
-            alert('Could not access microphone');
-        }
-    }
+                // If this is the caller, create offer
+                if (!isReceiver) {
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
 
-    function stopVoiceRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-        }
-        document.getElementById('voice-recording-modal').classList.add('hidden');
-    }
-
-    function cancelVoiceRecording() {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-            mediaRecorder.stop();
-        }
-        audioChunks = [];
-        document.getElementById('voice-recording-modal').classList.add('hidden');
-    }
-
-    // Voice message playback functionality
-    function initializeVoiceMessagePlayback() {
-        document.removeEventListener('click', voiceMessageClickHandler);
-        document.addEventListener('click', voiceMessageClickHandler);
-    }
-
-    function voiceMessageClickHandler(event) {
-        if (event.target.closest('.voice-play-btn')) {
-            const button = event.target.closest('.voice-play-btn');
-            const audioSrc = button.getAttribute('data-audio-src');
-            const container = button.closest('.voice-message-container');
-            const progressBar = container.querySelector('.voice-progress');
-            const durationEl = container.querySelector('.voice-duration');
-            const playIcon = button.querySelector('.play-icon');
-            const pauseIcon = button.querySelector('.pause-icon');
-
-            if (!button.audio) {
-                button.audio = new Audio(audioSrc);
-                button.audio.addEventListener('timeupdate', () => {
-                    const progress = (button.audio.currentTime / button.audio.duration) * 100;
-                    progressBar.style.width = progress + '%';
-
-                    const minutes = Math.floor(button.audio.currentTime / 60);
-                    const seconds = Math.floor(button.audio.currentTime % 60);
-                    durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                });
-
-                button.audio.addEventListener('ended', () => {
-                    playIcon.classList.remove('hidden');
-                    pauseIcon.classList.add('hidden');
-                    progressBar.style.width = '0%';
-                    const duration = Math.floor(button.audio.duration);
-                    const minutes = Math.floor(duration / 60);
-                    const seconds = duration % 60;
-                    durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                });
-            }
-
-            if (button.audio.paused) {
-                button.audio.play();
-                playIcon.classList.add('hidden');
-                pauseIcon.classList.remove('hidden');
-            } else {
-                button.audio.pause();
-                playIcon.classList.remove('hidden');
-                pauseIcon.classList.add('hidden');
-            }
-        }
-    }
-
-    // Generate AI reply function
-    async function generateAIResponse() {
-        try {
-            // Get current chat messages from the screen
-            const chatMessages = [];
-            const messageElements = document.querySelectorAll('#messages-container .flex');
-
-            messageElements.forEach(messageDiv => {
-                const textElement = messageDiv.querySelector('p.text-sm.leading-relaxed');
-                if (!textElement) return;
-
-                const messageText = textElement.textContent.trim();
-                if (!messageText || messageText.startsWith('⚠️')) return;
-
-                const isOwn = messageDiv.classList.contains('justify-end');
-                const username = isOwn ? currentUsername : '<%= otherUser.username %>';
-
-                chatMessages.push({
-                    from: username,
-                    message: messageText,
-                    isOwn: isOwn,
-                    timestamp: new Date().toISOString()
-                });
-            });
-
-            const recentMessages = chatMessages.slice(-10);
-            console.log('Personal chat - Extracted messages:', recentMessages);
-
-            if (recentMessages.length === 0) {
-                showNotification('No text messages found to analyze', 'warning');
-                return;
-            }
-
-            // Show loading state
-            const aiButton = document.getElementById('ai-reply-btn');
-            const originalContent = aiButton.innerHTML;
-            aiButton.innerHTML = `
-                <svg class="w-5 h-5 animate-spin text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-            `;
-            aiButton.disabled = true;
-
-            // Send real-time messages to AI for analysis
-            const response = await fetch(`/api/ai/generate-reply/${otherUserId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    conversationHistory: recentMessages
-                })
-            });
-
-            const data = await response.json();
-            console.log('Personal chat AI Response:', data);
-
-            // Restore button state
-            aiButton.innerHTML = originalContent;
-            aiButton.disabled = false;
-
-            if (data.success && data.replies && data.replies.length > 0) {
-                // Show AI suggestions
-                showAISuggestions(data.replies);
-            } else {
-                showNotification('No suitable AI responses could be generated for this conversation context.', 'warning');
-            }
-        } catch (error) {
-            console.error('Error generating AI response:', error);
-            const aiButton = document.getElementById('ai-reply-btn');
-            if (aiButton) {
-                aiButton.innerHTML = `
-                    <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                    </svg>
-                `;
-                aiButton.disabled = false;
-            }
-            showNotification('Error generating AI response. Please try again.', 'error');
-        }
-    }
-
-    // Helper function to show notifications
-    function showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        const bgColor = type === 'error' ? 'bg-red-50 border-red-200' : 
-                       type === 'warning' ? 'bg-amber-50 border-amber-200' : 
-                       'bg-blue-50 border-blue-200';
-        const textColor = type === 'error' ? 'text-red-700' : 
-                         type === 'warning' ? 'text-amber-700' : 
-                         'text-blue-700';
-        const iconColor = type === 'error' ? 'text-red-500' : 
-                         type === 'warning' ? 'text-amber-500' : 
-                         'text-blue-500';
-
-        notification.className = `fixed bottom-24 left-4 right-4 ${bgColor} border rounded-lg p-3 shadow-lg z-50`;
-        notification.innerHTML = `
-            <div class="flex items-center space-x-2">
-                <svg class="w-5 h-5 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                </svg>
-                <span class="text-sm ${textColor}">${message}</span>
-            </div>
-        `;
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 4000);
-    }
-
-    function showAISuggestions(replies) {
-        // Remove existing suggestions
-        const existingSuggestions = document.querySelector('.ai-suggestions');
-        if (existingSuggestions) {
-            existingSuggestions.remove();
-        }
-
-        // Create suggestions container
-        const suggestionsDiv = document.createElement('div');
-        suggestionsDiv.className = 'ai-suggestions fixed bottom-24 left-4 right-4 bg-white/95 backdrop-blur-lg border border-gray-200 rounded-xl shadow-xl p-4 z-50';
-        suggestionsDiv.innerHTML = `
-            <div class="flex justify-between items-center mb-3">
-                <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    <h3 class="text-sm font-semibold text-gray-700">🤖 AI Suggested Replies</h3>
-                </div>
-                <button onclick="closeAISuggestions()" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-            <div class="space-y-2 max-h-48 overflow-y-auto">
-                ${replies.map((reply, index) => `
-                    <button onclick="selectAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'").replace(/\n/g, '\\n')}\`)" 
-                            class="w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg text-sm transition-all duration-200 transform hover:scale-[1.02] border border-blue-100 hover:border-blue-200">
-                        <div class="flex items-start space-x-2">
-                            <div class="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
-                            <span class="leading-relaxed">${reply}</span>
-                        </div>
-                    </button>
-                `).join('')}
-            </div>
-            <div class="mt-3 pt-3 border-t border-gray-200">
-                <p class="text-xs text-gray-500 text-center">💡 Click on a suggestion to use it, or close to dismiss</p>
-            </div>
-        `;
-
-        document.body.appendChild(suggestionsDiv);
-
-        // Add entrance animation
-        requestAnimationFrame(() => {
-            suggestionsDiv.style.transform = 'translateY(-10px)';
-            suggestionsDiv.style.opacity = '1';
-        });
-
-        // Auto-remove after 30 seconds
-        setTimeout(() => {
-            const suggestions = document.querySelector('.ai-suggestions');
-            if (suggestions) {
-                closeAISuggestions();
-            }
-        }, 30000);
-    }
-
-    function closeAISuggestions() {
-        const suggestions = document.querySelector('.ai-suggestions');
-        if (suggestions) {
-            suggestions.style.opacity = '0';
-            suggestions.style.transform = 'translateY(10px)';
-            setTimeout(() => suggestions.remove(), 300);
-        }
-    }
-
-    function selectAIReply(reply) {
-        const messageInput = document.getElementById('message-input');
-        if (messageInput) {
-            messageInput.value = reply;
-            messageInput.focus();
-            
-            // Auto-resize textarea to fit the selected reply
-            messageInput.style.height = 'auto';
-            messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
-            
-            // Add a subtle highlight effect to show the reply was selected
-            messageInput.style.backgroundColor = '#eff6ff';
-            setTimeout(() => {
-                messageInput.style.backgroundColor = '';
-            }, 1000);
-
-            // Close suggestions panel
-            closeAISuggestions();
-
-            console.log('Personal chat - AI reply selected:', reply);
-        } else {
-            console.error('Message input not found');
-        }
-    }
-
-    // Show smart replies panel
-    function showSmartReplies(replies) {
-        const panel = document.getElementById('smart-replies-panel');
-        const content = document.getElementById('smart-replies-content');
-
-        content.innerHTML = '';
-        replies.forEach(reply => {
-            const button = document.createElement('button');
-            button.className = 'text-left p-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm transition-colors';
-            button.textContent = reply;
-            button.onclick = () => selectSmartReply(reply);
-            content.appendChild(button);
-        });
-
-        panel.classList.remove('hidden');
-    }
-
-    // Select and use smart reply
-    function selectSmartReply(reply) {
-        msgInput.value = reply;
-        hideSmartReplies();
-        msgInput.focus();
-        
-        // Auto-resize textarea to fit the selected reply
-        msgInput.style.height = '48px';
-        msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
-    }
-
-    // Enhanced summarizeContent function for personal chats
-    async function summarizeContent(messageId, type, content) {
-        try {
-            console.log('Summarizing content in personal chat:', { messageId, type, content });
-
-            const modal = document.getElementById('ai-summary-modal');
-            const loadingDiv = document.getElementById('ai-summary-loading');
-            const contentDiv = document.getElementById('ai-summary-content');
-
-            if (!modal || !loadingDiv || !contentDiv) {
-                console.error('Summary modal elements not found');
-                return;
-            }
-
-            modal.classList.remove('hidden');
-            loadingDiv.classList.remove('hidden');
-            contentDiv.classList.add('hidden');
-
-            // Detect video links in text content
-            let actualType = type;
-            if (type === 'text') {
-                const videoRegex = /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/video\/|dailymotion\.com\/video\/))([a-zA-Z0-9_-]+)/;
-                if (videoRegex.test(content)) {
-                    actualType = 'video_link';
-                    console.log('Video link detected in personal chat:', content);
-                }
-            }
-
-            console.log('Sending request to summarize API with type:', actualType);
-            const response = await fetch('/api/ai/summarize', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    messageId: messageId,
-                    type: actualType,
-                    content: content
-                })
-            });
-
-            const result = await response.json();
-            console.log('Personal chat summary response:', result);
-
-            loadingDiv.classList.add('hidden');
-            contentDiv.classList.remove('hidden');
-
-            if (result.success) {
-                let summaryHTML = '';
-                if (actualType === 'video_link') {
-                    // Enhanced video link display for personal chats
-                    const videoUrl = content.match(/https?:\/\/[^\s]+/)?.[0] || '';
-                    summaryHTML = `
-                        <div class="space-y-4">
-                            <div class="flex items-center space-x-2 text-blue-600">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                </svg>
-                                <span class="font-semibold">🎬 YouTube Video Analysis</span>
-                            </div>
-                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
-                                <div class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">${result.summary}</div>
-                            </div>
-                            <div class="flex space-x-3">
-                                <a href="${videoUrl}" target="_blank" 
-                                   class="inline-flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200 text-sm font-medium">
-                                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                                    </svg>
-                                    Watch Video
-                                </a>
-                                <button onclick="copySummaryToClipboard()" 
-                                        class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200 text-sm font-medium">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                    </svg>
-                                    Copy Summary
-                                </button>
-                            </div>
-                        </div>
-                    `;
+                    socket.emit('call-offer', {
+                        callId: callId,
+                        offer: offer
+                    });
                 } else {
-                    summaryHTML = `<div class="leading-relaxed text-gray-700">${result.summary}</div>`;
-                }
-                contentDiv.innerHTML = summaryHTML;
-            } else {
-                contentDiv.innerHTML = `<p class="text-red-500">Failed to generate summary: ${result.error || 'Unknown error'}</p>`;
-            }
-        } catch (error) {
-            console.error('Error summarizing content in personal chat:', error);
-            const contentDiv = document.getElementById('ai-summary-content');
-            const loadingDiv = document.getElementById('ai-summary-loading');
-
-            if (loadingDiv) loadingDiv.classList.add('hidden');
-            if (contentDiv) {
-                contentDiv.classList.remove('hidden');
-                contentDiv.innerHTML = `<p class="text-red-500">Error generating summary. Please try again.</p>`;
-            }
-        }
-    }
-
-    // Copy summary to clipboard function
-    function copySummaryToClipboard() {
-        const summaryText = document.getElementById('ai-summary-content').innerText;
-        navigator.clipboard.writeText(summaryText).then(() => {
-            // Show temporary success message
-            const button = event.target.closest('button');
-            const originalText = button.innerHTML;
-            button.innerHTML = `
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                Copied!
-            `;
-            setTimeout(() => {
-                button.innerHTML = originalText;
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy summary:', err);
-        });
-    }
-
-    function closeAISummary() {
-        document.getElementById('ai-summary-modal').classList.add('hidden');
-    }
-
-    function closeAISummaryOnOutsideClick(event) {
-        // Close modal only if clicking on the backdrop, not the modal content
-        if (event.target === event.currentTarget) {
-            closeAISummary();
-        }
-    }
-
-    function hideSmartReplies() {
-        document.getElementById('smart-replies-panel').classList.add('hidden');
-    }
-
-    // Media preview functions
-    function openMediaPreview(src, type, filename) {
-        const modal = document.getElementById('mediaPreviewModal');
-        const container = document.getElementById('previewMediaContainer');
-        const downloadBtn = document.getElementById('downloadMediaBtn');
-
-        downloadBtn.setAttribute('data-src', src);
-        downloadBtn.setAttribute('data-filename', filename);
-
-        if (type === 'image') {
-            container.innerHTML = `<img src="${src}" alt="${fileName}" class="max-w-full max-h-full object-contain">`;
-        } else if (type === 'video') {
-            container.innerHTML = `<video src="${src}" controls class="max-w-full max-h-full object-contain">Your browser does not support video playback.</video>`;
-        }
-
-        modal.classList.remove('hidden');
-    }
-
-    function closeMediaPreview() {
-        document.getElementById('mediaPreviewModal').classList.add('hidden');
-    }
-
-    function downloadMedia() {
-        const downloadBtn = document.getElementById('downloadMediaBtn');
-        const src = downloadBtn.getAttribute('data-src');
-        const filename = downloadBtn.getAttribute('data-filename');
-
-        const link = document.createElement('a');
-        link.href = src;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-
-    // Initialize voice message playback on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        initializeVoiceMessagePlayback();
-        scrollToBottom();
-    });
-
-    // Auto-scroll to bottom when new messages arrive
-    function scrollToBottom() {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    // Message form submission handler
-    messageForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const message = msgInput.value.trim();
-        const fileInput = mediaInput;
-        const file = fileInput.files[0];
-
-        if (!message && !file) {
-            return;
-        }
-
-        // Create FormData for the request
-        const formData = new FormData();
-        if (message) {
-            formData.append('msg', message);
-        }
-        if (file) {
-            formData.append('media', file);
-        }
-
-        try {
-            const response = await fetch(`/chat/${otherUserId}`, {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                // Clear the input fields
-                msgInput.value = '';
-                fileInput.value = '';
-
-                // Hide file preview if shown
-                if (!filePreview.classList.contains('hidden')) {
-                    filePreview.classList.add('hidden');
+                    // Receiver will wait for offer
+                    console.log('Waiting for call offer...');
                 }
 
-                // Auto-resize textarea
-                msgInput.style.height = '48px';
-            } else {
-                console.error('Failed to send message:', result.error);
-                alert('Failed to send message: ' + (result.error || 'Unknown error'));
+            } catch (error) {
+                console.error('Error initializing call:', error);
+                alert('Failed to initialize call: ' + error.message);
+                endCall();
             }
-        } catch (error) {
-            console.error('Error sending message:', error);
-            alert('Failed to send message. Please try again.');
         }
-    });
 
-    // Listen for new messages and scroll
-    chatSocket.on('chat message', function(msg) {
-        // Add the new message to the chat
-        const messageHtml = createMessageElement(msg);
-        messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
-        scrollToBottom();
-    });
+        function showCallInterface(type) {
+            const callInterface = document.createElement('div');
+            callInterface.id = 'call-interface';
+            callInterface.className = 'fixed inset-0 bg-gray-900 z-50 flex flex-col';
 
-    function createMessageElement(chat) {
-        const isOwn = chat.from._id === currentUserId;
-        const ext = chat.media ? chat.media.split('.').pop().toLowerCase() : '';
-        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-        const isVideo = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext);
-        const isAudio = ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
-
-        let mediaContent = '';
-        if (chat.media) {
-            const ext = chat.media.split('.').pop().toLowerCase();
-            const isAudio = ['mp3', 'wav', 'ogg', 'm4a', 'webm'].includes(ext) || (chat.originalName && chat.originalName.startsWith('voice_')) || (chat.media && chat.media.includes('voice_'));
-
-            if (isAudio) {
-                mediaContent = `
-                    <div class="mb-2">
-                        <div class="voice-message-container relative group">
-                            <button class="voice-play-btn" data-audio-src="${chat.media.startsWith('/') ? chat.media : '/' + chat.media}">
-                                <svg class="play-icon h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
-                                </svg>
-                                <svg class="pause-icon h-5 w-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
-                                </svg>
-                            </button>
-                            <div class="voice-progress-bar-container">
-                                <div class="voice-progress"></div>
-                            </div>
-                            <div class="voice-duration">0:00</div>
-                        </div>
+            callInterface.innerHTML = `
+                <div class="flex-1 flex justify-center items-center p-4 gap-4">
+                    <div class="relative">
+                        <video id="local-video" autoplay muted class="w-64 h-48 bg-gray-800 rounded-lg"></video>
+                        <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">You</div>
                     </div>
-                `;
-            }
-        }
-
-        // Check for YouTube links in the message
-        const hasVideoLink = chat.msg && /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/video\/|dailymotion\.com\/video\/))/.test(chat.msg);
-        const shouldShowSummarizeBtn = chat.msg && (chat.msg.length > 200 || hasVideoLink);
-
-        return `
-            <div class="flex ${isOwn ? 'justify-end' : 'justify-start'}">
-                <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'} shadow-lg group relative">
-                    ${mediaContent}
-                    ${chat.msg ? `
-                        <div class="relative">
-                            <p class="text-sm leading-relaxed">${chat.msg}</p>
-                            ${shouldShowSummarizeBtn ? `
-                                <button onclick="summarizeContent('${chat._id}', '${hasVideoLink ? 'video_link' : 'text'}', \`${chat.msg.replace(/'/g, "\\'").replace(/`/g, "\\`").replace(/\n/g, "\\n")}\`)"
-                                        class="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg transform hover:scale-105"
-                                        title="${hasVideoLink ? 'Analyze YouTube Video' : 'Summarize content'}">
-                                    <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${hasVideoLink ? 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' : 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'}"></path>
-                                    </svg>
-                                    ${hasVideoLink ? 'Analyze' : 'Summarize'}
-                                </button>
-                            ` : ''}
-                        </div>
+                    ${type === 'video' ? `
+                    <div class="relative">
+                        <video id="remote-video" autoplay class="w-64 h-48 bg-gray-800 rounded-lg"></video>
+                        <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">Other User</div>
+                    </div>
+                    ` : `
+                    <div class="flex items-center justify-center w-64 h-48 bg-gray-800 rounded-lg">
+                        <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                        </svg>
+                    </div>
+                    `}
+                </div>
+                <div class="bg-gray-800 p-4 flex justify-center space-x-4">
+                    <button id="toggle-audio" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    ${type === 'video' ? `
+                    <button id="toggle-video" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+                        </svg>
+                    </button>
                     ` : ''}
-                    <div class="flex items-center justify-between mt-2">
-                        <span class="text-xs ${isOwn ? 'text-primary-100' : 'text-secondary-500'}">
-                            ${new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    // Auto-resize textarea
-    msgInput.addEventListener('input', function() {
-        this.style.height = '48px';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
-
-    // File input change handler
-    mediaInput.addEventListener('change', function() {
-        const file = this.files[0];
-        if (file) {
-            showFilePreview(file);
-        }
-    });
-
-    // File preview functions
-    function showFilePreview(file) {
-        const fileType = file.type;
-        const fileName = file.name;
-        const fileSize = (file.size / 1024 / 1024).toFixed(2);
-
-        let previewHtml = '';
-
-        if (fileType.startsWith('image/')) {
-            const imageUrl = URL.createObjectURL(file);
-            previewHtml = `
-                <img src="${imageUrl}" alt="${fileName}" class="w-12 h-12 rounded object-cover">
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
-                    <p class="text-xs text-gray-500">${fileSize} MB • Image</p>
+                    <button id="end-call" onclick="endCall()" class="bg-red-500 text-white p-3 rounded-full hover:bg-red-600">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7s-8-3.134-8-7 3.582-7 8-7 8 3.134 8 7zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
                 </div>
             `;
-        } else if (fileType.startsWith('video/')) {
-            previewHtml = `
-                <div class="w-12 h-12 bg-purple-100 rounded flex items-center justify-center">
-                    <svg class="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
-                    </svg>
-                </div>
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
-                    <p class="text-xs text-gray-500">${fileSize} MB • Video</p>
-                </div>
-            `;
-        } else if (fileType.startsWith('audio/')) {
-            previewHtml = `
-                <div class="w-12 h-12 bg-green-100 rounded flex items-center justify-center">
-                    <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" clip-rule="evenodd"></path>
-                    </svg>
-                </div>
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
-                    <p class="text-xs text-gray-500">${fileSize} MB • Audio</p>
-                </div>
-            `;
-        } else {
-            previewHtml = `
-                <div class="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
-                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                </div>
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-sm font-medium text-gray-800 truncate">${fileName}</p>
-                    <p class="text-xs text-gray-500">${fileSize} MB • Document</p>
-                </div>
-            `;
+
+            document.body.appendChild(callInterface);
+
+            // Add event listeners for controls
+            document.getElementById('toggle-audio').addEventListener('click', toggleAudio);
+            if (type === 'video') {
+                document.getElementById('toggle-video').addEventListener('click', toggleVideo);
+            }
         }
 
-        previewContent.innerHTML = previewHtml;
-        filePreview.classList.remove('hidden');
-    }
-
-    // Remove file preview
-    removeFile.addEventListener('click', function() {
-        mediaInput.value = '';
-        filePreview.classList.add('hidden');
-    });
-
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize notification manager
-        if (window.notificationManager) {
-            window.notificationManager.setSocket(chatSocket, '<%= currentUser._id %>');
-        }
-
-        // Request notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission().then(permission => {
-                console.log('Notification permission:', permission);
-                if (permission === 'granted' && window.notificationManager) {
-                    window.notificationManager.showToastNotification(
-                        'Notifications Enabled',
-                        'You will now receive notifications for messages and calls',
-                        'message'
-                    );
+        function toggleAudio() {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    const button = document.getElementById('toggle-audio');
+                    button.classList.toggle('bg-red-500', !audioTrack.enabled);
                 }
-            });
+            }
         }
-    });
+
+        function toggleVideo() {
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    const button = document.getElementById('toggle-video');
+                    button.classList.toggle('bg-red-500', !videoTrack.enabled);
+                }
+            }
+        }
+
+        function endCall() {
+            isCallActive = false;
+
+            // Stop local stream
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+
+            // Close peer connection
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            // Remove call interface
+            const callInterface = document.getElementById('call-interface');
+            if (callInterface) {
+                callInterface.remove();
+            }
+
+            // Notify server
+            if (currentCall) {
+                fetch(`/call/${currentCall.callId}/end`, {
+                    method: 'POST'
+                }).catch(error => console.error('Error ending call:', error));
+
+                currentCall = null;
+            }
+        }
+
+        // Socket event handlers for WebRTC signaling
+        socket.on('call-offer', async (data) => {
+            if (currentCall && currentCall.callId === data.callId && peerConnection) {
+                try {
+                    await peerConnection.setRemoteDescription(data.offer);
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    socket.emit('call-answer', {
+                        callId: data.callId,
+                        answer: answer
+                    });
+                } catch (error) {
+                    console.error('Error handling call offer:', error);
+                }
+            }
+        });
+
+        socket.on('call-answer', async (data) => {
+            if (currentCall && currentCall.callId === data.callId && peerConnection) {
+                try {
+                    await peerConnection.setRemoteDescription(data.answer);
+                } catch (error) {
+                    console.error('Error handling call answer:', error);
+                }
+            }
+        });
+
+        socket.on('ice-candidate', async (data) => {
+            if (currentCall && currentCall.callId === data.callId && peerConnection) {
+                try {
+                    await peerConnection.addIceCandidate(data.candidate);
+                } catch (error) {
+                    console.error('Error adding ICE candidate:', error);
+                }
+            }
+        });
+
+        socket.on('call-ended', () => {
+            endCall();
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (isCallActive) {
+                endCall();
+            }
+        });
+
+        // Functions to initiate calls from chat interface
+        window.initiateAudioCall = async function() {
+            try {
+                const response = await fetch('/call/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        receiver: '<%= otherUser._id %>',
+                        type: 'audio'
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    await initializeCall(result.callId, 'audio', false);
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                console.error('Error initiating audio call:', error);
+                alert('Failed to start audio call');
+            }
+        };
+
+        window.initiateVideoCall = async function() {
+            try {
+                const response = await fetch('/call/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        receiver: '<%= otherUser._id %>',
+                        type: 'video'
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    await initializeCall(result.callId, 'video', false);
+                } else {
+                    alert(result.error);
+                }
+            } catch (error) {
+                console.error('Error initiating video call:', error);
+                alert('Failed to start video call');
+            }
+        };
+
+        // Handle incoming calls on chat page
+        socket.on('incoming-call', (data) => {
+            if (!isCallActive) {
+                const acceptCall = confirm(`${data.caller.username} is calling you. Accept ${data.type} call?`);
+                if (acceptCall) {
+                    fetch(`/call/${data.callId}/respond`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ action: 'accept' })
+                    }).then(response => response.json()).then(result => {
+                        if (result.success) {
+                            initializeCall(data.callId, data.type, true);
+                        }
+                    });
+                } else {
+                    fetch(`/call/${data.callId}/respond`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ action: 'decline' })
+                    });
+                }
+            }
+        });
   </script>
 </body>
 </html>

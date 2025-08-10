@@ -390,6 +390,9 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
   <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+
         // Call handling variables
         let localStream = null;
         let remoteStream = null;
@@ -404,6 +407,9 @@
                 { urls: 'stun:stun1.l.google.com:19302' }
             ]
         };
+
+        // User online status
+        socket.emit('userOnline', '<%= currentUser._id %>');
 
         // Check for pending call data from dashboard
         const pendingCallData = sessionStorage.getItem('pendingCallData');

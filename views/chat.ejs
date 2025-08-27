@@ -410,8 +410,322 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
   <script>
+    // Voice message playback functionality
+    let currentAudio = null;
+    let currentPlayButton = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize voice message players
+      initializeVoiceMessages();
+      
+      // Also initialize when new messages are added dynamically
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(function(node) {
+              if (node.nodeType === 1 && node.querySelector) {
+                const newVoiceButtons = node.querySelectorAll('.voice-play-btn');
+                newVoiceButtons.forEach(button => {
+                  if (!button.hasEventListener) {
+                    const audioSrc = button.dataset.audioSrc;
+                    button.addEventListener('click', function() {
+                      toggleVoiceMessage(this, audioSrc);
+                    });
+                    button.hasEventListener = true;
+                  }
+                });
+              }
+            });
+          }
+        });
+      });
+      
+      observer.observe(document.getElementById('messages-container'), {
+        childList: true,
+        subtree: true
+      });
+    });
+
+    function initializeVoiceMessages() {
+      const voiceButtons = document.querySelectorAll('.voice-play-btn');
+      voiceButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const audioSrc = this.dataset.audioSrc;
+          toggleVoiceMessage(this, audioSrc);
+        });
+      });
+    }
+
+    function toggleVoiceMessage(button, audioSrc) {
+      const container = button.closest('.voice-message-container');
+      const progressBar = container.querySelector('.voice-progress');
+      const durationElement = container.querySelector('.voice-duration');
+      const playIcon = button.querySelector('.play-icon');
+      const pauseIcon = button.querySelector('.pause-icon');
+
+      // Stop any currently playing audio
+      if (currentAudio && !currentAudio.paused && currentPlayButton !== button) {
+        currentAudio.pause();
+        resetPreviousButton();
+      }
+
+      if (currentAudio && currentPlayButton === button) {
+        // Toggle current audio
+        if (currentAudio.paused) {
+          currentAudio.play().then(() => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+          }).catch(error => {
+            console.error('Error playing audio:', error);
+            showNotification('Failed to play voice message', 'error');
+          });
+        } else {
+          currentAudio.pause();
+          playIcon.classList.remove('hidden');
+          pauseIcon.classList.add('hidden');
+        }
+        return;
+      }
+
+      // Create new audio element with proper settings
+      currentAudio = new Audio();
+      currentAudio.src = audioSrc;
+      currentAudio.preload = 'auto';
+      currentAudio.volume = 1.0;
+      currentPlayButton = button;
+
+      // Handle CORS and audio format issues
+      currentAudio.crossOrigin = 'anonymous';
+
+      // Set up event listeners
+      currentAudio.addEventListener('loadedmetadata', function() {
+        const duration = formatTime(currentAudio.duration);
+        durationElement.textContent = duration;
+      });
+
+      currentAudio.addEventListener('timeupdate', function() {
+        if (currentAudio.duration) {
+          const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+          progressBar.style.width = progress + '%';
+          durationElement.textContent = formatTime(currentAudio.currentTime);
+        }
+      });
+
+      currentAudio.addEventListener('ended', function() {
+        resetAudioPlayer(button, progressBar, durationElement);
+      });
+
+      currentAudio.addEventListener('error', function(e) {
+        console.error('Audio error:', e);
+        showNotification('Failed to load voice message', 'error');
+        resetAudioPlayer(button, progressBar, durationElement);
+      });
+
+      // Load and play the audio
+      currentAudio.load();
+      
+      // Wait for audio to be ready
+      currentAudio.addEventListener('canplaythrough', function() {
+        currentAudio.play().then(() => {
+          playIcon.classList.add('hidden');
+          pauseIcon.classList.remove('hidden');
+        }).catch(error => {
+          console.error('Error playing audio:', error);
+          handleAudioError(error, audioSrc);
+        });
+      }, { once: true });
+
+      // Add click handler to progress bar for seeking
+      const progressBarContainer = container.querySelector('.voice-progress-bar-container');
+      progressBarContainer.addEventListener('click', function(e) {
+        if (currentAudio && currentAudio.duration) {
+          const rect = this.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const width = rect.width;
+          const seekTime = (clickX / width) * currentAudio.duration;
+          currentAudio.currentTime = seekTime;
+        }
+      });
+    }
+
+    function resetPreviousButton() {
+      if (currentPlayButton) {
+        const playIcon = currentPlayButton.querySelector('.play-icon');
+        const pauseIcon = currentPlayButton.querySelector('.pause-icon');
+        const container = currentPlayButton.closest('.voice-message-container');
+        const progressBar = container.querySelector('.voice-progress');
+        const durationElement = container.querySelector('.voice-duration');
+
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
+        progressBar.style.width = '0%';
+        if (currentAudio && currentAudio.duration) {
+          durationElement.textContent = formatTime(currentAudio.duration);
+        }
+      }
+    }
+
+    function resetAudioPlayer(button, progressBar, durationElement) {
+      const playIcon = button.querySelector('.play-icon');
+      const pauseIcon = button.querySelector('.pause-icon');
+      
+      playIcon.classList.remove('hidden');
+      pauseIcon.classList.add('hidden');
+      progressBar.style.width = '0%';
+      
+      if (currentAudio && currentAudio.duration) {
+        durationElement.textContent = formatTime(currentAudio.duration);
+      }
+    }
+
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Handle audio errors
+    function handleAudioError(error, audioSrc) {
+      console.error('Audio playback error:', error);
+      
+      // Try alternative approach with HTML5 audio element
+      const tempAudio = document.createElement('audio');
+      tempAudio.src = audioSrc;
+      tempAudio.controls = true;
+      tempAudio.style.display = 'none';
+      document.body.appendChild(tempAudio);
+      
+      tempAudio.play().then(() => {
+        document.body.removeChild(tempAudio);
+        showNotification('Voice message played successfully', 'success');
+      }).catch(() => {
+        document.body.removeChild(tempAudio);
+        showNotification('Unable to play voice message. Your browser may not support this audio format.', 'error');
+      });
+    }
+
+    // Show notification function
+    function showNotification(message, type = 'info') {
+      if (window.ModernChat && window.ModernChat.showNotification) {
+        window.ModernChat.showNotification(message, type);
+      } else {
+        // Create a simple notification
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+          type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+        } text-white`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 3000);
+      }
+    }
+  </script>
         // Initialize Socket.IO connection
         const chatSocket = io();
+
+        // Voice recording functionality
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        // Voice recording functions
+        async function startVoiceRecording() {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleRate: 44100
+              }
+            });
+
+            recordedChunks = [];
+            mediaRecorder = new MediaRecorder(stream, {
+              mimeType: 'audio/webm;codecs=opus'
+            });
+
+            mediaRecorder.ondataavailable = function(event) {
+              if (event.data.size > 0) {
+                recordedChunks.push(event.data);
+              }
+            };
+
+            mediaRecorder.onstop = function() {
+              const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+              sendVoiceMessage(blob);
+              stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            document.getElementById('voice-recording-modal').classList.remove('hidden');
+
+          } catch (error) {
+            console.error('Error starting voice recording:', error);
+            alert('Could not access microphone. Please check your permissions.');
+          }
+        }
+
+        function stopVoiceRecording() {
+          if (mediaRecorder && isRecording) {
+            mediaRecorder.stop();
+            isRecording = false;
+            document.getElementById('voice-recording-modal').classList.add('hidden');
+          }
+        }
+
+        function cancelVoiceRecording() {
+          if (mediaRecorder && isRecording) {
+            mediaRecorder.stop();
+            isRecording = false;
+            recordedChunks = [];
+            document.getElementById('voice-recording-modal').classList.add('hidden');
+            
+            // Stop all tracks
+            if (mediaRecorder.stream) {
+              mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+          }
+        }
+
+        async function sendVoiceMessage(audioBlob) {
+          try {
+            const formData = new FormData();
+            const timestamp = Date.now();
+            const filename = `voice_${timestamp}.webm`;
+            
+            formData.append('media', audioBlob, filename);
+            formData.append('msg', ''); // Empty message for voice-only
+            formData.append('to', '<%= otherUser._id %>');
+
+            const response = await fetch('/chat/<%= otherUser._id %>', {
+              method: 'POST',
+              body: formData
+            });
+
+            if (response.ok) {
+              // Reload the page to show the new voice message
+              window.location.reload();
+            } else {
+              throw new Error('Failed to send voice message');
+            }
+          } catch (error) {
+            console.error('Error sending voice message:', error);
+            alert('Failed to send voice message');
+          }
+        }
+
+        // Expose functions globally
+        window.startVoiceRecording = startVoiceRecording;
+        window.stopVoiceRecording = stopVoiceRecording;
+        window.cancelVoiceRecording = cancelVoiceRecording;
 
         // Call handling variables
         let localStream = null;

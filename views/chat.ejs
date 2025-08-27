@@ -142,7 +142,7 @@
                                     chat.moderationResult.categories.includes('violence') || 
                                     chat.moderationResult.categories.includes('harassment'));
               %>
-              
+
               <% if (isMediaFlagged) { %>
                 <!-- Show moderation message for flagged media -->
                 <div class="mb-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
@@ -417,7 +417,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       // Initialize voice message players
       initializeVoiceMessages();
-      
+
       // Also initialize when new messages are added dynamically
       const observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
@@ -439,7 +439,7 @@
           }
         });
       });
-      
+
       observer.observe(document.getElementById('messages-container'), {
         childList: true,
         subtree: true
@@ -523,7 +523,7 @@
 
       // Load and play the audio
       currentAudio.load();
-      
+
       // Wait for audio to be ready
       currentAudio.addEventListener('canplaythrough', function() {
         currentAudio.play().then(() => {
@@ -568,11 +568,11 @@
     function resetAudioPlayer(button, progressBar, durationElement) {
       const playIcon = button.querySelector('.play-icon');
       const pauseIcon = button.querySelector('.pause-icon');
-      
+
       playIcon.classList.remove('hidden');
       pauseIcon.classList.add('hidden');
       progressBar.style.width = '0%';
-      
+
       if (currentAudio && currentAudio.duration) {
         durationElement.textContent = formatTime(currentAudio.duration);
       }
@@ -588,14 +588,14 @@
     // Handle audio errors
     function handleAudioError(error, audioSrc) {
       console.error('Audio playback error:', error);
-      
+
       // Try alternative approach with HTML5 audio element
       const tempAudio = document.createElement('audio');
       tempAudio.src = audioSrc;
       tempAudio.controls = true;
       tempAudio.style.display = 'none';
       document.body.appendChild(tempAudio);
-      
+
       tempAudio.play().then(() => {
         document.body.removeChild(tempAudio);
         showNotification('Voice message played successfully', 'success');
@@ -617,7 +617,7 @@
         } text-white`;
         notification.textContent = message;
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
           if (notification.parentNode) {
             notification.parentNode.removeChild(notification);
@@ -687,7 +687,7 @@
             isRecording = false;
             recordedChunks = [];
             document.getElementById('voice-recording-modal').classList.add('hidden');
-            
+
             // Stop all tracks
             if (mediaRecorder.stream) {
               mediaRecorder.stream.getTracks().forEach(track => track.stop());
@@ -700,7 +700,7 @@
             const formData = new FormData();
             const timestamp = Date.now();
             const filename = `voice_${timestamp}.webm`;
-            
+
             formData.append('media', audioBlob, filename);
             formData.append('msg', ''); // Empty message for voice-only
             formData.append('to', '<%= otherUser._id %>');
@@ -786,14 +786,14 @@
 
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
                 console.log('Local stream tracks:', localStream.getTracks().map(t => `${t.kind}: ${t.enabled} readyState: ${t.readyState}`));
-                
+
                 // Ensure audio track is properly configured
                 const audioTrack = localStream.getAudioTracks()[0];
                 if (audioTrack) {
                     console.log('Audio track settings:', audioTrack.getSettings());
                     audioTrack.enabled = true;
                 }
-                
+
                 showCallInterface(type);
 
                 // Set local video
@@ -814,7 +814,7 @@
                     console.log('Adding track:', track.kind, 'enabled:', track.enabled, 'readyState:', track.readyState);
                     const sender = peerConnection.addTrack(track, localStream);
                     console.log('Track added, sender:', sender);
-                    
+
                     // Ensure audio track is not muted
                     if (track.kind === 'audio') {
                         track.enabled = true;
@@ -825,29 +825,29 @@
                 // Handle remote stream
                 peerConnection.ontrack = (event) => {
                     console.log('Received remote track:', event.track.kind, event.track.enabled);
-                    
+
                     const remoteVideo = document.getElementById('remote-video');
                     if (!remoteVideo) return;
-                    
+
                     // Get existing stream or create new one
                     let stream = remoteVideo.srcObject;
                     if (!stream) {
                         stream = new MediaStream();
                         remoteVideo.srcObject = stream;
                     }
-                    
+
                     // Add track to stream
                     stream.addTrack(event.track);
-                    
+
                     // Configure audio element properties
                     remoteVideo.autoplay = true;
                     remoteVideo.playsInline = true;
                     remoteVideo.muted = false;
                     remoteVideo.volume = 1.0;
-                    
+
                     // Enable user interaction for audio
                     remoteVideo.controls = false;
-                    
+
                     // Force audio playback
                     const playPromise = remoteVideo.play();
                     if (playPromise !== undefined) {
@@ -861,7 +861,7 @@
                             }
                         });
                     }
-                    
+
                     // Update call status
                     const statusElement = document.getElementById('call-status') || document.getElementById('audio-call-status');
                     if (statusElement) {
@@ -877,7 +877,7 @@
                         <button onclick="enableCallAudio(); this.parentElement.remove();" class="bg-white text-blue-500 px-3 py-1 rounded">Enable Audio</button>
                     `;
                     document.body.appendChild(prompt);
-                    
+
                     window.enableCallAudio = function() {
                         const remoteVideo = document.getElementById('remote-video');
                         if (remoteVideo && remoteVideo.srcObject) {
@@ -959,7 +959,7 @@
             const header = document.querySelector('header');
             const main = document.querySelector('main');
             const footer = document.querySelector('footer');
-            
+
             if (header) {
                 header.style.display = 'none';
                 header.style.visibility = 'hidden';
@@ -1138,7 +1138,7 @@
             const header = document.querySelector('header');
             const main = document.querySelector('main');
             const footer = document.querySelector('footer');
-            
+
             if (header) {
                 header.style.display = '';
                 header.style.visibility = 'visible';
@@ -1241,7 +1241,7 @@
                 alert('A call is already in progress');
                 return;
             }
-            
+
             try {
                 console.log('Initiating audio call...');
                 const response = await fetch('/call/initiate', {
@@ -1261,7 +1261,7 @@
 
                 const result = await response.json();
                 console.log('Call initiation response:', result);
-                
+
                 if (result.success) {
                     await initializeCall(result.callId, 'audio', false);
                 } else {
@@ -1278,7 +1278,7 @@
                 alert('A call is already in progress');
                 return;
             }
-            
+
             try {
                 console.log('Initiating video call...');
                 const response = await fetch('/call/initiate', {
@@ -1298,7 +1298,7 @@
 
                 const result = await response.json();
                 console.log('Call initiation response:', result);
-                
+
                 if (result.success) {
                     await initializeCall(result.callId, 'video', false);
                 } else {
@@ -1333,7 +1333,7 @@
             const notification = document.createElement('div');
             notification.id = 'incoming-call-notification';
             notification.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-white p-6 rounded-lg shadow-xl border z-50 max-w-md';
-            
+
             notification.innerHTML = `
                 <div class="text-center">
                     <div class="mb-4">
@@ -1354,7 +1354,7 @@
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(notification);
         }
 
@@ -1398,6 +1398,111 @@
                 notification.remove();
             }
         }
+
+    // AI Summary Modal handling functions
+    function summarizeContent(messageId, type, content) {
+      console.log('Summarizing content:', { messageId, type, content: content.substring(0, 100) + '...' });
+
+      const modal = document.getElementById('ai-summary-modal');
+      const loadingDiv = document.getElementById('ai-summary-loading');
+      const contentDiv = document.getElementById('ai-summary-content');
+
+      if (!modal || !loadingDiv || !contentDiv) {
+        console.error('Modal elements not found');
+        return;
+      }
+
+      // Show modal and loading
+      modal.classList.remove('hidden');
+      loadingDiv.classList.remove('hidden');
+      contentDiv.classList.add('hidden');
+
+      // Prepare request data
+      const requestData = {
+        messageId: messageId,
+        type: type,
+        content: content
+      };
+
+      console.log('Sending summarization request:', requestData);
+
+      // Make API request with better error handling
+      fetch('/api/ai/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+      .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Summarization response:', data);
+
+        loadingDiv.classList.add('hidden');
+        contentDiv.classList.remove('hidden');
+
+        if (data.success && data.summary) {
+          // Enhanced formatting for different content types
+          let formattedSummary = data.summary;
+
+          // Add metadata if available
+          if (data.metadata) {
+            formattedSummary += `\n\n<div class="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+              <strong>Analysis Info:</strong><br>
+              Content Type: ${data.metadata.contentType || 'Unknown'}<br>
+              Processing Time: ${new Date(data.metadata.processingTime).toLocaleTimeString()}<br>
+              ${data.metadata.originalLength ? `Original Length: ${data.metadata.originalLength} characters<br>` : ''}
+              ${data.videoUrl ? `<a href="${data.videoUrl}" target="_blank" class="text-blue-500 hover:underline">Open Video</a>` : ''}
+            </div>`;
+          }
+
+          contentDiv.innerHTML = `<div class="whitespace-pre-wrap leading-relaxed">${formattedSummary}</div>`;
+        } else {
+          contentDiv.innerHTML = `<div class="text-red-600">
+            <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Error: ${data.error || 'Failed to generate summary'}
+          </div>`;
+        }
+      })
+      .catch(error => {
+        console.error('Summarization error:', error);
+        loadingDiv.classList.add('hidden');
+        contentDiv.classList.remove('hidden');
+        contentDiv.innerHTML = `<div class="text-red-600">
+          <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          Connection Error: ${error.message}
+          <div class="mt-2 text-sm">Please check your internet connection and try again.</div>
+        </div>`;
+      });
+    }
+
+    function closeAISummary() {
+      const modal = document.getElementById('ai-summary-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    }
+
+    function closeAISummaryOnOutsideClick(event) {
+      if (event.target === event.currentTarget) {
+        closeAISummary();
+      }
+    }
+
+    // Make functions globally available
+    window.summarizeContent = summarizeContent;
+    window.closeAISummary = closeAISummary;
+    window.closeAISummaryOnOutsideClick = closeAISummaryOnOutsideClick;
   </script>
 </body>
 </html>

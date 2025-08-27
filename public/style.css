@@ -153,163 +153,175 @@ html {
     0 20px 60px rgba(0, 0, 0, 0.15);
 }
 
-/* Voice message styles */
+/* Voice Message Styles */
 .voice-message-container {
-  display: flex;
-  align-items: center;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(99, 102, 241, 0.9));
-  border-radius: 20px;
-  padding: 12px 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
-  max-width: 280px;
-  margin: 4px 0;
-  min-width: 200px;
-}
-
-.voice-message-container:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    space-x: 12px;
+    min-width: 200px;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .voice-play-btn {
-  background: rgba(255, 255, 255, 0.9);
-  border: none;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #3b82f6;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-right: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .voice-play-btn:hover {
-  background: rgba(255, 255, 255, 1);
-  transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
 }
 
-.voice-play-btn:active {
-  transform: scale(0.95);
-}
-
-.voice-play-btn.loading {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.voice-message-container.playing {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(59, 130, 246, 0.9));
-}
-
-.voice-progress-bar-container:hover {
-  height: 8px;
-  background-color: rgba(255, 255, 255, 0.4);
-}
-
-/* Ensure audio elements are properly sized */
-audio {
-  width: 100%;
-  max-width: 300px;
-}
-
-/* Voice message error state */
-.voice-message-error {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(185, 28, 28, 0.9));
+.voice-play-btn svg {
+    color: white;
+    width: 18px;
+    height: 18px;
 }
 
 .voice-progress-bar-container {
-  flex-grow: 1;
-  height: 6px;
-  background-color: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  margin-right: 12px;
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    overflow: hidden;
+    cursor: pointer;
+    margin: 0 12px;
 }
 
 .voice-progress {
-  height: 100%;
-  background-color: rgba(255, 255, 255, 0.8);
-  border-radius: 3px;
-  width: 0%;
-  transition: width 0.1s ease;
+    height: 100%;
+    background: white;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s ease;
 }
 
 .voice-duration {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.8);
-  min-width: 40px;
-  text-align: right;
-  flex-shrink: 0;
-  font-weight: 500;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 35px;
+    text-align: right;
 }
 
-/* Modern form improvements */
-.form-floating {
-  position: relative;
+/* Call Interface Improvements */
+#call-interface {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
-.form-floating label {
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  transform: translateY(-50%);
-  transition: all 0.2s ease;
-  pointer-events: none;
-  background: white;
-  padding: 0 4px;
+.call-button {
+    transition: all 0.2s ease;
 }
 
-.form-floating input:focus + label,
-.form-floating input:not(:placeholder-shown) + label {
-  top: 0;
-  font-size: 0.75rem;
-  color: #3b82f6;
+.call-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
-/* Mobile optimizations */
-@media (max-width: 640px) {
-  .mobile-padding {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-
-  .mobile-text {
-    font-size: 0.875rem;
-  }
+/* Document Display Improvements */
+.document-container {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    background: white;
+    transition: all 0.2s ease;
 }
 
-/* Dark mode preparations */
-@media (prefers-color-scheme: dark) {
-  .dark-mode {
-    background: linear-gradient(135deg, #1e293b, #0f172a);
-    color: #f1f5f9;
-  }
+.document-container:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
 }
 
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
-  }
+/* Media Preview Improvements */
+.media-preview {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+/* AI Summary Modal Improvements */
+#ai-summary-modal .bg-white {
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Chat Message Improvements */
+.chat-message {
+    animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Notification Improvements */
+.notification {
+    animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    border: 2px solid #f3f4f6;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Improvements */
+@media (max-width: 768px) {
+    .voice-message-container {
+        min-width: 180px;
+        max-width: 250px;
+    }
+
+    .voice-play-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .voice-play-btn svg {
+        width: 16px;
+        height: 16px;
+    }
 }
 
 

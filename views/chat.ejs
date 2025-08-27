@@ -391,7 +391,7 @@
   <script src="/js/notifications.js"></script>
   <script>
         // Initialize Socket.IO connection
-        const socket = io();
+        const chatSocket = io();
 
         // Call handling variables
         let localStream = null;
@@ -409,7 +409,7 @@
         };
 
         // User online status
-        socket.emit('userOnline', '<%= currentUser._id %>');
+        chatSocket.emit('userOnline', '<%= currentUser._id %>');
 
         // Check for pending call data from dashboard
         const pendingCallData = sessionStorage.getItem('pendingCallData');
@@ -446,7 +446,7 @@
                 }
 
                 // Join the call room for signaling
-                socket.emit('join-call-room', callId);
+                chatSocket.emit('join-call-room', callId);
 
                 // Initialize peer connection
                 peerConnection = new RTCPeerConnection(rtcConfiguration);
@@ -462,13 +462,40 @@
                     const remoteVideo = document.getElementById('remote-video');
                     if (remoteVideo) {
                         remoteVideo.srcObject = remoteStream;
+                        // Update call status
+                        const statusElement = document.getElementById('call-status') || document.getElementById('audio-call-status');
+                        if (statusElement) {
+                            statusElement.textContent = 'Connected';
+                        }
+                    }
+                };
+
+                // Handle connection state changes
+                peerConnection.onconnectionstatechange = () => {
+                    const statusElement = document.getElementById('call-status') || document.getElementById('audio-call-status');
+                    if (statusElement) {
+                        switch(peerConnection.connectionState) {
+                            case 'connecting':
+                                statusElement.textContent = 'Connecting...';
+                                break;
+                            case 'connected':
+                                statusElement.textContent = 'Connected';
+                                break;
+                            case 'disconnected':
+                                statusElement.textContent = 'Disconnected';
+                                break;
+                            case 'failed':
+                                statusElement.textContent = 'Connection Failed';
+                                setTimeout(endCall, 3000);
+                                break;
+                        }
                     }
                 };
 
                 // Handle ICE candidates
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        socket.emit('ice-candidate', {
+                        chatSocket.emit('ice-candidate', {
                             callId: callId,
                             candidate: event.candidate
                         });
@@ -480,7 +507,7 @@
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
 
-                    socket.emit('call-offer', {
+                    chatSocket.emit('call-offer', {
                         callId: callId,
                         offer: offer
                     });
@@ -497,51 +524,95 @@
         }
 
         function showCallInterface(type) {
+            // Hide the main chat interface
+            document.querySelector('header').style.display = 'none';
+            document.querySelector('main').style.display = 'none';
+            document.querySelector('footer').style.display = 'none';
+
             const callInterface = document.createElement('div');
             callInterface.id = 'call-interface';
-            callInterface.className = 'fixed inset-0 bg-gray-900 z-50 flex flex-col';
+            callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 z-50 flex flex-col';
 
             callInterface.innerHTML = `
-                <div class="flex-1 flex justify-center items-center p-4 gap-4">
-                    <div class="relative">
-                        <video id="local-video" autoplay muted class="w-64 h-48 bg-gray-800 rounded-lg"></video>
-                        <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">You</div>
+                <!-- Call Header -->
+                <div class="bg-black bg-opacity-30 p-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>" 
+                             alt="<%= otherUser.username %>" 
+                             class="w-12 h-12 rounded-full border-2 border-white shadow-lg">
+                        <div>
+                            <h3 class="text-white text-lg font-semibold"><%= otherUser.username %></h3>
+                            <p class="text-gray-300 text-sm" id="call-status">Connecting...</p>
+                        </div>
                     </div>
+                    <div class="text-white text-sm" id="call-timer">00:00</div>
+                </div>
+
+                <!-- Video Container -->
+                <div class="flex-1 flex justify-center items-center p-6 gap-6">
                     ${type === 'video' ? `
-                    <div class="relative">
-                        <video id="remote-video" autoplay class="w-64 h-48 bg-gray-800 rounded-lg"></video>
-                        <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">Other User</div>
+                    <!-- Remote Video (Large) -->
+                    <div class="relative flex-1 max-w-2xl">
+                        <video id="remote-video" autoplay class="w-full h-96 bg-gray-800 rounded-2xl shadow-2xl object-cover"></video>
+                        <div class="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm font-medium">
+                            <%= otherUser.username %>
+                        </div>
+                        <!-- Local Video (Small overlay) -->
+                        <div class="absolute top-4 right-4 w-32 h-24">
+                            <video id="local-video" autoplay muted class="w-full h-full bg-gray-700 rounded-lg shadow-lg object-cover"></video>
+                            <div class="absolute bottom-1 left-1 bg-black bg-opacity-50 text-white px-2 py-0.5 rounded text-xs">You</div>
+                        </div>
                     </div>
                     ` : `
-                    <div class="flex items-center justify-center w-64 h-48 bg-gray-800 rounded-lg">
-                        <svg class="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                        </svg>
+                    <!-- Audio Call Interface -->
+                    <div class="flex flex-col items-center space-y-8">
+                        <div class="relative">
+                            <div class="w-48 h-48 bg-gradient-to-br from-primary-500 to-primary-700 rounded-full flex items-center justify-center shadow-2xl">
+                                <img src="<%= otherUser.avatar || '/avatars/default-avatar.png' %>" 
+                                     alt="<%= otherUser.username %>" 
+                                     class="w-40 h-40 rounded-full object-cover border-4 border-white shadow-lg">
+                            </div>
+                            <div class="absolute inset-0 w-48 h-48 rounded-full border-4 border-green-400 animate-pulse"></div>
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-white text-2xl font-bold mb-2"><%= otherUser.username %></h2>
+                            <p class="text-gray-300" id="audio-call-status">Audio Call in Progress</p>
+                        </div>
+                        <!-- Hidden local video for audio calls -->
+                        <video id="local-video" autoplay muted class="hidden"></video>
+                        <video id="remote-video" autoplay class="hidden"></video>
                     </div>
                     `}
                 </div>
-                <div class="bg-gray-800 p-4 flex justify-center space-x-4">
-                    <button id="toggle-audio" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
-                    ${type === 'video' ? `
-                    <button id="toggle-video" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
-                        </svg>
-                    </button>
-                    ` : ''}
-                    <button id="end-call" onclick="endCall()" class="bg-red-500 text-white p-3 rounded-full hover:bg-red-600">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7s-8-3.134-8-7 3.582-7 8-7 8 3.134 8 7zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
-                        </svg>
-                    </button>
+
+                <!-- Call Controls -->
+                <div class="bg-black bg-opacity-30 p-6">
+                    <div class="flex justify-center space-x-6">
+                        <button id="toggle-audio" class="bg-gray-600 hover:bg-gray-700 text-white p-4 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                        ${type === 'video' ? `
+                        <button id="toggle-video" class="bg-gray-600 hover:bg-gray-700 text-white p-4 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+                            </svg>
+                        </button>
+                        ` : ''}
+                        <button id="end-call" onclick="endCall()" class="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">
+                            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             `;
 
             document.body.appendChild(callInterface);
+
+            // Start call timer
+            startCallTimer();
 
             // Add event listeners for controls
             document.getElementById('toggle-audio').addEventListener('click', toggleAudio);
@@ -572,8 +643,30 @@
             }
         }
 
+        let callStartTime = null;
+        let callTimerInterval = null;
+
+        function startCallTimer() {
+            callStartTime = Date.now();
+            callTimerInterval = setInterval(() => {
+                const elapsed = Date.now() - callStartTime;
+                const minutes = Math.floor(elapsed / 60000);
+                const seconds = Math.floor((elapsed % 60000) / 1000);
+                const timerElement = document.getElementById('call-timer');
+                if (timerElement) {
+                    timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
+            }, 1000);
+        }
+
         function endCall() {
             isCallActive = false;
+
+            // Clear call timer
+            if (callTimerInterval) {
+                clearInterval(callTimerInterval);
+                callTimerInterval = null;
+            }
 
             // Stop local stream
             if (localStream) {
@@ -593,25 +686,31 @@
                 callInterface.remove();
             }
 
+            // Show main chat interface again
+            document.querySelector('header').style.display = 'block';
+            document.querySelector('main').style.display = 'flex';
+            document.querySelector('footer').style.display = 'block';
+
             // Notify server
             if (currentCall) {
                 fetch(`/call/${currentCall.callId}/end`, {
                     method: 'POST'
                 }).catch(error => console.error('Error ending call:', error));
 
+                chatSocket.emit('call-ended', { callId: currentCall.callId });
                 currentCall = null;
             }
         }
 
         // Socket event handlers for WebRTC signaling
-        socket.on('call-offer', async (data) => {
+        chatSocket.on('call-offer', async (data) => {
             if (currentCall && currentCall.callId === data.callId && peerConnection) {
                 try {
                     await peerConnection.setRemoteDescription(data.offer);
                     const answer = await peerConnection.createAnswer();
                     await peerConnection.setLocalDescription(answer);
 
-                    socket.emit('call-answer', {
+                    chatSocket.emit('call-answer', {
                         callId: data.callId,
                         answer: answer
                     });
@@ -621,7 +720,7 @@
             }
         });
 
-        socket.on('call-answer', async (data) => {
+        chatSocket.on('call-answer', async (data) => {
             if (currentCall && currentCall.callId === data.callId && peerConnection) {
                 try {
                     await peerConnection.setRemoteDescription(data.answer);
@@ -631,7 +730,7 @@
             }
         });
 
-        socket.on('ice-candidate', async (data) => {
+        chatSocket.on('ice-candidate', async (data) => {
             if (currentCall && currentCall.callId === data.callId && peerConnection) {
                 try {
                     await peerConnection.addIceCandidate(data.candidate);
@@ -641,7 +740,7 @@
             }
         });
 
-        socket.on('call-ended', () => {
+        chatSocket.on('call-ended', () => {
             endCall();
         });
 
@@ -704,32 +803,82 @@
         };
 
         // Handle incoming calls on chat page
-        socket.on('incoming-call', (data) => {
+        chatSocket.on('incoming-call', (data) => {
             if (!isCallActive) {
-                const acceptCall = confirm(`${data.caller.username} is calling you. Accept ${data.type} call?`);
-                if (acceptCall) {
-                    fetch(`/call/${data.callId}/respond`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ action: 'accept' })
-                    }).then(response => response.json()).then(result => {
-                        if (result.success) {
-                            initializeCall(data.callId, data.type, true);
-                        }
-                    });
-                } else {
-                    fetch(`/call/${data.callId}/respond`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ action: 'decline' })
-                    });
-                }
+                // Show incoming call notification
+                showIncomingCallNotification(data);
             }
         });
+
+        function showIncomingCallNotification(data) {
+            const notification = document.createElement('div');
+            notification.id = 'incoming-call-notification';
+            notification.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-white p-6 rounded-lg shadow-xl border z-50 max-w-md';
+            
+            notification.innerHTML = `
+                <div class="text-center">
+                    <div class="mb-4">
+                        <img src="${data.caller.avatar || '/avatars/default-avatar.png'}" alt="${data.caller.username}" class="w-16 h-16 rounded-full mx-auto mb-2">
+                        <h3 class="text-lg font-semibold">${data.caller.username}</h3>
+                        <p class="text-gray-600">is calling you</p>
+                        <p class="text-sm text-gray-500">${data.type.charAt(0).toUpperCase() + data.type.slice(1)} Call</p>
+                    </div>
+                    <div class="flex justify-center space-x-4">
+                        <button onclick="acceptCall('${data.callId}', '${data.type}')" 
+                                class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                            Accept
+                        </button>
+                        <button onclick="declineCall('${data.callId}')" 
+                                class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                            Decline
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+        }
+
+        window.acceptCall = async function(callId, type) {
+            try {
+                const response = await fetch(`/call/${callId}/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action: 'accept' })
+                });
+
+                if (response.ok) {
+                    hideCallNotification();
+                    await initializeCall(callId, type, true);
+                }
+            } catch (error) {
+                console.error('Error accepting call:', error);
+            }
+        };
+
+        window.declineCall = async function(callId) {
+            try {
+                await fetch(`/call/${callId}/respond`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action: 'decline' })
+                });
+                hideCallNotification();
+            } catch (error) {
+                console.error('Error declining call:', error);
+            }
+        };
+
+        function hideCallNotification() {
+            const notification = document.getElementById('incoming-call-notification');
+            if (notification) {
+                notification.remove();
+            }
+        }
   </script>
 </body>
 </html>

@@ -1955,11 +1955,18 @@ io.on('connection', (socket) => {
     });
 
     // WebRTC signaling for calls
+    socket.on('join-call-room', (callId) => {
+        socket.join(`call-${callId}`);
+        console.log(`User ${socket.userId} joined call room: call-${callId}`);
+    });
+
     socket.on('call-offer', (data) => {
+        console.log(`Call offer from ${socket.userId} for call ${data.callId}`);
         socket.to(`call-${data.callId}`).emit('call-offer', data);
     });
 
     socket.on('call-answer', (data) => {
+        console.log(`Call answer from ${socket.userId} for call ${data.callId}`);
         socket.to(`call-${data.callId}`).emit('call-answer', data);
     });
 
@@ -1967,9 +1974,10 @@ io.on('connection', (socket) => {
         socket.to(`call-${data.callId}`).emit('ice-candidate', data);
     });
 
-    socket.on('join-call-room', (callId) => {
-        socket.join(`call-${callId}`);
-        console.log(`User joined call room: call-${callId}`);
+    socket.on('call-ended', (data) => {
+        console.log(`Call ended by ${socket.userId} for call ${data.callId}`);
+        socket.to(`call-${data.callId}`).emit('call-ended', data);
+        socket.leave(`call-${data.callId}`);
     });
 
     // Group call WebRTC signaling
@@ -2010,48 +2018,19 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', async () => {
-        if (socket.userId) {
-            try {
-                // End any active calls
-                const activeCalls = await Call.find({
-                    $or: [
-                        { caller: socket.userId },
-                        { receiver: socket.userId }
-                    ],
-                    status: { $in: ['ringing', 'accepted'] }
-                });
-
-                for (let call of activeCalls) {
-                    call.status = 'ended';
-                    call.endTime = new Date();
-                    await call.save();
-
-                    const otherUserId = call.caller.toString() === socket.userId
-                        ? call.receiver.toString()
-                        : call.caller.toString();
-
-                    io.to(otherUserId).emit('call-ended', {
-                        callId: call._id,
-                        reason: 'User disconnected'
-                    });
-                }
-
-                // Update user status
-                await User.findByIdAndUpdate(socket.userId, {
-                    online: false,
-                    lastSeen: new Date()
-                });
-
-                io.emit('userStatus', {
-                    userId: socket.userId,
-                    online: false,
-                    lastSeen: new Date()
-                });
-            } catch (error) {
-                console.error('Disconnect error:', error);
-            }
-        }
         console.log('A user disconnected');
+        try {
+            if (socket.userId) {
+                const userId = socket.userId.toString();
+                await User.findByIdAndUpdate(userId, {
+                    online: false,
+                    lastSeen: new Date()
+                });
+                io.emit('userOffline', userId);
+            }
+        } catch (error) {
+            console.error('Disconnect error:', error);
+        }
     });
 });
 

@@ -826,53 +826,40 @@
                 peerConnection.ontrack = (event) => {
                     console.log('Received remote track:', event.track.kind, event.track.enabled);
                     
-                    if (!remoteStream) {
-                        remoteStream = new MediaStream();
+                    const remoteVideo = document.getElementById('remote-video');
+                    if (!remoteVideo) return;
+                    
+                    // Get existing stream or create new one
+                    let stream = remoteVideo.srcObject;
+                    if (!stream) {
+                        stream = new MediaStream();
+                        remoteVideo.srcObject = stream;
                     }
                     
-                    // Add the track to our remote stream
-                    remoteStream.addTrack(event.track);
+                    // Add track to stream
+                    stream.addTrack(event.track);
                     
-                    if (event.track.kind === 'video') {
-                        const remoteVideo = document.getElementById('remote-video');
-                        if (remoteVideo) {
-                            remoteVideo.srcObject = remoteStream;
-                            remoteVideo.autoplay = true;
-                            remoteVideo.playsInline = true;
-                            remoteVideo.muted = false; // Important for audio in video calls
-                            
-                            // Ensure audio plays through video element in video calls
-                            remoteVideo.play().then(() => {
-                                console.log('Remote video with audio started playing');
-                            }).catch(e => {
-                                console.error('Failed to play remote video:', e);
-                                // Try to enable audio manually
-                                remoteVideo.muted = false;
-                                remoteVideo.volume = 1.0;
-                            });
-                        }
-                    } else if (event.track.kind === 'audio') {
-                        // For audio calls, use the remote-video element which is hidden
-                        const audioElement = document.getElementById('remote-video');
-                        if (audioElement) {
-                            // Create a new stream with just the audio track for audio calls
-                            const audioStream = new MediaStream([event.track]);
-                            audioElement.srcObject = audioStream;
-                            audioElement.autoplay = true;
-                            audioElement.muted = false;
-                            audioElement.volume = 1.0;
-                            
-                            // Force play the audio
-                            audioElement.play().then(() => {
-                                console.log('Remote audio started playing');
-                            }).catch(e => {
-                                console.error('Audio play failed:', e);
-                                // Try alternative approach
-                                setTimeout(() => {
-                                    audioElement.play().catch(console.error);
-                                }, 100);
-                            });
-                        }
+                    // Configure audio element properties
+                    remoteVideo.autoplay = true;
+                    remoteVideo.playsInline = true;
+                    remoteVideo.muted = false;
+                    remoteVideo.volume = 1.0;
+                    
+                    // Enable user interaction for audio
+                    remoteVideo.controls = false;
+                    
+                    // Force audio playback
+                    const playPromise = remoteVideo.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log('Remote media started playing successfully');
+                        }).catch(error => {
+                            console.error('Failed to play remote media:', error);
+                            // Create a user interaction to enable audio
+                            if (event.track.kind === 'audio') {
+                                showAudioPermissionPrompt();
+                            }
+                        });
                     }
                     
                     // Update call status
@@ -881,6 +868,25 @@
                         statusElement.textContent = 'Connected';
                     }
                 };
+
+                function showAudioPermissionPrompt() {
+                    const prompt = document.createElement('div');
+                    prompt.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white p-4 rounded-lg shadow-lg z-50';
+                    prompt.innerHTML = `
+                        <p class="mb-2">Click to enable call audio</p>
+                        <button onclick="enableCallAudio(); this.parentElement.remove();" class="bg-white text-blue-500 px-3 py-1 rounded">Enable Audio</button>
+                    `;
+                    document.body.appendChild(prompt);
+                    
+                    window.enableCallAudio = function() {
+                        const remoteVideo = document.getElementById('remote-video');
+                        if (remoteVideo && remoteVideo.srcObject) {
+                            remoteVideo.muted = false;
+                            remoteVideo.volume = 1.0;
+                            remoteVideo.play().catch(console.error);
+                        }
+                    };
+                }
 
                 // Handle connection state changes
                 peerConnection.onconnectionstatechange = () => {
@@ -924,16 +930,21 @@
 
                 // If this is the caller, create offer
                 if (!isReceiver) {
-                    const offer = await peerConnection.createOffer();
+                    console.log('Creating offer as caller...');
+                    const offer = await peerConnection.createOffer({
+                        offerToReceiveAudio: true,
+                        offerToReceiveVideo: type === 'video'
+                    });
                     await peerConnection.setLocalDescription(offer);
 
                     chatSocket.emit('call-offer', {
                         callId: callId,
                         offer: offer
                     });
+                    console.log('Offer sent');
                 } else {
                     // Receiver will wait for offer
-                    console.log('Waiting for call offer...');
+                    console.log('Waiting for call offer as receiver...');
                 }
 
             } catch (error) {
@@ -1167,26 +1178,34 @@
 
         // Socket event handlers for WebRTC signaling
         chatSocket.on('call-offer', async (data) => {
+            console.log('Received call offer:', data);
             if (currentCall && currentCall.callId === data.callId && peerConnection) {
                 try {
-                    await peerConnection.setRemoteDescription(data.offer);
-                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await peerConnection.createAnswer({
+                        offerToReceiveAudio: true,
+                        offerToReceiveVideo: currentCall.type === 'video'
+                    });
                     await peerConnection.setLocalDescription(answer);
 
                     chatSocket.emit('call-answer', {
                         callId: data.callId,
                         answer: answer
                     });
+                    console.log('Sent call answer');
                 } catch (error) {
                     console.error('Error handling call offer:', error);
+                    alert('Failed to handle incoming call');
                 }
             }
         });
 
         chatSocket.on('call-answer', async (data) => {
+            console.log('Received call answer:', data);
             if (currentCall && currentCall.callId === data.callId && peerConnection) {
                 try {
-                    await peerConnection.setRemoteDescription(data.answer);
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    console.log('Set remote description from answer');
                 } catch (error) {
                     console.error('Error handling call answer:', error);
                 }
@@ -1194,9 +1213,11 @@
         });
 
         chatSocket.on('ice-candidate', async (data) => {
+            console.log('Received ICE candidate:', data);
             if (currentCall && currentCall.callId === data.callId && peerConnection) {
                 try {
-                    await peerConnection.addIceCandidate(data.candidate);
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    console.log('Added ICE candidate');
                 } catch (error) {
                     console.error('Error adding ICE candidate:', error);
                 }
@@ -1215,8 +1236,14 @@
         });
 
         // Functions to initiate calls from chat interface
-        window.initiateAudioCall = async function() {
+        async function initiateAudioCall() {
+            if (isCallActive) {
+                alert('A call is already in progress');
+                return;
+            }
+            
             try {
+                console.log('Initiating audio call...');
                 const response = await fetch('/call/initiate', {
                     method: 'POST',
                     headers: {
@@ -1228,20 +1255,32 @@
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
+                console.log('Call initiation response:', result);
+                
                 if (result.success) {
                     await initializeCall(result.callId, 'audio', false);
                 } else {
-                    alert(result.error);
+                    alert(result.error || 'Failed to initiate call');
                 }
             } catch (error) {
                 console.error('Error initiating audio call:', error);
-                alert('Failed to start audio call');
+                alert('Failed to start audio call: ' + error.message);
             }
-        };
+        }
 
-        window.initiateVideoCall = async function() {
+        async function initiateVideoCall() {
+            if (isCallActive) {
+                alert('A call is already in progress');
+                return;
+            }
+            
             try {
+                console.log('Initiating video call...');
                 const response = await fetch('/call/initiate', {
                     method: 'POST',
                     headers: {
@@ -1253,17 +1292,27 @@
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
+                console.log('Call initiation response:', result);
+                
                 if (result.success) {
                     await initializeCall(result.callId, 'video', false);
                 } else {
-                    alert(result.error);
+                    alert(result.error || 'Failed to initiate call');
                 }
             } catch (error) {
                 console.error('Error initiating video call:', error);
-                alert('Failed to start video call');
+                alert('Failed to start video call: ' + error.message);
             }
-        };
+        }
+
+        // Make functions globally available
+        window.initiateAudioCall = initiateAudioCall;
+        window.initiateVideoCall = initiateVideoCall;
 
         // Handle incoming calls on chat page
         chatSocket.on('incoming-call', (data) => {
@@ -1272,6 +1321,13 @@
                 showIncomingCallNotification(data);
             }
         });
+
+        // Ensure functions are globally available
+        window.endCall = endCall;
+        window.acceptCall = acceptCall;
+        window.declineCall = declineCall;
+        window.initiateAudioCall = initiateAudioCall;
+        window.initiateVideoCall = initiateVideoCall;
 
         function showIncomingCallNotification(data) {
             const notification = document.createElement('div');

@@ -404,8 +404,12 @@
         const rtcConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ],
+            iceCandidatePoolSize: 10,
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
         };
 
         // User online status
@@ -430,13 +434,23 @@
                 currentCall = { callId, type, isReceiver };
                 isCallActive = true;
 
-                // Get user media
+                // Get user media with proper audio constraints
                 const constraints = {
-                    audio: true,
-                    video: type === 'video'
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 44100
+                    },
+                    video: type === 'video' ? {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 }
+                    } : false
                 };
 
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('Local stream tracks:', localStream.getTracks().map(t => `${t.kind}: ${t.enabled}`));
                 showCallInterface(type);
 
                 // Set local video
@@ -453,20 +467,40 @@
 
                 // Add local stream to peer connection
                 localStream.getTracks().forEach(track => {
+                    console.log('Adding track:', track.kind, track.enabled);
                     peerConnection.addTrack(track, localStream);
                 });
 
                 // Handle remote stream
                 peerConnection.ontrack = (event) => {
+                    console.log('Received remote track:', event.track.kind);
                     remoteStream = event.streams[0];
-                    const remoteVideo = document.getElementById('remote-video');
-                    if (remoteVideo) {
-                        remoteVideo.srcObject = remoteStream;
-                        // Update call status
-                        const statusElement = document.getElementById('call-status') || document.getElementById('audio-call-status');
-                        if (statusElement) {
-                            statusElement.textContent = 'Connected';
+                    
+                    if (event.track.kind === 'video') {
+                        const remoteVideo = document.getElementById('remote-video');
+                        if (remoteVideo) {
+                            remoteVideo.srcObject = remoteStream;
+                            remoteVideo.autoplay = true;
+                            remoteVideo.playsInline = true;
                         }
+                    } else if (event.track.kind === 'audio') {
+                        // Handle audio for both video and audio calls
+                        const remoteAudio = document.getElementById('remote-audio') || document.getElementById('remote-video');
+                        if (remoteAudio) {
+                            remoteAudio.srcObject = remoteStream;
+                            remoteAudio.autoplay = true;
+                            remoteAudio.volume = 1.0;
+                            remoteAudio.muted = false;
+                            
+                            // Force play for audio
+                            remoteAudio.play().catch(e => console.log('Audio play failed:', e));
+                        }
+                    }
+                    
+                    // Update call status
+                    const statusElement = document.getElementById('call-status') || document.getElementById('audio-call-status');
+                    if (statusElement) {
+                        statusElement.textContent = 'Connected';
                     }
                 };
 
@@ -524,14 +558,31 @@
         }
 
         function showCallInterface(type) {
-            // Hide the main chat interface
-            document.querySelector('header').style.display = 'none';
-            document.querySelector('main').style.display = 'none';
-            document.querySelector('footer').style.display = 'none';
+            // Properly hide the main chat interface
+            const header = document.querySelector('header');
+            const main = document.querySelector('main');
+            const footer = document.querySelector('footer');
+            
+            if (header) {
+                header.style.display = 'none';
+                header.style.visibility = 'hidden';
+            }
+            if (main) {
+                main.style.display = 'none';
+                main.style.visibility = 'hidden';
+            }
+            if (footer) {
+                footer.style.display = 'none';
+                footer.style.visibility = 'hidden';
+            }
+
+            // Prevent scrolling on body during call
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
 
             const callInterface = document.createElement('div');
             callInterface.id = 'call-interface';
-            callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 z-50 flex flex-col';
+            callInterface.className = 'fixed inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 z-[9999] flex flex-col';
 
             callInterface.innerHTML = `
                 <!-- Call Header -->
@@ -578,9 +629,10 @@
                             <h2 class="text-white text-2xl font-bold mb-2"><%= otherUser.username %></h2>
                             <p class="text-gray-300" id="audio-call-status">Audio Call in Progress</p>
                         </div>
-                        <!-- Hidden local video for audio calls -->
-                        <video id="local-video" autoplay muted class="hidden"></video>
-                        <video id="remote-video" autoplay class="hidden"></video>
+                        <!-- Hidden audio/video elements for audio calls -->
+                        <video id="local-video" autoplay muted playsinline class="hidden"></video>
+                        <video id="remote-video" autoplay playsinline class="hidden" volume="1.0"></video>
+                        <audio id="remote-audio" autoplay volume="1.0" class="hidden"></audio>
                     </div>
                     `}
                 </div>
@@ -686,10 +738,36 @@
                 callInterface.remove();
             }
 
-            // Show main chat interface again
-            document.querySelector('header').style.display = 'block';
-            document.querySelector('main').style.display = 'flex';
-            document.querySelector('footer').style.display = 'block';
+            // Properly restore main chat interface
+            const header = document.querySelector('header');
+            const main = document.querySelector('main');
+            const footer = document.querySelector('footer');
+            
+            if (header) {
+                header.style.display = '';
+                header.style.visibility = 'visible';
+            }
+            if (main) {
+                main.style.display = '';
+                main.style.visibility = 'visible';
+                main.style.overflow = '';
+            }
+            if (footer) {
+                footer.style.display = '';
+                footer.style.visibility = 'visible';
+            }
+
+            // Reset body styles
+            document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
+
+            // Scroll to bottom of messages
+            setTimeout(() => {
+                const messagesContainer = document.getElementById('messages-container');
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }, 100);
 
             // Notify server
             if (currentCall) {

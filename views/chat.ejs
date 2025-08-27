@@ -774,7 +774,8 @@
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true,
-                        sampleRate: 44100
+                        sampleRate: 44100,
+                        channelCount: 1
                     },
                     video: type === 'video' ? {
                         width: { ideal: 1280 },
@@ -784,13 +785,22 @@
                 };
 
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                console.log('Local stream tracks:', localStream.getTracks().map(t => `${t.kind}: ${t.enabled}`));
+                console.log('Local stream tracks:', localStream.getTracks().map(t => `${t.kind}: ${t.enabled} readyState: ${t.readyState}`));
+                
+                // Ensure audio track is properly configured
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    console.log('Audio track settings:', audioTrack.getSettings());
+                    audioTrack.enabled = true;
+                }
+                
                 showCallInterface(type);
 
                 // Set local video
                 const localVideo = document.getElementById('local-video');
                 if (localVideo) {
                     localVideo.srcObject = localStream;
+                    localVideo.muted = true; // Always mute local video to prevent feedback
                 }
 
                 // Join the call room for signaling
@@ -801,14 +811,27 @@
 
                 // Add local stream to peer connection
                 localStream.getTracks().forEach(track => {
-                    console.log('Adding track:', track.kind, track.enabled);
-                    peerConnection.addTrack(track, localStream);
+                    console.log('Adding track:', track.kind, 'enabled:', track.enabled, 'readyState:', track.readyState);
+                    const sender = peerConnection.addTrack(track, localStream);
+                    console.log('Track added, sender:', sender);
+                    
+                    // Ensure audio track is not muted
+                    if (track.kind === 'audio') {
+                        track.enabled = true;
+                        console.log('Audio track explicitly enabled');
+                    }
                 });
 
                 // Handle remote stream
                 peerConnection.ontrack = (event) => {
-                    console.log('Received remote track:', event.track.kind);
-                    remoteStream = event.streams[0];
+                    console.log('Received remote track:', event.track.kind, event.track.enabled);
+                    
+                    if (!remoteStream) {
+                        remoteStream = new MediaStream();
+                    }
+                    
+                    // Add the track to our remote stream
+                    remoteStream.addTrack(event.track);
                     
                     if (event.track.kind === 'video') {
                         const remoteVideo = document.getElementById('remote-video');
@@ -816,18 +839,39 @@
                             remoteVideo.srcObject = remoteStream;
                             remoteVideo.autoplay = true;
                             remoteVideo.playsInline = true;
+                            remoteVideo.muted = false; // Important for audio in video calls
+                            
+                            // Ensure audio plays through video element in video calls
+                            remoteVideo.play().then(() => {
+                                console.log('Remote video with audio started playing');
+                            }).catch(e => {
+                                console.error('Failed to play remote video:', e);
+                                // Try to enable audio manually
+                                remoteVideo.muted = false;
+                                remoteVideo.volume = 1.0;
+                            });
                         }
                     } else if (event.track.kind === 'audio') {
-                        // Handle audio for both video and audio calls
-                        const remoteAudio = document.getElementById('remote-audio') || document.getElementById('remote-video');
-                        if (remoteAudio) {
-                            remoteAudio.srcObject = remoteStream;
-                            remoteAudio.autoplay = true;
-                            remoteAudio.volume = 1.0;
-                            remoteAudio.muted = false;
+                        // For audio calls, use the remote-video element which is hidden
+                        const audioElement = document.getElementById('remote-video');
+                        if (audioElement) {
+                            // Create a new stream with just the audio track for audio calls
+                            const audioStream = new MediaStream([event.track]);
+                            audioElement.srcObject = audioStream;
+                            audioElement.autoplay = true;
+                            audioElement.muted = false;
+                            audioElement.volume = 1.0;
                             
-                            // Force play for audio
-                            remoteAudio.play().catch(e => console.log('Audio play failed:', e));
+                            // Force play the audio
+                            audioElement.play().then(() => {
+                                console.log('Remote audio started playing');
+                            }).catch(e => {
+                                console.error('Audio play failed:', e);
+                                // Try alternative approach
+                                setTimeout(() => {
+                                    audioElement.play().catch(console.error);
+                                }, 100);
+                            });
                         }
                     }
                     
@@ -840,6 +884,7 @@
 
                 // Handle connection state changes
                 peerConnection.onconnectionstatechange = () => {
+                    console.log('Connection state changed:', peerConnection.connectionState);
                     const statusElement = document.getElementById('call-status') || document.getElementById('audio-call-status');
                     if (statusElement) {
                         switch(peerConnection.connectionState) {
@@ -848,6 +893,13 @@
                                 break;
                             case 'connected':
                                 statusElement.textContent = 'Connected';
+                                // Ensure audio is enabled when connected
+                                const audioElement = document.getElementById('remote-video');
+                                if (audioElement && audioElement.srcObject) {
+                                    audioElement.muted = false;
+                                    audioElement.volume = 1.0;
+                                    audioElement.play().catch(console.error);
+                                }
                                 break;
                             case 'disconnected':
                                 statusElement.textContent = 'Disconnected';
@@ -965,8 +1017,7 @@
                         </div>
                         <!-- Hidden audio/video elements for audio calls -->
                         <video id="local-video" autoplay muted playsinline class="hidden"></video>
-                        <video id="remote-video" autoplay playsinline class="hidden" volume="1.0"></video>
-                        <audio id="remote-audio" autoplay volume="1.0" class="hidden"></audio>
+                        <audio id="remote-video" autoplay playsinline style="display: none;" controls="false"></audio>
                     </div>
                     `}
                 </div>

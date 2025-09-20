@@ -1488,7 +1488,11 @@ app.post('/call/initiate', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        if (!receiver.online) {
+        // Check real-time online status from active connections
+        const isUserOnline = activeConnections.has(receiverId) && activeConnections.get(receiverId).size > 0;
+        console.log(`Call initiation: User ${receiverId} online status - DB: ${receiver.online}, Real-time: ${isUserOnline}`);
+        
+        if (!isUserOnline) {
             return res.status(400).json({ error: 'User is offline' });
         }
 
@@ -1841,15 +1845,35 @@ app.get('/calls/active', async (req, res) => {
 });
 
 // ----------- SOCKET.IO HANDLING -----------
+// Store active socket connections
+const activeConnections = new Map(); // userId -> Set of socket IDs
+
 io.on('connection', (socket) => {
-    console.log('A user connected');
+    console.log('A user connected:', socket.id);
 
     socket.on('userOnline', async (userId) => {
         try {
+            console.log(`User ${userId} came online with socket ${socket.id}`);
+            
             socket.userId = userId;
             socket.join(userId);
-            await User.findByIdAndUpdate(userId, { online: true, lastSeen: null });
+            
+            // Track this socket connection for the user
+            if (!activeConnections.has(userId)) {
+                activeConnections.set(userId, new Set());
+            }
+            activeConnections.get(userId).add(socket.id);
+            
+            // Update user status in database
+            await User.findByIdAndUpdate(userId, { 
+                online: true, 
+                lastSeen: null,
+                socketId: socket.id 
+            });
+            
+            // Broadcast status update to all clients
             io.emit('userStatus', { userId, online: true });
+            console.log(`Broadcasting user ${userId} is now online`);
 
             // Send any pending notifications
             const pendingCalls = await Call.find({
@@ -2043,15 +2067,32 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', async () => {
-        console.log('A user disconnected');
+        console.log('A user disconnected:', socket.id);
         try {
             if (socket.userId) {
                 const userId = socket.userId.toString();
-                await User.findByIdAndUpdate(userId, {
-                    online: false,
-                    lastSeen: new Date()
-                });
-                io.emit('userOffline', userId);
+                console.log(`User ${userId} disconnected with socket ${socket.id}`);
+                
+                // Remove this socket from active connections
+                if (activeConnections.has(userId)) {
+                    activeConnections.get(userId).delete(socket.id);
+                    
+                    // Only mark user as offline if no other sockets are connected
+                    if (activeConnections.get(userId).size === 0) {
+                        activeConnections.delete(userId);
+                        
+                        await User.findByIdAndUpdate(userId, {
+                            online: false,
+                            lastSeen: new Date(),
+                            socketId: null
+                        });
+                        
+                        io.emit('userStatus', { userId, online: false });
+                        console.log(`User ${userId} is now offline`);
+                    } else {
+                        console.log(`User ${userId} still has ${activeConnections.get(userId).size} active connections`);
+                    }
+                }
             }
         } catch (error) {
             console.error('Disconnect error:', error);

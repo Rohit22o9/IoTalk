@@ -1488,16 +1488,16 @@ app.post('/call/initiate', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Check real-time online status from active connections
+        // Check if receiver has any active socket connections
         const isUserOnline = activeConnections.has(receiverId) && activeConnections.get(receiverId).size > 0;
-        console.log(`Call initiation: User ${receiverId} online status - DB: ${receiver.online}, Real-time: ${isUserOnline}`);
+        console.log(`Call initiation: User ${receiverId} online status - Real-time: ${isUserOnline}`);
         console.log('Active connections:', Array.from(activeConnections.keys()));
+        console.log(`Receiver ${receiverId} connections:`, activeConnections.get(receiverId));
         
-        // Use database status as fallback if real-time status isn't available
-        const userIsOnline = isUserOnline || receiver.online;
-        
-        if (!userIsOnline) {
-            return res.status(400).json({ error: 'User is offline' });
+        // For now, allow calls even if user appears offline (they might just have connection issues)
+        // We can still send the call request and let it timeout if truly offline
+        if (!isUserOnline) {
+            console.log(`User ${receiverId} appears offline, but sending call request anyway`);
         }
 
         const existingCall = await Call.findOne({

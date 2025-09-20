@@ -1958,11 +1958,16 @@ io.on('connection', (socket) => {
     socket.on('join-call-room', (callId) => {
         socket.join(`call-${callId}`);
         console.log(`User ${socket.userId} joined call room: call-${callId}`);
+        
+        // Emit confirmation back to the user
+        socket.emit('call-room-joined', { callId });
     });
 
     socket.on('call-offer', (data) => {
         console.log(`Call offer from ${socket.userId} for call ${data.callId}`);
-        console.log('Call offer data:', data);
+        console.log('Call offer SDP type:', data.offer?.type);
+        
+        // Broadcast to all users in the call room except sender
         socket.to(`call-${data.callId}`).emit('call-offer', {
             callId: data.callId,
             offer: data.offer,
@@ -1972,7 +1977,9 @@ io.on('connection', (socket) => {
 
     socket.on('call-answer', (data) => {
         console.log(`Call answer from ${socket.userId} for call ${data.callId}`);
-        console.log('Call answer data:', data);
+        console.log('Call answer SDP type:', data.answer?.type);
+        
+        // Send answer back to the caller
         socket.to(`call-${data.callId}`).emit('call-answer', {
             callId: data.callId,
             answer: data.answer,
@@ -1982,6 +1989,9 @@ io.on('connection', (socket) => {
 
     socket.on('ice-candidate', (data) => {
         console.log(`ICE candidate from ${socket.userId} for call ${data.callId}`);
+        console.log('ICE candidate type:', data.candidate?.candidate);
+        
+        // Forward ICE candidate to all other participants
         socket.to(`call-${data.callId}`).emit('ice-candidate', {
             callId: data.callId,
             candidate: data.candidate,

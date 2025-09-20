@@ -12,7 +12,17 @@ class GroupCallManager {
         this.currentCall = null;
         this.isInGroupCall = false;
         
+        // WebRTC configuration with STUN servers
+        this.pcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
+        
         this.initializeEventListeners();
+        console.log('GroupCallManager initialized with WebRTC config');
     }
 
     initializeEventListeners() {
@@ -328,6 +338,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize group call manager after DOM is loaded
     if (typeof io !== 'undefined') {
         groupCallManager = new GroupCallManager();
+        window.groupCallManager = groupCallManager; // Make it globally accessible
+        console.log('Group call manager initialized and set globally');
+    } else {
+        console.error('Socket.IO not loaded for group calls');
     }
     console.log('Group calls script loaded');
     

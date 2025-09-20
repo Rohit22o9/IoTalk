@@ -62,6 +62,10 @@ class CallManager {
         });
 
         // WebRTC signaling events
+        this.socket.on('call-room-joined', (data) => {
+            console.log('Successfully joined call room:', data.callId);
+        });
+
         this.socket.on('call-offer', async (data) => {
             console.log('Received call offer:', data);
             await this.handleCallOffer(data);
@@ -400,37 +404,54 @@ class CallManager {
     }
 
     async createPeerConnection() {
-        console.log('Creating peer connection');
+        console.log('Creating peer connection with config:', this.pcConfig);
         
         this.peerConnection = new RTCPeerConnection(this.pcConfig);
+        
+        // Add connection state listeners for debugging
+        this.peerConnection.onconnectionstatechange = () => {
+            console.log('Connection state changed:', this.peerConnection.connectionState);
+        };
+        
+        this.peerConnection.oniceconnectionstatechange = () => {
+            console.log('ICE connection state changed:', this.peerConnection.iceConnectionState);
+        };
+        
+        this.peerConnection.onicegatheringstatechange = () => {
+            console.log('ICE gathering state changed:', this.peerConnection.iceGatheringState);
+        };
         
         // Add local stream
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
+                console.log('Adding track to peer connection:', track.kind);
                 this.peerConnection.addTrack(track, this.localStream);
             });
         }
         
         // Handle remote stream
         this.peerConnection.ontrack = (event) => {
-            console.log('Received remote stream');
+            console.log('Received remote stream tracks:', event.streams.length);
             const [remoteStream] = event.streams;
             this.remoteStream = remoteStream;
             
             const remoteVideo = document.getElementById('remote-video');
             if (remoteVideo) {
                 remoteVideo.srcObject = remoteStream;
+                console.log('Set remote video stream');
             }
         };
         
         // Handle ICE candidates
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('Sending ICE candidate');
+                console.log('Sending ICE candidate:', event.candidate.candidate);
                 this.socket.emit('ice-candidate', {
                     callId: this.currentCall.callId,
                     candidate: event.candidate
                 });
+            } else {
+                console.log('ICE gathering completed');
             }
         };
         
@@ -585,6 +606,9 @@ let callManager;
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof io !== 'undefined') {
         callManager = new CallManager();
-        console.log('Call manager initialized');
+        window.callManager = callManager; // Make it globally accessible
+        console.log('Call manager initialized and set globally');
+    } else {
+        console.error('Socket.IO not loaded');
     }
 });

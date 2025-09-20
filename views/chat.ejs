@@ -409,8 +409,34 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
+  <script src="/js/webrtc-debug.js"></script>
   <script src="/js/call.js"></script>
   <script>
+    // Global variables
+    const otherUserId = "<%= otherUser._id %>";
+    const currentUserId = "<%= currentUser._id %>";
+    
+    // Call initiation functions
+    function initiateAudioCall() {
+      console.log('Initiating audio call to user:', otherUserId);
+      if (window.callManager) {
+        window.callManager.initiateCall(otherUserId, 'audio');
+      } else {
+        console.error('CallManager not initialized');
+        alert('Call system not ready. Please refresh the page.');
+      }
+    }
+
+    function initiateVideoCall() {
+      console.log('Initiating video call to user:', otherUserId);
+      if (window.callManager) {
+        window.callManager.initiateCall(otherUserId, 'video');
+      } else {
+        console.error('CallManager not initialized');
+        alert('Call system not ready. Please refresh the page.');
+      }
+    }
+
     // Voice message playback functionality
     let currentAudio = null;
     let currentPlayButton = null;

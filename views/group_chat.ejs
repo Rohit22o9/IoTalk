@@ -198,6 +198,155 @@
     #groupInfoPanel.open {
       width: 320px;
     }
+
+    /* WebRTC Call UI Styles */
+    .video-call-container {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.8);
+        z-index: 100;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        color: white;
+        font-family: sans-serif;
+    }
+    .video-call-container video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+    .video-call-container .remote-video {
+        position: absolute;
+        top: 60px;
+        left: 20px;
+        width: 30%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 1;
+    }
+    .video-call-container .local-video-wrapper {
+        position: absolute;
+        top: 60px;
+        right: 20px;
+        width: 30%;
+        height: auto;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 2;
+        overflow: hidden;
+    }
+    .video-call-container .local-video-wrapper video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .video-call-controls {
+        position: absolute;
+        bottom: 30px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        z-index: 3;
+    }
+    .video-call-controls button {
+        background-color: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+    .video-call-controls button:hover {
+        background-color: rgba(255, 255, 255, 0.3);
+        transform: scale(1.05);
+    }
+    .video-call-controls button.mute-btn svg, .video-call-controls button.video-off-btn svg {
+        width: 28px;
+        height: 28px;
+    }
+    .video-call-controls button.end-call-btn {
+        background-color: #e53e3e;
+        border-color: #c53030;
+    }
+    .video-call-controls button.end-call-btn:hover {
+        background-color: #c53030;
+    }
+    .ringing-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 15px 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 110;
+        animation: bounceInRight 0.5s ease forwards;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .ringing-notification-content p {
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    .ringing-notification-content strong {
+        font-size: 1.1rem;
+    }
+    .ringing-actions button {
+        margin-left: 10px;
+        padding: 8px 15px;
+        border-radius: 8px;
+        font-weight: bold;
+        transition: all 0.2s ease;
+    }
+    .ringing-actions .accept-call {
+        background-color: #38a169; /* Green */
+        color: white;
+    }
+    .ringing-actions .accept-call:hover {
+        background-color: #2f855a;
+    }
+    .ringing-actions .decline-call {
+        background-color: #e53e3e; /* Red */
+        color: white;
+    }
+    .ringing-actions .decline-call:hover {
+        background-color: #c53030;
+    }
+    .call-status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-left: 5px;
+        animation: pulse 1.5s infinite;
+    }
+    .call-status-indicator.audio-call { background-color: #48bb78; } /* Green */
+    .call-status-indicator.video-call { background-color: #4299e1; } /* Blue */
+
+    @keyframes pulse {
+        0% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(1.2); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes bounceInRight {
+        0% { opacity: 0; transform: translateX(100%); }
+        60% { opacity: 1; transform: translateX(-10px); }
+        80% { transform: translateX(5px); }
+        100% { opacity: 1; transform: translateX(0); }
+    }
   </style>
 </head>
 
@@ -222,8 +371,23 @@
             <p class="text-xs font-medium text-gray-500"><%= group.members.length %> members</p>
           </div>
         </div>
-        <!-- Call buttons will be added here by JavaScript -->
-        <div id="group-call-buttons-container"></div>
+        <!-- Group call buttons -->
+        <div id="group-call-buttons-container" class="flex space-x-2">
+            <button onclick="groupCallManager.initiateGroupCall('<%= group._id %>', 'audio')"
+                    class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+                    title="Audio Call">
+                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                </svg>
+            </button>
+            <button onclick="groupCallManager.initiateGroupCall('<%= group._id %>', 'video')"
+                    class="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+                    title="Video Call">
+                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+            </svg>
+        </button>
+        </div>
       </div>
     </header>
 
@@ -335,7 +499,7 @@
                       </strong>
                       <%= chat.msg %>
                     </p>
-                    <% 
+                    <%
                     const hasVideoLink = /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/video\/|dailymotion\.com\/video\/))/.test(chat.msg);
                     const shouldShowSummarize = chat.msg.length > 200 || hasVideoLink;
                     %>
@@ -554,7 +718,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
-      </div>
+  </div>
   </div>
 
     <!-- Voice Recording Modal (like personal chats) -->
@@ -601,11 +765,11 @@
           <p class="text-sm text-gray-500 mt-2">Generating comprehensive summary...</p>
         </div>
         <div id="ai-summary-actions" class="hidden mt-4 flex space-x-2">
-          <button id="copy-summary-btn" onclick="copySummaryToClipboard()" 
+          <button id="copy-summary-btn" onclick="copySummaryToClipboard()"
                   class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
             📋 Copy Summary
           </button>
-          <button id="watch-video-btn" onclick="openVideoLink()" 
+          <button id="watch-video-btn" onclick="openVideoLink()"
                   class="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm transition-colors hidden">
             📺 Watch Video
           </button>
@@ -642,6 +806,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
+  <script src="/js/groupCall.js"></script>
   <script>
     // Initialize socket and group chat variables
     const groupChatSocket = io();
@@ -1039,7 +1204,7 @@
             ${msg.msg ? `
               <div class="message-text relative group">
                 <p class="text-sm leading-relaxed">
-                  <strong class="${isMine ? 'text-primary-100' : 'text-secondary-700'}">${msg.from.username}:</strong> 
+                  <strong class="${isMine ? 'text-primary-100' : 'text-secondary-700'}">${msg.from.username}:</strong>
                   ${escapeHtml(msg.msg)}
                 </p>
                 ${(msg.msg.length > 200 || /(?:https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|vimeo\.com\/video\/|dailymotion\.com\/video\/))/.test(msg.msg)) ? `
@@ -1668,7 +1833,7 @@
                 const messageText = fullText.substring(colonIndex + 1).trim();
 
                 if (messageText) {
-                    const isOwn = container.classList.contains('justify-end') || 
+                    const isOwn = container.classList.contains('justify-end') ||
                                  container.querySelector('.justify-end') !== null;
 
                     chatMessages.push({
@@ -1773,7 +1938,7 @@
             </div>
             <div class="space-y-2 max-h-48 overflow-y-auto">
                 ${replies.map((reply, index) => `
-                    <button onclick="selectGroupAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'").replace(/\n/g, '\\n')}\`)" 
+                    <button onclick="selectGroupAIReply(\`${reply.replace(/`/g, '\\`').replace(/'/g, "\\'").replace(/\n/g, '\\n')}\`)"
                             class="w-full text-left p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg text-sm transition-all duration-200 transform hover:scale-[1.02] border border-blue-100 hover:border-blue-200">
                         <div class="flex items-start space-x-2">
                             <div class="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
@@ -1841,6 +2006,5 @@
         }
     }
   </script>
-  <script src="/js/groupCall.js"></script>
 </body>
 </html>

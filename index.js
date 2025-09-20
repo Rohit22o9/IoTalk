@@ -1962,16 +1962,31 @@ io.on('connection', (socket) => {
 
     socket.on('call-offer', (data) => {
         console.log(`Call offer from ${socket.userId} for call ${data.callId}`);
-        socket.to(`call-${data.callId}`).emit('call-offer', data);
+        console.log('Call offer data:', data);
+        socket.to(`call-${data.callId}`).emit('call-offer', {
+            callId: data.callId,
+            offer: data.offer,
+            from: socket.userId
+        });
     });
 
     socket.on('call-answer', (data) => {
         console.log(`Call answer from ${socket.userId} for call ${data.callId}`);
-        socket.to(`call-${data.callId}`).emit('call-answer', data);
+        console.log('Call answer data:', data);
+        socket.to(`call-${data.callId}`).emit('call-answer', {
+            callId: data.callId,
+            answer: data.answer,
+            from: socket.userId
+        });
     });
 
     socket.on('ice-candidate', (data) => {
-        socket.to(`call-${data.callId}`).emit('ice-candidate', data);
+        console.log(`ICE candidate from ${socket.userId} for call ${data.callId}`);
+        socket.to(`call-${data.callId}`).emit('ice-candidate', {
+            callId: data.callId,
+            candidate: data.candidate,
+            from: socket.userId
+        });
     });
 
     socket.on('call-ended', (data) => {

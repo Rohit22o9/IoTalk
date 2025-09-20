@@ -2,7 +2,11 @@
 // Group Call Management
 class GroupCallManager {
     constructor() {
-        this.socket = io();
+        // Use existing socket if available, otherwise create new one
+        this.socket = window.socket || io();
+        if (!window.socket) {
+            window.socket = this.socket;
+        }
         this.localStream = null;
         this.peerConnections = new Map();
         this.currentCall = null;

@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeFormValidation();
     initializeTooltips();
     initializeNotifications();
+    
+    // Initialize call functionality if not already done
+    if (typeof callManager === 'undefined' && typeof io !== 'undefined') {
+        // Call manager will be initialized by call.js
+        console.log('Main.js loaded, call.js will handle call initialization');
+    }
 });
 
 // Animation utilities

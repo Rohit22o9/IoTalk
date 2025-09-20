@@ -1491,8 +1491,12 @@ app.post('/call/initiate', async (req, res) => {
         // Check real-time online status from active connections
         const isUserOnline = activeConnections.has(receiverId) && activeConnections.get(receiverId).size > 0;
         console.log(`Call initiation: User ${receiverId} online status - DB: ${receiver.online}, Real-time: ${isUserOnline}`);
+        console.log('Active connections:', Array.from(activeConnections.keys()));
         
-        if (!isUserOnline) {
+        // Use database status as fallback if real-time status isn't available
+        const userIsOnline = isUserOnline || receiver.online;
+        
+        if (!userIsOnline) {
             return res.status(400).json({ error: 'User is offline' });
         }
 
@@ -1874,6 +1878,7 @@ io.on('connection', (socket) => {
             // Broadcast status update to all clients
             io.emit('userStatus', { userId, online: true });
             console.log(`Broadcasting user ${userId} is now online`);
+            console.log(`Active connections now: ${Array.from(activeConnections.keys()).join(', ')}`);
 
             // Send any pending notifications
             const pendingCalls = await Call.find({

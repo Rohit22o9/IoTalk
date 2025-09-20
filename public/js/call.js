@@ -605,10 +605,22 @@ let callManager;
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof io !== 'undefined') {
-        callManager = new CallManager();
-        window.callManager = callManager; // Make it globally accessible
-        console.log('Call manager initialized and set globally');
+        // Wait a bit to ensure other scripts have loaded
+        setTimeout(() => {
+            callManager = new CallManager();
+            window.callManager = callManager; // Make it globally accessible
+            console.log('Call manager initialized and set globally');
+        }, 100);
     } else {
         console.error('Socket.IO not loaded');
     }
 });
+
+// Also make it available immediately if called before DOM ready
+window.initializeCallManager = function() {
+    if (!window.callManager && typeof io !== 'undefined') {
+        callManager = new CallManager();
+        window.callManager = callManager;
+        console.log('Call manager initialized via manual call');
+    }
+};

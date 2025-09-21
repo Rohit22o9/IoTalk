@@ -1,0 +1,36 @@
+You are my coding assistant. I have a Node.js + Express.js + Socket.IO + WebRTC chat app. 
+I’m facing this issue:  
+- When a caller clicks the call button, the receiver gets the incoming call popup.  
+- But when the receiver clicks the green accept button, the call does not connect.  
+- If somehow it connects, there is no voice transfer between peers.  
+
+Please carefully check and fix the WebRTC signaling and media stream handling in my project.  
+Here is what you need to do:  
+
+1. **Check signaling logic in Socket.IO**  
+   - Ensure `offer`, `answer`, and `ice-candidate` events are sent to the correct user (room-based signaling).  
+   - Verify that after receiving an offer, the receiver creates an answer and sends it back correctly.  
+   - Ensure ICE candidates are exchanged both ways.  
+
+2. **Fix Media Stream Issues**  
+   - When starting the call, ensure `navigator.mediaDevices.getUserMedia({ audio: true, video: true })` is called.  
+   - Add local audio/video tracks to `RTCPeerConnection` with `addTrack`.  
+   - On `pc.ontrack`, attach the remote stream to an `<audio>` or `<video>` element (`remoteAudio.srcObject = event.streams[0];`).  
+   - Ensure `autoplay` and `playsinline` are set, and call `remoteAudio.play()` inside a user interaction event to avoid browser autoplay restrictions.  
+
+3. **Verify Call Accept Flow**  
+   - When the receiver clicks accept, make sure the app sends back an `answer` over Socket.IO.  
+   - Ensure the peer connection is created before setting the remote description.  
+   - Log all signaling steps (`offer received`, `answer sent`, `ice candidate sent/received`) to debug.  
+
+4. **Debug Voice Not Coming**  
+   - Ensure audio tracks are not muted or disabled (`track.enabled = true`).  
+   - Check if remote stream is attached properly to an audio element and the volume is not 0.  
+   - If testing locally, allow microphone permissions in the browser.  
+
+Please update my code so that:  
+- The call connects immediately after the receiver accepts.  
+- Voice is transmitted clearly between caller and receiver.  
+- Add console logs at each signaling step for debugging.  
+
+Make minimal but effective code fixes in both **client-side (JS/WebRTC)** and **server-side (Socket.IO signaling)**.

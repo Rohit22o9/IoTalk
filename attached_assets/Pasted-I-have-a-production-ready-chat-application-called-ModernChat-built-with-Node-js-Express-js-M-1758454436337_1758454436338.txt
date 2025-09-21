@@ -1,0 +1,44 @@
+I have a production-ready chat application called ModernChat built with:
+- Node.js + Express.js + MongoDB + Socket.IO
+- EJS + Tailwind CSS on the frontend
+- WebRTC for voice/video calls
+- Deployed on Replit
+
+✅ Current status:
+- Messaging (personal & group) works perfectly.
+- Call signaling partly works: when a caller clicks the call button, the receiver correctly gets the call notification.
+
+❌ Problems:
+1. When the receiver clicks the "Answer" button:
+   - On the receiver side → the UI updates and shows "connected".
+   - On the caller side → it still shows "Calling…" and never switches to "Connected".
+   - This means the offer/answer exchange or ICE candidate handling is broken.
+2. Voice is not being transmitted on either side (both users hear nothing).
+3. During a call, the **typing bar from chat is still visible on both caller and receiver UIs**, which breaks the interface.
+
+⚠️ Important:
+Do **not** disturb or break any existing working features (authentication, chat, sessions, encryption, file uploads, communities, etc.). Only fix the call connection, audio streaming, and UI issue.
+
+✅ Please fix the calling system with these steps:
+1. **WebRTC Signaling Fix**
+   - Ensure that when the receiver answers, the `answer` SDP is sent to the caller and applied correctly.
+   - Verify ICE candidate exchange works both ways (`pc.onicecandidate` → Socket.IO emit → `pc.addIceCandidate`).
+   - Add detailed console logs for offer/answer creation, setting local/remote descriptions, and ICE candidate exchange.
+
+2. **Audio Transmission Fix**
+   - Make sure `navigator.mediaDevices.getUserMedia({ audio: true })` is used before creating the offer/answer.
+   - Ensure audio tracks are added to the peer connection:  
+     `stream.getTracks().forEach(track => pc.addTrack(track, stream));`
+   - On the remote side, implement `pc.ontrack = event => { ... }` to play incoming audio in a hidden `<audio autoplay>` element.
+   - Configure STUN + TURN servers in the peer connection (Replit requires TURN):
+     ```js
+     const pc = new RTCPeerConnection({
+       iceServers: [
+         { urls: "stun:stun.l.google.com:19302" },
+         {
+           urls: "turn:openrelay.metered.ca:80",
+           username: "openrelayproject",
+           credential: "openrelayproject"
+         }
+       ]
+     });

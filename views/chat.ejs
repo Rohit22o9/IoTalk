@@ -461,6 +461,7 @@
       
       initializeCallSystem();
       initializeChat();
+      initializeScrollBehavior();
       
       console.log('Chat page initialization complete');
     });
@@ -1968,6 +1969,117 @@
       }
     }
     
+    // Auto-scroll functionality
+    let isUserScrolling = false;
+    let scrollTimeout = null;
+    let newMessageIndicator = null;
+    
+    // Helper function to scroll to bottom
+    function scrollToBottom(smooth = true) {
+      const container = document.getElementById('messages-container');
+      if (!container) {
+        console.warn('Messages container not found for scrolling');
+        return;
+      }
+      
+      console.log('📜 Scrolling to bottom, smooth:', smooth);
+      
+      if (smooth) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+    
+    // Check if user is near bottom of chat
+    function isNearBottom() {
+      const container = document.getElementById('messages-container');
+      if (!container) return true;
+      
+      const threshold = 100; // pixels from bottom
+      const isNear = container.scrollTop + container.clientHeight >= container.scrollHeight - threshold;
+      console.log('📜 Is near bottom:', isNear, {
+        scrollTop: container.scrollTop,
+        clientHeight: container.clientHeight,
+        scrollHeight: container.scrollHeight,
+        threshold: threshold
+      });
+      return isNear;
+    }
+    
+    // Create and show new message indicator
+    function showNewMessageIndicator() {
+      if (newMessageIndicator) return; // Already showing
+      
+      console.log('📜 Showing new message indicator');
+      
+      newMessageIndicator = document.createElement('div');
+      newMessageIndicator.id = 'new-message-indicator';
+      newMessageIndicator.className = 'fixed bottom-28 left-1/2 transform -translate-x-1/2 bg-primary-500 text-white px-4 py-2 rounded-full shadow-lg cursor-pointer hover:bg-primary-600 transition-all duration-200 z-40 animate-bounce';
+      newMessageIndicator.innerHTML = `
+        <div class="flex items-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+          </svg>
+          <span class="text-sm font-medium">New Messages</span>
+        </div>
+      `;
+      
+      newMessageIndicator.addEventListener('click', () => {
+        console.log('📜 New message indicator clicked, scrolling to bottom');
+        hideNewMessageIndicator();
+        scrollToBottom(true);
+      });
+      
+      document.body.appendChild(newMessageIndicator);
+    }
+    
+    // Hide new message indicator
+    function hideNewMessageIndicator() {
+      if (newMessageIndicator) {
+        console.log('📜 Hiding new message indicator');
+        newMessageIndicator.remove();
+        newMessageIndicator = null;
+      }
+    }
+    
+    // Initialize scroll behavior
+    function initializeScrollBehavior() {
+      const container = document.getElementById('messages-container');
+      if (!container) {
+        console.warn('Messages container not found for scroll initialization');
+        return;
+      }
+      
+      console.log('📜 Initializing scroll behavior');
+      
+      // Detect user scrolling
+      container.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        isUserScrolling = true;
+        
+        // Check if user scrolled to bottom, hide indicator if so
+        if (isNearBottom()) {
+          hideNewMessageIndicator();
+        }
+        
+        // Reset user scrolling flag after scroll ends
+        scrollTimeout = setTimeout(() => {
+          isUserScrolling = false;
+          console.log('📜 User stopped scrolling');
+        }, 150);
+      });
+      
+      // Auto-scroll to bottom when chat opens
+      console.log('📜 Auto-scrolling to bottom on chat open');
+      setTimeout(() => {
+        scrollToBottom(false); // No smooth scroll on initial load
+      }, 100);
+    }
+    
     // Chat message functions
     async function sendMessage(e) {
       e.preventDefault();
@@ -1993,6 +2105,10 @@
           messageInput.value = '';
           mediaInput.value = '';
           hideFilePreview();
+          
+          // Auto-scroll after sending message
+          console.log('📜 Message sent, auto-scrolling to bottom');
+          setTimeout(() => scrollToBottom(true), 100);
         }
       } catch (error) {
         console.error('Error sending message:', error);
@@ -2002,6 +2118,8 @@
     function appendMessage(message) {
       const container = document.getElementById('messages-container');
       const messageDiv = document.createElement('div');
+      
+      console.log('📜 Appending new message from:', message.from.username);
       
       // Add message to DOM (simplified version)
       messageDiv.innerHTML = `
@@ -2020,7 +2138,22 @@
       `;
       
       container.appendChild(messageDiv);
-      container.scrollTop = container.scrollHeight;
+      
+      // Handle auto-scroll for new messages
+      if (message.from._id === currentUserId) {
+        // Always auto-scroll for own messages
+        console.log('📜 Own message, auto-scrolling to bottom');
+        setTimeout(() => scrollToBottom(true), 100);
+      } else {
+        // For other users' messages, check if user is scrolled up
+        if (isNearBottom() && !isUserScrolling) {
+          console.log('📜 User near bottom, auto-scrolling to new message');
+          setTimeout(() => scrollToBottom(true), 100);
+        } else {
+          console.log('📜 User scrolled up, showing new message indicator');
+          showNewMessageIndicator();
+        }
+      }
     }
     
     function showTypingIndicator(data) {
@@ -2109,10 +2242,13 @@
         });
       });
 
-      observer.observe(document.getElementById('messages-container'), {
-        childList: true,
-        subtree: true
-      });
+      const messagesContainer = document.getElementById('messages-container');
+      if (messagesContainer) {
+        observer.observe(messagesContainer, {
+          childList: true,
+          subtree: true
+        });
+      }
     });
   </script>
 </body>

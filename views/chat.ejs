@@ -634,8 +634,8 @@
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 48000,
-          sampleSize: 16
+          sampleRate: 44100,
+          channelCount: 1
         },
         video: type === 'video' ? {
           width: { ideal: 640, min: 320 },
@@ -657,68 +657,60 @@
           localStream = null;
         }
         
-        // Request permissions
+        // Request permissions with explicit audio requirement
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('✅ Successfully got user media');
         
-        // Verify stream is active
-        if (!localStream.active) {
-          console.error('❌ Local stream is not active');
-          throw new Error('Media stream is not active');
+        // Verify stream is active and has tracks
+        if (!localStream || !localStream.active || localStream.getTracks().length === 0) {
+          console.error('❌ Invalid local stream');
+          throw new Error('Failed to get valid media stream');
         }
         
-        // Log track details and ensure they're enabled
-        const tracks = localStream.getTracks();
-        if (tracks.length === 0) {
-          console.error('❌ No tracks in local stream');
-          throw new Error('No tracks available in media stream');
+        // Verify we have audio tracks
+        const audioTracks = localStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          console.error('❌ No audio tracks in stream');
+          throw new Error('No audio tracks available');
         }
         
-        tracks.forEach(track => {
-          console.log(`🎤 Got ${track.kind} track:`, {
+        // Configure audio tracks properly
+        audioTracks.forEach((track, index) => {
+          track.enabled = true;
+          console.log(`🔊 Audio track ${index}:`, {
             enabled: track.enabled,
             muted: track.muted,
             readyState: track.readyState,
             label: track.label,
-            settings: track.getSettings ? track.getSettings() : 'N/A'
+            kind: track.kind,
+            settings: track.getSettings()
           });
           
-          // Force enable all tracks
-          track.enabled = true;
-          
-          // Verify track is ready
+          // Verify track is live
           if (track.readyState !== 'live') {
-            console.warn(`⚠️ ${track.kind} track is not live:`, track.readyState);
+            console.warn(`⚠️ Audio track ${index} is not live:`, track.readyState);
           }
           
-          // Add event listeners
-          track.addEventListener('ended', () => {
-            console.log(`🎤 ${track.kind} track ended`);
-          });
-          
-          track.addEventListener('mute', () => {
-            console.log(`🎤 ${track.kind} track muted`);
-          });
-          
-          track.addEventListener('unmute', () => {
-            console.log(`🎤 ${track.kind} track unmuted`);
+          // Add track event listeners
+          track.onended = () => console.log(`🔊 Audio track ${index} ended`);
+          track.onmute = () => console.log(`🔇 Audio track ${index} muted`);
+          track.onunmute = () => console.log(`🔊 Audio track ${index} unmuted`);
+        });
+        
+        // Configure video tracks if present
+        const videoTracks = localStream.getVideoTracks();
+        videoTracks.forEach((track, index) => {
+          track.enabled = true;
+          console.log(`📹 Video track ${index}:`, {
+            enabled: track.enabled,
+            muted: track.muted,
+            readyState: track.readyState,
+            label: track.label
           });
         });
         
-        // Test audio track specifically
-        const audioTracks = localStream.getAudioTracks();
-        if (audioTracks.length > 0) {
-          console.log('🔊 Audio track available for transmission:', {
-            count: audioTracks.length,
-            enabled: audioTracks[0].enabled,
-            settings: audioTracks[0].getSettings ? audioTracks[0].getSettings() : null
-          });
-          
-          // Test audio level detection
-          testAudioLevel(localStream);
-        } else {
-          console.error('❌ No audio tracks in stream');
-        }
+        // Test audio capabilities
+        testAudioCapabilities(localStream);
         
         // Store stream globally for debugging
         window.localStream = localStream;
@@ -728,17 +720,17 @@
         console.error('❌ Error accessing media devices:', error);
         
         // Handle specific error types
-        let errorMessage = 'Failed to access microphone/camera';
+        let errorMessage = 'Failed to access microphone';
         if (error.name === 'NotAllowedError') {
-          errorMessage = 'Please allow microphone and camera access in your browser settings and try again.';
+          errorMessage = 'Microphone access denied. Please allow microphone permissions and refresh the page.';
         } else if (error.name === 'NotFoundError') {
-          errorMessage = 'No microphone or camera found. Please connect audio/video devices.';
+          errorMessage = 'No microphone found. Please connect a microphone and try again.';
         } else if (error.name === 'NotReadableError') {
-          errorMessage = 'Your microphone/camera is being used by another application.';
+          errorMessage = 'Microphone is being used by another application. Close other apps and try again.';
         } else if (error.name === 'OverconstrainedError') {
-          errorMessage = 'Camera/microphone does not meet the required specifications.';
+          errorMessage = 'Microphone does not meet the required specifications.';
         } else {
-          errorMessage = error.message || 'Unknown media access error';
+          errorMessage = error.message || 'Unknown microphone access error';
         }
         
         alert(errorMessage);
@@ -746,9 +738,26 @@
       }
     }
     
-    function testAudioLevel(stream) {
+    function testAudioCapabilities(stream) {
       try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // Test Web Audio API support
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+          console.warn('⚠️ Web Audio API not supported');
+          return;
+        }
+
+        const audioContext = new AudioContextClass();
+        console.log('🔊 Audio context state:', audioContext.state);
+        
+        // Resume audio context if suspended
+        if (audioContext.state === 'suspended') {
+          audioContext.resume().then(() => {
+            console.log('🔊 Audio context resumed');
+          });
+        }
+        
+        // Create analyzer for audio level detection
         const analyser = audioContext.createAnalyser();
         const microphone = audioContext.createMediaStreamSource(stream);
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -756,35 +765,43 @@
         microphone.connect(analyser);
         analyser.fftSize = 256;
         
+        let levelCheckCount = 0;
+        const maxChecks = 50; // Check for 5 seconds max
+        
         function checkAudioLevel() {
-          analyser.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          
-          if (average > 0) {
-            console.log('🔊 Audio level detected:', average);
-            // Clean up
-            microphone.disconnect();
-            audioContext.close();
+          if (levelCheckCount >= maxChecks) {
+            console.log('🔊 Audio level test completed');
+            cleanupAudioTest();
             return;
           }
           
+          analyser.getByteFrequencyData(dataArray);
+          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+          
+          if (average > 5) { // Lower threshold
+            console.log('✅ Audio input detected, level:', average);
+            cleanupAudioTest();
+            return;
+          }
+          
+          levelCheckCount++;
           requestAnimationFrame(checkAudioLevel);
         }
         
-        checkAudioLevel();
-        
-        // Timeout after 3 seconds
-        setTimeout(() => {
+        function cleanupAudioTest() {
           try {
             microphone.disconnect();
             audioContext.close();
           } catch (e) {
-            console.log('Audio context cleanup completed');
+            console.log('🔊 Audio test cleanup completed');
           }
-        }, 3000);
+        }
+        
+        // Start level check
+        checkAudioLevel();
         
       } catch (error) {
-        console.log('Audio level test not available:', error.message);
+        console.warn('⚠️ Audio capabilities test failed:', error.message);
       }
     }
     
@@ -1195,9 +1212,13 @@
       peerConnection.oniceconnectionstatechange = () => {
         console.log('🧊 ICE connection state:', peerConnection.iceConnectionState);
         if (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed') {
-          console.log('✅ ICE connection established');
+          console.log('✅ ICE connection established - audio should now flow');
+          verifyAudioFlow();
         } else if (peerConnection.iceConnectionState === 'failed') {
           console.error('❌ ICE connection failed');
+          // Try to restart ICE
+          console.log('🔄 Attempting ICE restart...');
+          peerConnection.restartIce();
         }
       };
       
@@ -1208,7 +1229,7 @@
       // Handle ICE candidates
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log('🧊 New ICE candidate:', event.candidate.type);
+          console.log('🧊 New ICE candidate:', event.candidate.type, event.candidate.candidate);
           chatSocket.emit('ice-candidate', {
             callId: currentCall.callId,
             candidate: event.candidate
@@ -1218,136 +1239,115 @@
         }
       };
       
-      // Handle incoming remote stream
+      // Handle incoming remote stream with enhanced audio setup
       peerConnection.ontrack = (event) => {
         console.log('📥 Received remote track:', event.track.kind, event.track.readyState);
         
-        // Log track details
-        console.log('📥 Track details:', {
+        // Enhanced track logging
+        console.log('📥 Remote track details:', {
           kind: event.track.kind,
           enabled: event.track.enabled,
           muted: event.track.muted,
           readyState: event.track.readyState,
           label: event.track.label,
-          id: event.track.id
+          id: event.track.id,
+          settings: event.track.getSettings ? event.track.getSettings() : null
         });
         
         const [remoteStream] = event.streams;
         
         if (!remoteStream) {
-          console.error('❌ No remote stream received in ontrack event');
+          console.error('❌ No remote stream in ontrack event');
           return;
         }
         
-        console.log('📥 Remote stream details:', {
+        console.log('📥 Remote stream received:', {
           id: remoteStream.id,
           active: remoteStream.active,
-          tracks: remoteStream.getTracks().map(t => ({
-            kind: t.kind,
-            enabled: t.enabled,
-            muted: t.muted,
-            readyState: t.readyState
-          }))
+          audioTracks: remoteStream.getAudioTracks().length,
+          videoTracks: remoteStream.getVideoTracks().length
         });
         
-        // Store the remote stream globally for debugging
+        // Store the remote stream globally
         window.remoteStream = remoteStream;
         
-        // Handle remote video (if video call)
-        if (callType === 'video') {
-          const remoteVideo = document.getElementById('remote-video');
-          if (remoteVideo) {
-            console.log('📹 Setting up remote video element');
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.autoplay = true;
-            remoteVideo.playsInline = true;
-            remoteVideo.muted = false;
-            
-            remoteVideo.addEventListener('loadedmetadata', () => {
-              console.log('📹 Remote video metadata loaded');
-              remoteVideo.play().catch(err => {
-                console.error('❌ Error playing remote video:', err);
-              });
-            });
-          }
+        // Handle remote video if video call
+        if (callType === 'video' && event.track.kind === 'video') {
+          setupRemoteVideo(remoteStream);
         }
         
-        // Always handle remote audio for both audio and video calls
-        console.log('🔊 Setting up remote audio...');
-        setupRemoteAudio(remoteStream);
+        // Always setup remote audio for both audio and video calls
+        if (event.track.kind === 'audio') {
+          console.log('🔊 Setting up remote audio track...');
+          setupRemoteAudio(remoteStream);
+        }
         
-        // Monitor track events
-        event.track.addEventListener('ended', () => {
+        // Monitor track state changes
+        event.track.onended = () => {
           console.log(`📥 Remote ${event.track.kind} track ended`);
-        });
+        };
         
-        event.track.addEventListener('mute', () => {
-          console.log(`📥 Remote ${event.track.kind} track muted`);
-        });
+        event.track.onmute = () => {
+          console.log(`🔇 Remote ${event.track.kind} track muted`);
+        };
         
-        event.track.addEventListener('unmute', () => {
-          console.log(`📥 Remote ${event.track.kind} track unmuted`);
-        });
+        event.track.onunmute = () => {
+          console.log(`🔊 Remote ${event.track.kind} track unmuted`);
+        };
       };
       
-      // Add local tracks if available
+      // Add local tracks with enhanced verification
       if (localStream) {
         console.log('🎤 Adding local tracks to peer connection...');
         
-        // Verify tracks before adding
         const tracks = localStream.getTracks();
-        console.log('🎤 Local stream tracks before adding:', tracks.map(t => ({
-          kind: t.kind,
-          enabled: t.enabled,
-          muted: t.muted,
-          readyState: t.readyState,
-          label: t.label
-        })));
-        
         if (tracks.length === 0) {
-          console.error('❌ No tracks in local stream!');
-          throw new Error('Local stream has no tracks');
+          throw new Error('No tracks available in local stream');
         }
         
-        tracks.forEach(track => {
-          // Ensure track is enabled and not muted
-          track.enabled = true;
+        // Add tracks with transceiver for better control
+        tracks.forEach((track, index) => {
+          track.enabled = true; // Ensure track is enabled
           
-          console.log(`🎤 Adding ${track.kind} track:`, {
+          console.log(`🎤 Adding ${track.kind} track ${index}:`, {
             enabled: track.enabled,
             muted: track.muted,
             readyState: track.readyState,
-            label: track.label
+            label: track.label,
+            settings: track.getSettings()
           });
           
           try {
-            const sender = peerConnection.addTrack(track, localStream);
-            console.log(`✅ ${track.kind} track added successfully with sender:`, sender);
+            // Use addTransceiver for better control over media transmission
+            const transceiver = peerConnection.addTransceiver(track, {
+              direction: 'sendrecv',
+              streams: [localStream]
+            });
             
-            // Verify the sender was added
-            if (!sender) {
-              console.error(`❌ Failed to add ${track.kind} track - no sender returned`);
-            }
+            console.log(`✅ ${track.kind} transceiver added:`, {
+              direction: transceiver.direction,
+              currentDirection: transceiver.currentDirection
+            });
+            
           } catch (error) {
             console.error(`❌ Error adding ${track.kind} track:`, error);
             throw error;
           }
         });
         
-        // Verify all senders are added
-        const senders = peerConnection.getSenders();
-        console.log('🎤 Total senders after adding tracks:', senders.length);
-        senders.forEach((sender, index) => {
-          if (sender.track) {
-            console.log(`🎤 Sender ${index}: ${sender.track.kind} track`);
-          } else {
-            console.warn(`⚠️ Sender ${index}: No track attached`);
-          }
+        // Verify transceivers
+        const transceivers = peerConnection.getTransceivers();
+        console.log('🎤 Total transceivers:', transceivers.length);
+        transceivers.forEach((transceiver, index) => {
+          console.log(`🎤 Transceiver ${index}:`, {
+            direction: transceiver.direction,
+            currentDirection: transceiver.currentDirection,
+            kind: transceiver.receiver.track ? transceiver.receiver.track.kind : 'no-track'
+          });
         });
         
       } else {
-        console.error('❌ No local stream available when creating peer connection');
-        throw new Error('No local stream available');
+        throw new Error('No local stream available when creating peer connection');
       }
       
       console.log('✅ Peer connection created and configured');
@@ -1357,14 +1357,31 @@
     function setupRemoteAudio(remoteStream) {
       console.log('🔊 Setting up remote audio with stream:', remoteStream);
       
-      // Remove existing remote audio
+      // Verify audio tracks exist
+      const audioTracks = remoteStream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        console.error('❌ No audio tracks in remote stream');
+        return null;
+      }
+      
+      console.log('🔊 Remote stream audio tracks:', audioTracks.map((track, i) => ({
+        index: i,
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState,
+        label: track.label,
+        settings: track.getSettings()
+      })));
+      
+      // Remove existing remote audio element
       const existingAudio = document.getElementById('remote-audio');
       if (existingAudio) {
         console.log('🔊 Removing existing remote audio element');
+        existingAudio.srcObject = null;
         existingAudio.remove();
       }
       
-      // Create new audio element with enhanced settings
+      // Create new audio element with proper settings
       const remoteAudio = document.createElement('audio');
       remoteAudio.id = 'remote-audio';
       remoteAudio.autoplay = true;
@@ -1372,157 +1389,353 @@
       remoteAudio.controls = false;
       remoteAudio.volume = 1.0;
       remoteAudio.muted = false;
+      remoteAudio.preload = 'auto';
       
-      // Add important attributes for audio playback
-      remoteAudio.setAttribute('playsinline', 'true');
-      remoteAudio.setAttribute('webkit-playsinline', 'true');
+      // Set essential attributes for WebRTC audio
+      remoteAudio.setAttribute('autoplay', 'autoplay');
+      remoteAudio.setAttribute('playsinline', 'playsinline');
+      remoteAudio.setAttribute('webkit-playsinline', 'webkit-playsinline');
       
-      // Hide the audio element but keep it in DOM
-      remoteAudio.style.position = 'absolute';
-      remoteAudio.style.left = '-9999px';
-      remoteAudio.style.top = '-9999px';
-      remoteAudio.style.opacity = '0';
-      remoteAudio.style.pointerEvents = 'none';
+      // Position audio element (hidden but in DOM for proper functionality)
+      remoteAudio.style.cssText = 'position: fixed; left: -10000px; top: -10000px; width: 1px; height: 1px; opacity: 0.01;';
+      
+      // Append to body immediately
       document.body.appendChild(remoteAudio);
+      console.log('🔊 Remote audio element added to DOM');
       
-      // Set the remote stream
+      // Set the stream source
       remoteAudio.srcObject = remoteStream;
       
-      console.log('🔊 Remote audio element created with srcObject:', remoteAudio.srcObject);
-      console.log('🔊 Remote stream tracks:', remoteStream.getTracks().map(t => `${t.kind}:${t.enabled}:${t.readyState}`));
+      // Enhanced event handling
+      remoteAudio.onloadstart = () => console.log('🔊 Remote audio load start');
+      remoteAudio.onloadeddata = () => console.log('🔊 Remote audio data loaded');
+      remoteAudio.onloadedmetadata = () => {
+        console.log('🔊 Remote audio metadata loaded, attempting play...');
+        attemptAudioPlay(remoteAudio);
+      };
+      
+      remoteAudio.oncanplay = () => {
+        console.log('🔊 Remote audio can play, attempting play...');
+        attemptAudioPlay(remoteAudio);
+      };
+      
+      remoteAudio.oncanplaythrough = () => {
+        console.log('🔊 Remote audio can play through');
+      };
+      
+      remoteAudio.onplay = () => {
+        console.log('✅ Remote audio playing successfully');
+        // Verify audio is actually playing
+        setTimeout(() => {
+          if (!remoteAudio.paused && remoteAudio.currentTime > 0) {
+            console.log('✅ Remote audio playback confirmed, time:', remoteAudio.currentTime);
+          } else {
+            console.warn('⚠️ Remote audio may not be playing properly');
+          }
+        }, 1000);
+      };
+      
+      remoteAudio.onpause = () => {
+        console.log('⏸️ Remote audio paused - attempting to resume');
+        if (remoteStream.active) {
+          attemptAudioPlay(remoteAudio);
+        }
+      };
+      
+      remoteAudio.onerror = (e) => {
+        console.error('❌ Remote audio error:', {
+          error: remoteAudio.error,
+          code: remoteAudio.error?.code,
+          message: remoteAudio.error?.message
+        });
+        
+        // Try to recover from error
+        setTimeout(() => {
+          console.log('🔄 Attempting to recover from audio error...');
+          remoteAudio.load();
+        }, 1000);
+      };
+      
+      remoteAudio.onstalled = () => {
+        console.warn('⚠️ Remote audio stalled');
+      };
+      
+      remoteAudio.onwaiting = () => {
+        console.log('🔊 Remote audio waiting for data');
+      };
       
       // Force load the audio
-      remoteAudio.load();
+      try {
+        remoteAudio.load();
+        console.log('🔊 Remote audio load initiated');
+      } catch (error) {
+        console.error('❌ Error loading remote audio:', error);
+      }
       
-      // Handle audio events with better error handling
-      remoteAudio.addEventListener('loadedmetadata', () => {
-        console.log('🔊 Remote audio metadata loaded');
-        // Attempt to play immediately
-        playRemoteAudio(remoteAudio);
-      });
-      
-      remoteAudio.addEventListener('canplay', () => {
-        console.log('🔊 Remote audio can play');
-        playRemoteAudio(remoteAudio);
-      });
-      
-      remoteAudio.addEventListener('canplaythrough', () => {
-        console.log('🔊 Remote audio can play through');
-        playRemoteAudio(remoteAudio);
-      });
-      
-      remoteAudio.addEventListener('play', () => {
-        console.log('✅ Remote audio started playing');
-      });
-      
-      remoteAudio.addEventListener('pause', () => {
-        console.log('⏸️ Remote audio paused');
-      });
-      
-      remoteAudio.addEventListener('error', (e) => {
-        console.error('❌ Remote audio error:', e, remoteAudio.error);
-      });
-      
-      remoteAudio.addEventListener('stalled', () => {
-        console.warn('⚠️ Remote audio stalled');
-      });
-      
-      // Monitor audio track changes
-      remoteStream.getAudioTracks().forEach(track => {
-        track.addEventListener('ended', () => {
-          console.log('🔊 Remote audio track ended');
-        });
+      // Monitor audio track events
+      audioTracks.forEach((track, index) => {
+        console.log(`🔊 Monitoring audio track ${index}`);
         
-        track.addEventListener('mute', () => {
-          console.log('🔇 Remote audio track muted');
-        });
+        track.onended = () => {
+          console.log(`🔊 Remote audio track ${index} ended`);
+        };
         
-        track.addEventListener('unmute', () => {
-          console.log('🔊 Remote audio track unmuted');
-        });
+        track.onmute = () => {
+          console.log(`🔇 Remote audio track ${index} muted`);
+        };
+        
+        track.onunmute = () => {
+          console.log(`🔊 Remote audio track ${index} unmuted`);
+        };
       });
+      
+      // Store reference globally for debugging
+      window.remoteAudio = remoteAudio;
       
       return remoteAudio;
     }
     
-    function playRemoteAudio(audioElement) {
-      if (!audioElement || audioElement.readyState < 2) {
-        console.log('🔊 Audio not ready yet, waiting...');
+    function attemptAudioPlay(audioElement) {
+      if (!audioElement) {
+        console.error('❌ No audio element provided');
         return;
       }
+      
+      // Check readiness
+      if (audioElement.readyState < 2) {
+        console.log('🔊 Audio not ready yet, readyState:', audioElement.readyState);
+        return;
+      }
+      
+      // Check if already playing
+      if (!audioElement.paused && audioElement.currentTime > 0) {
+        console.log('🔊 Audio is already playing');
+        return;
+      }
+      
+      console.log('🔊 Attempting to play remote audio...');
       
       const playPromise = audioElement.play();
       
       if (playPromise !== undefined) {
         playPromise.then(() => {
-          console.log('✅ Remote audio playing successfully');
-          // Verify audio is actually playing
+          console.log('✅ Remote audio play promise resolved');
+          
+          // Verify playback after a short delay
           setTimeout(() => {
             if (audioElement.paused) {
-              console.warn('⚠️ Audio appears to be paused, attempting to play again');
-              audioElement.play().catch(console.error);
-            }
-          }, 500);
-        }).catch(error => {
-          console.error('❌ Error playing remote audio:', error);
-          
-          // Handle autoplay restrictions
-          if (error.name === 'NotAllowedError') {
-            console.log('🔊 Autoplay blocked, waiting for user interaction...');
-            
-            // Create a temporary interaction handler
-            const interactionHandler = () => {
-              console.log('🔊 User interaction detected, attempting to play audio');
-              audioElement.play().then(() => {
-                console.log('✅ Remote audio started after user interaction');
-                document.removeEventListener('click', interactionHandler);
-                document.removeEventListener('touchstart', interactionHandler);
-                document.removeEventListener('keydown', interactionHandler);
-              }).catch(err => {
-                console.error('❌ Still failed to play audio after interaction:', err);
+              console.warn('⚠️ Audio paused after play, retrying...');
+              // Try to play again
+              audioElement.play().catch(err => {
+                console.error('❌ Retry play failed:', err);
               });
-            };
-            
-            // Listen for any user interaction
-            document.addEventListener('click', interactionHandler);
-            document.addEventListener('touchstart', interactionHandler);
-            document.addEventListener('keydown', interactionHandler);
-            
-            // Show user notification
-            showAudioPlaybackNotification();
+            } else if (audioElement.currentTime === 0) {
+              console.warn('⚠️ Audio not progressing, checking stream...');
+              checkAudioStream(audioElement);
+            } else {
+              console.log('✅ Remote audio confirmed playing, currentTime:', audioElement.currentTime);
+            }
+          }, 1000);
+          
+        }).catch(error => {
+          console.error('❌ Remote audio play failed:', error);
+          
+          if (error.name === 'NotAllowedError') {
+            console.log('🔊 Autoplay blocked - setting up user interaction handler');
+            setupAutoplayHandler(audioElement);
+          } else if (error.name === 'AbortError') {
+            console.log('🔊 Play aborted, retrying...');
+            setTimeout(() => attemptAudioPlay(audioElement), 500);
+          } else {
+            console.error('🔊 Unhandled audio play error:', error);
           }
         });
+      } else {
+        console.log('🔊 No play promise returned, checking play state...');
+        setTimeout(() => checkAudioStream(audioElement), 500);
       }
     }
     
+    function checkAudioStream(audioElement) {
+      if (!audioElement || !audioElement.srcObject) {
+        console.error('❌ No audio element or stream');
+        return;
+      }
+      
+      const stream = audioElement.srcObject;
+      const audioTracks = stream.getAudioTracks();
+      
+      console.log('🔊 Audio stream check:', {
+        streamActive: stream.active,
+        audioTracks: audioTracks.length,
+        trackStates: audioTracks.map(t => ({
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        }))
+      });
+      
+      // Try to refresh the stream
+      if (stream.active && audioTracks.length > 0) {
+        console.log('🔄 Refreshing audio element...');
+        audioElement.load();
+        setTimeout(() => attemptAudioPlay(audioElement), 500);
+      }
+    }
+    
+    function setupAutoplayHandler(audioElement) {
+      // Show notification
+      showAudioPlaybackNotification();
+      
+      // Set up interaction handler
+      const interactionHandler = (event) => {
+        console.log('🔊 User interaction detected:', event.type);
+        
+        audioElement.play().then(() => {
+          console.log('✅ Audio started after user interaction');
+          cleanup();
+        }).catch(err => {
+          console.error('❌ Still failed to play after interaction:', err);
+          cleanup();
+        });
+      };
+      
+      const cleanup = () => {
+        document.removeEventListener('click', interactionHandler, true);
+        document.removeEventListener('touchstart', interactionHandler, true);
+        document.removeEventListener('keydown', interactionHandler, true);
+        hideAudioPlaybackNotification();
+      };
+      
+      // Listen for any user interaction with capture
+      document.addEventListener('click', interactionHandler, true);
+      document.addEventListener('touchstart', interactionHandler, true);
+      document.addEventListener('keydown', interactionHandler, true);
+      
+      // Auto cleanup after 10 seconds
+      setTimeout(cleanup, 10000);
+    }
+    
+    function setupRemoteVideo(remoteStream) {
+      const remoteVideo = document.getElementById('remote-video');
+      if (!remoteVideo) {
+        console.error('❌ Remote video element not found');
+        return;
+      }
+      
+      console.log('📹 Setting up remote video');
+      remoteVideo.srcObject = remoteStream;
+      remoteVideo.autoplay = true;
+      remoteVideo.playsInline = true;
+      remoteVideo.muted = false;
+      
+      remoteVideo.onloadedmetadata = () => {
+        console.log('📹 Remote video metadata loaded');
+        remoteVideo.play().catch(err => {
+          console.error('❌ Error playing remote video:', err);
+        });
+      };
+    }
+    
+    function verifyAudioFlow() {
+      console.log('🔊 Verifying audio flow...');
+      
+      if (!peerConnection) {
+        console.error('❌ No peer connection for audio verification');
+        return;
+      }
+      
+      // Check transceivers
+      const transceivers = peerConnection.getTransceivers();
+      const audioTransceivers = transceivers.filter(t => t.receiver.track && t.receiver.track.kind === 'audio');
+      
+      console.log('🔊 Audio transceivers:', audioTransceivers.length);
+      audioTransceivers.forEach((transceiver, index) => {
+        console.log(`🔊 Audio transceiver ${index}:`, {
+          direction: transceiver.direction,
+          currentDirection: transceiver.currentDirection,
+          trackEnabled: transceiver.receiver.track.enabled,
+          trackMuted: transceiver.receiver.track.muted,
+          trackReadyState: transceiver.receiver.track.readyState
+        });
+      });
+      
+      // Check remote audio element
+      const remoteAudio = document.getElementById('remote-audio');
+      if (remoteAudio) {
+        console.log('🔊 Remote audio element state:', {
+          paused: remoteAudio.paused,
+          muted: remoteAudio.muted,
+          volume: remoteAudio.volume,
+          currentTime: remoteAudio.currentTime,
+          readyState: remoteAudio.readyState
+        });
+        
+        if (remoteAudio.paused) {
+          console.log('🔊 Remote audio is paused, attempting to resume...');
+          attemptAudioPlay(remoteAudio);
+        }
+      }
+    }
+    
+    let audioNotification = null;
+    
     function showAudioPlaybackNotification() {
-      // Create a small notification to inform user
-      const notification = document.createElement('div');
-      notification.style.cssText = `
+      if (audioNotification) return;
+      
+      console.log('🔊 Showing audio playback notification');
+      
+      audioNotification = document.createElement('div');
+      audioNotification.id = 'audio-notification';
+      audioNotification.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
-        background: #4CAF50;
+        background: linear-gradient(45deg, #4CAF50, #45a049);
         color: white;
-        padding: 12px 16px;
-        border-radius: 8px;
+        padding: 16px 20px;
+        border-radius: 12px;
         font-size: 14px;
-        z-index: 10000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        font-weight: 500;
+        z-index: 10001;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         cursor: pointer;
+        animation: slideIn 0.3s ease-out;
+        max-width: 300px;
+        text-align: center;
       `;
-      notification.innerHTML = '🔊 Click anywhere to enable audio';
-      document.body.appendChild(notification);
       
-      // Remove notification after user interaction
-      const removeNotification = () => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
+      audioNotification.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            🔊
+          </div>
+          <div>
+            <div style="font-weight: bold;">Enable Audio</div>
+            <div style="font-size: 12px; opacity: 0.9;">Click anywhere to hear voice</div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(audioNotification);
+      
+      // Add CSS animation
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
         }
-      };
-      
-      notification.addEventListener('click', removeNotification);
-      setTimeout(removeNotification, 5000); // Auto-remove after 5 seconds
+      `;
+      document.head.appendChild(style);
+    }
+    
+    function hideAudioPlaybackNotification() {
+      if (audioNotification && audioNotification.parentNode) {
+        console.log('🔊 Hiding audio playback notification');
+        audioNotification.parentNode.removeChild(audioNotification);
+        audioNotification = null;
+      }
     }
     
     async function handleCallAccepted(data) {
@@ -1532,21 +1745,43 @@
         // Update UI first
         showActiveCallInterface(callType);
         
+        // Verify local stream
+        if (!localStream || localStream.getTracks().length === 0) {
+          console.error('❌ No local stream when call accepted');
+          throw new Error('Local stream not available');
+        }
+        
         // Create peer connection if not exists
         if (!peerConnection) {
           console.log('🔗 Creating peer connection for caller...');
           await createPeerConnection();
         }
         
-        // Create and send offer
-        console.log('📤 Creating offer...');
-        const offer = await peerConnection.createOffer({
+        // Verify tracks are added to peer connection
+        const senders = peerConnection.getSenders();
+        const audioSenders = senders.filter(s => s.track && s.track.kind === 'audio');
+        console.log('🎤 Audio senders before offer:', audioSenders.length);
+        
+        if (audioSenders.length === 0) {
+          console.error('❌ No audio senders in peer connection');
+          throw new Error('No audio tracks in peer connection');
+        }
+        
+        // Create offer with explicit audio/video requirements
+        console.log('📤 Creating offer with audio constraints...');
+        const offerOptions = {
           offerToReceiveAudio: true,
-          offerToReceiveVideo: callType === 'video'
-        });
+          offerToReceiveVideo: callType === 'video',
+          voiceActivityDetection: false
+        };
+        
+        const offer = await peerConnection.createOffer(offerOptions);
+        console.log('✅ Offer created:', offer.type);
+        console.log('📄 Offer SDP (first 200 chars):', offer.sdp.substring(0, 200));
         
         console.log('📤 Setting local description with offer...');
         await peerConnection.setLocalDescription(offer);
+        console.log('✅ Local description set');
         
         console.log('📤 Sending offer to receiver...');
         chatSocket.emit('call-offer', {
@@ -1555,6 +1790,13 @@
         });
         
         console.log('✅ Offer sent successfully');
+        
+        // Monitor connection establishment
+        setTimeout(() => {
+          console.log('🔍 Checking connection state after offer...');
+          console.log('🔗 Connection state:', peerConnection.connectionState);
+          console.log('🧊 ICE connection state:', peerConnection.iceConnectionState);
+        }, 3000);
         
       } catch (error) {
         console.error('❌ Error handling call accepted:', error);
@@ -1582,16 +1824,26 @@
         await peerConnection.setRemoteDescription(offerDesc);
         console.log('✅ Remote description (offer) set');
         
-        console.log('📤 Creating answer...');
-        const answer = await peerConnection.createAnswer({
+        // Verify local stream before creating answer
+        if (!localStream || localStream.getTracks().length === 0) {
+          console.error('❌ No local stream available when creating answer');
+          throw new Error('Local stream not available');
+        }
+        
+        console.log('📤 Creating answer with audio constraints...');
+        const answerOptions = {
           offerToReceiveAudio: true,
           offerToReceiveVideo: callType === 'video'
-        });
+        };
+        
+        const answer = await peerConnection.createAnswer(answerOptions);
+        console.log('✅ Answer created with options:', answerOptions);
         
         console.log('📤 Setting local description (answer)...');
         await peerConnection.setLocalDescription(answer);
+        console.log('✅ Local description (answer) set');
         
-        console.log('📤 Sending answer...');
+        console.log('📤 Sending answer to caller...');
         chatSocket.emit('call-answer', {
           callId: currentCall.callId,
           answer: answer
@@ -1612,6 +1864,11 @@
           }
           window.pendingIceCandidates = [];
         }
+        
+        // Verify audio setup
+        setTimeout(() => {
+          verifyAudioFlow();
+        }, 2000);
         
       } catch (error) {
         console.error('❌ Error handling call offer:', error);

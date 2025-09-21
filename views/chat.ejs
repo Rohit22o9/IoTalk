@@ -824,6 +824,13 @@
       
       hideCallInterface();
       
+      // ✅ FIX: Hide chat typing bar during call
+      const messageFooter = document.getElementById('message-footer');
+      if (messageFooter) {
+        messageFooter.style.display = 'none';
+        console.log('✅ Chat typing bar hidden during calling');
+      }
+      
       const callInterface = document.getElementById('call-interface');
       callInterface.className = 'fixed inset-0 bg-gray-900 z-[100] flex flex-col items-center justify-center';
       
@@ -1116,6 +1123,13 @@
       hideCallInterface();
       hideCallNotification();
       
+      // ✅ FIX: Show chat typing bar again after call ends
+      const messageFooter = document.getElementById('message-footer');
+      if (messageFooter) {
+        messageFooter.style.display = 'block';
+        console.log('✅ Chat typing bar shown again after call end');
+      }
+      
       currentCall = null;
       isInCall = false;
       callType = null;
@@ -1127,6 +1141,13 @@
       console.log(`Showing active call interface for ${type} call`);
       
       hideCallInterface();
+      
+      // ✅ FIX: Hide chat typing bar during call
+      const messageFooter = document.getElementById('message-footer');
+      if (messageFooter) {
+        messageFooter.style.display = 'none';
+        console.log('✅ Chat typing bar hidden during call');
+      }
       
       const callInterface = document.getElementById('call-interface');
       callInterface.className = 'fixed inset-0 bg-gray-900 z-[100] flex flex-col';

@@ -1,0 +1,48 @@
+In my Node.js + Express + Socket.IO + WebRTC chat app (ModernChat), signaling works partially: 
+- Caller sends offer 
+- Callee receives and accepts 
+- BUT caller’s side does not update after acceptance, and no audio is heard from either side. 
+
+⚠️ Important: Do NOT disturb existing working features (messaging, encryption, sessions, etc.) — only fix the audio call flow.
+
+Please fix the following:
+
+1. Ensure that after callee accepts, their `answer` is sent via Socket.IO back to the caller, and the caller calls:
+   await pc.setRemoteDescription(new RTCSessionDescription(answer));
+
+2. Ensure that ICE candidates are fully exchanged both ways:
+   - Caller: `pc.onicecandidate = e => socket.emit("ice-candidate", e.candidate);`
+   - Callee: same, and on receiving: 
+     if (candidate) await pc.addIceCandidate(new RTCIceCandidate(candidate));
+
+3. Ensure local audio stream is added:
+   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+   stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+4. Ensure remote audio is attached:
+   pc.ontrack = event => {
+     const audio = document.createElement("audio");
+     audio.srcObject = event.streams[0];
+     audio.autoplay = true;
+     audio.playsInline = true;
+     document.body.appendChild(audio);
+   };
+
+5. Replace the ICE server config with a reliable STUN + TURN (since Replit needs TURN):
+   const pc = new RTCPeerConnection({
+     iceServers: [
+       { urls: "stun:stun.l.google.com:19302" },
+       {
+         urls: "turn:openrelay.metered.ca:80",
+         username: "openrelayproject",
+         credential: "openrelayproject"
+       }
+     ]
+   });
+
+6. Add console logs at every step (offer sent, answer received, setRemoteDescription success, candidate added, ontrack fired) to debug why caller UI is not updating and why no audio flows.
+
+Deliver:
+- Corrected signaling code for caller and callee.
+- Fixed `pc.ontrack` and `pc.addTrack`.
+- Minimal Socket.IO relay fixes (offer, answer, ICE).

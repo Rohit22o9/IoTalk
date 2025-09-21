@@ -2169,13 +2169,155 @@
       document.getElementById('filePreview').classList.add('hidden');
     }
     
-    // AI and media functions (simplified)
+    // AI and media functions
     async function summarizeContent(messageId, type, content) {
-      console.log('Summarizing content:', type);
+      console.log('📝 Summarizing content:', type);
+      
+      const modal = document.getElementById('ai-summary-modal');
+      const loadingDiv = document.getElementById('ai-summary-loading');
+      const contentDiv = document.getElementById('ai-summary-content');
+      
+      if (modal) {
+        modal.classList.remove('hidden');
+        loadingDiv.classList.remove('hidden');
+        contentDiv.classList.add('hidden');
+      }
+      
+      try {
+        const response = await fetch('/api/ai/summarize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messageId: messageId,
+            type: type,
+            content: content
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && contentDiv) {
+          contentDiv.innerHTML = result.summary.replace(/\n/g, '<br>');
+          loadingDiv.classList.add('hidden');
+          contentDiv.classList.remove('hidden');
+        } else {
+          throw new Error(result.error || 'Failed to generate summary');
+        }
+        
+      } catch (error) {
+        console.error('❌ Error generating summary:', error);
+        if (contentDiv) {
+          contentDiv.innerHTML = '❌ Failed to generate summary: ' + error.message;
+          loadingDiv.classList.add('hidden');
+          contentDiv.classList.remove('hidden');
+        }
+      }
     }
     
     async function generateAIResponse() {
-      console.log('Generating AI response');
+      console.log('🤖 Generating AI response...');
+      
+      try {
+        // Get conversation history from the page
+        const conversationHistory = [];
+        const messages = document.querySelectorAll('#messages-container > div');
+        
+        // Extract last 10 messages for context
+        const recentMessages = Array.from(messages).slice(-10);
+        
+        recentMessages.forEach(messageDiv => {
+          const messageContent = messageDiv.querySelector('p');
+          const isOwn = messageDiv.querySelector('.from-primary-500, .bg-gradient-to-r');
+          
+          if (messageContent && messageContent.textContent.trim()) {
+            conversationHistory.push({
+              from: isOwn ? '<%= currentUser.username %>' : '<%= otherUser.username %>',
+              message: messageContent.textContent.trim(),
+              isOwn: !!isOwn
+            });
+          }
+        });
+        
+        if (conversationHistory.length === 0) {
+          console.warn('⚠️ No conversation history found');
+          showNotification('No messages to generate response from', 'warning');
+          return;
+        }
+        
+        console.log('🤖 Sending conversation history:', conversationHistory.length, 'messages');
+        
+        // Generate AI response
+        const response = await fetch(`/api/ai/generate-reply/${otherUserId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            conversationHistory: conversationHistory
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.replies && result.replies.length > 0) {
+          console.log('✅ AI responses generated:', result.replies.length);
+          showSmartRepliesPanel(result.replies);
+        } else {
+          throw new Error(result.error || 'No replies generated');
+        }
+        
+      } catch (error) {
+        console.error('❌ Error generating AI response:', error);
+        showNotification('Failed to generate AI response: ' + error.message, 'error');
+      }
+    }
+    
+    function showSmartRepliesPanel(replies) {
+      console.log('🤖 Showing smart replies panel with', replies.length, 'replies');
+      
+      const panel = document.getElementById('smart-replies-panel');
+      const content = document.getElementById('smart-replies-content');
+      
+      if (!panel || !content) {
+        console.error('❌ Smart replies panel elements not found');
+        return;
+      }
+      
+      // Clear existing content
+      content.innerHTML = '';
+      
+      // Create reply buttons
+      replies.forEach((reply, index) => {
+        const button = document.createElement('button');
+        button.className = 'bg-white hover:bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-left transition-colors duration-200 w-full';
+        button.textContent = reply;
+        button.onclick = () => sendSmartReply(reply);
+        content.appendChild(button);
+      });
+      
+      // Show panel
+      panel.classList.remove('hidden');
+      
+      // Auto-hide after 30 seconds
+      setTimeout(() => {
+        panel.classList.add('hidden');
+      }, 30000);
+    }
+    
+    function sendSmartReply(reply) {
+      console.log('🤖 Sending smart reply:', reply);
+      
+      // Set the reply in the message input
+      const messageInput = document.getElementById('message-input');
+      if (messageInput) {
+        messageInput.value = reply;
+        messageInput.focus();
+      }
+      
+      // Hide the panel
+      hideSmartReplies();
     }
     
     function hideSmartReplies() {
@@ -2203,17 +2345,146 @@
       }
     }
     
-    // Voice recording functions (simplified)
-    function startVoiceRecording() {
-      console.log('Starting voice recording');
+    // Voice recording functionality
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+    
+    async function startVoiceRecording() {
+      console.log('🎤 Voice recording started');
+      
+      try {
+        // Request microphone access
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        
+        // Initialize MediaRecorder
+        const options = {
+          mimeType: 'audio/webm;codecs=opus'
+        };
+        
+        // Fallback for Safari and other browsers
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options.mimeType = 'audio/ogg;codecs=opus';
+          if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options.mimeType = 'audio/webm';
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+              options.mimeType = '';
+            }
+          }
+        }
+        
+        mediaRecorder = new MediaRecorder(stream, options);
+        recordedChunks = [];
+        isRecording = true;
+        
+        // Handle data available event
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+            console.log('🎤 Audio chunk recorded:', event.data.size, 'bytes');
+          }
+        };
+        
+        // Handle recording stop
+        mediaRecorder.onstop = async () => {
+          console.log('🎤 Recording stopped, processing audio...');
+          
+          if (recordedChunks.length > 0) {
+            // Create audio blob
+            const audioBlob = new Blob(recordedChunks, { 
+              type: mediaRecorder.mimeType || 'audio/webm' 
+            });
+            
+            console.log('🎤 Audio blob created:', audioBlob.size, 'bytes');
+            
+            // Send voice message
+            await sendVoiceMessage(audioBlob);
+          }
+          
+          // Clean up
+          stream.getTracks().forEach(track => track.stop());
+          hideVoiceRecordingModal();
+        };
+        
+        // Start recording
+        mediaRecorder.start(1000); // Record in 1-second chunks
+        showVoiceRecordingModal();
+        
+      } catch (error) {
+        console.error('❌ Error starting voice recording:', error);
+        alert('Failed to start voice recording: ' + error.message);
+        isRecording = false;
+      }
     }
     
     function stopVoiceRecording() {
-      console.log('Stopping voice recording');
+      console.log('🎤 Stopping voice recording...');
+      
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+      }
     }
     
     function cancelVoiceRecording() {
-      console.log('Cancelling voice recording');
+      console.log('🎤 Cancelling voice recording...');
+      
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordedChunks = [];
+      }
+      
+      hideVoiceRecordingModal();
+    }
+    
+    function showVoiceRecordingModal() {
+      const modal = document.getElementById('voice-recording-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+    }
+    
+    function hideVoiceRecordingModal() {
+      const modal = document.getElementById('voice-recording-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    }
+    
+    async function sendVoiceMessage(audioBlob) {
+      console.log('🎤 Sending voice message...', audioBlob.size, 'bytes');
+      
+      try {
+        // Create form data
+        const formData = new FormData();
+        const filename = `voice_${Date.now()}.webm`;
+        formData.append('media', audioBlob, filename);
+        formData.append('msg', '🎵 Voice message');
+        
+        // Send to server
+        const response = await fetch(`/chat/${otherUserId}`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          console.log('✅ Voice message sent successfully');
+          setTimeout(() => scrollToBottom(true), 100);
+        } else {
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error sending voice message:', error);
+        alert('Failed to send voice message: ' + error.message);
+      }
     }
 
     // Initialize voice messages when DOM is ready

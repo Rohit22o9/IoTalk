@@ -8,7 +8,7 @@ localPort = 3000
 externalPort = 80
 
 [workflows]
-runButton = "Start Chat App"
+runButton = "Start Chat App Fixed"
 
 [[workflows.workflow]]
 name = "Start Chat App"
@@ -18,6 +18,19 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node index.js"
+
+[[workflows.workflow]]
+name = "Start Chat App Fixed"
+author = 47276591
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill -f \"node index.js\" || true"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=5000 node index.js"
 
 [agent]
 expertMode = true

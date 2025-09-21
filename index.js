@@ -38,6 +38,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/media', express.static(path.join(__dirname, 'public', 'media')));
+app.use('/voice', express.static(path.join(__dirname, 'public', 'voice')));
 app.set('view engine', 'ejs');
 
 // ----------- SESSION STORE -----------
@@ -66,6 +67,8 @@ const storage = multer.diskStorage({
             uploadPath += 'avatars/';
         } else if (file.fieldname === 'icon') {
             uploadPath += 'group_icons/';
+        } else if (file.originalname && file.originalname.startsWith('voice_')) {
+            uploadPath += 'voice/';
         } else {
             uploadPath += 'media/';
         }
@@ -76,7 +79,12 @@ const storage = multer.diskStorage({
         cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
+        // Keep original filename for voice messages, add timestamp for others
+        if (file.originalname && file.originalname.startsWith('voice_')) {
+            cb(null, file.originalname);
+        } else {
+            cb(null, Date.now() + path.extname(file.originalname));
+        }
     }
 });
 
@@ -87,9 +95,14 @@ const upload = multer({
         // Allow images, documents, audio, and videos
         const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|mp3|wav|ogg|webm|m4a|mp4|avi|mov|wmv|flv|mkv/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = allowedTypes.test(file.mimetype);
+        const mimetype = allowedTypes.test(file.mimetype) || file.mimetype.startsWith('audio/');
 
-        if (mimetype && extname) {
+        // Special handling for voice messages
+        if (file.originalname && file.originalname.startsWith('voice_')) {
+            return cb(null, true);
+        }
+
+        if (mimetype && (extname || file.mimetype.startsWith('audio/'))) {
             return cb(null, true);
         } else {
             cb(new Error('Unsupported file type'));
@@ -279,7 +292,7 @@ app.post('/chat/:id', upload.single('media'), async (req, res) => {
         let finalMessage = msg || '';
 
         // AI Moderation for text
-        if (msg) {
+        if (msg && msg !== '🎵 Voice message') {
             moderationResult = await aiModeration.moderateText(msg);
             if (moderationResult.flagged) {
                 finalMessage = '';
@@ -290,21 +303,45 @@ app.post('/chat/:id', upload.single('media'), async (req, res) => {
         }
 
         if (media) {
-            mediaPath = '/media/' + media.filename;
+            // Determine the correct path based on file type
+            let uploadPath = '/media/';
+            
+            // Check if it's a voice message
+            if (media.originalname && media.originalname.startsWith('voice_')) {
+                uploadPath = '/voice/';
+                if (!fs.existsSync(path.join(__dirname, 'public', 'voice'))) {
+                    fs.mkdirSync(path.join(__dirname, 'public', 'voice'), { recursive: true });
+                }
+                // Move file to voice directory
+                const oldPath = media.path;
+                const newPath = path.join(__dirname, 'public', 'voice', media.filename);
+                fs.renameSync(oldPath, newPath);
+            }
+            
+            mediaPath = uploadPath + media.filename;
             originalName = media.originalname;
 
-            // AI Moderation for media (placeholder for now)
-            const mediaModeration = await aiModeration.moderateMedia(mediaPath, media.mimetype);
-            if (mediaModeration.flagged) {
-                // Remove the uploaded file if flagged
-                const fs = require('fs');
-                const fullPath = path.join(__dirname, 'public', mediaPath);
-                if (fs.existsSync(fullPath)) {
-                    fs.unlinkSync(fullPath);
+            console.log('📁 Media uploaded:', {
+                originalName: originalName,
+                path: mediaPath,
+                size: media.size,
+                mimetype: media.mimetype
+            });
+
+            // Skip moderation for voice messages
+            if (!media.originalname?.startsWith('voice_')) {
+                // AI Moderation for media (placeholder for now)
+                const mediaModeration = await aiModeration.moderateMedia(mediaPath, media.mimetype);
+                if (mediaModeration.flagged) {
+                    // Remove the uploaded file if flagged
+                    const fullPath = path.join(__dirname, 'public', mediaPath);
+                    if (fs.existsSync(fullPath)) {
+                        fs.unlinkSync(fullPath);
+                    }
+                    mediaPath = null;
+                    originalName = null;
+                    finalMessage = '⚠️ Media content was automatically removed due to policy violations.';
                 }
-                mediaPath = null;
-                originalName = null;
-                finalMessage = '⚠️ Media content was automatically removed due to policy violations.';
             }
         }
 
@@ -569,20 +606,39 @@ app.post('/groupchat/:groupId', upload.single('media'), async (req, res) => {
         }
 
         if (media) {
-            mediaPath = '/media/' + media.filename;
+            // Determine the correct path based on file type
+            let uploadPath = '/media/';
+            
+            // Check if it's a voice message
+            if (media.originalname && media.originalname.startsWith('voice_')) {
+                uploadPath = '/voice/';
+                if (!fs.existsSync(path.join(__dirname, 'public', 'voice'))) {
+                    fs.mkdirSync(path.join(__dirname, 'public', 'voice'), { recursive: true });
+                }
+                // Move file to voice directory
+                const oldPath = media.path;
+                const newPath = path.join(__dirname, 'public', 'voice', media.filename);
+                if (fs.existsSync(oldPath)) {
+                    fs.renameSync(oldPath, newPath);
+                }
+            }
+            
+            mediaPath = uploadPath + media.filename;
             originalName = media.originalname;
 
-            // AI Moderation for media
-            const mediaModeration = await aiModeration.moderateMedia(mediaPath, media.mimetype);
-            if (mediaModeration.flagged) {
-                const fs = require('fs');
-                const fullPath = path.join(__dirname, 'public', mediaPath);
-                if (fs.existsSync(fullPath)) {
-                    fs.unlinkSync(fullPath);
+            // Skip moderation for voice messages
+            if (!media.originalname?.startsWith('voice_')) {
+                // AI Moderation for media
+                const mediaModeration = await aiModeration.moderateMedia(mediaPath, media.mimetype);
+                if (mediaModeration.flagged) {
+                    const fullPath = path.join(__dirname, 'public', mediaPath);
+                    if (fs.existsSync(fullPath)) {
+                        fs.unlinkSync(fullPath);
+                    }
+                    mediaPath = null;
+                    originalName = null;
+                    finalMessage = '⚠️ Media content was automatically removed due to policy violations.';
                 }
-                mediaPath = null;
-                originalName = null;
-                finalMessage = '⚠️ Media content was automatically removed due to policy violations.';
             }
         }
 
@@ -2176,6 +2232,13 @@ io.on('connection', (socket) => {
 });
 
 // ----------- SERVER STARTUP -----------
+// Ensure voice directory exists
+const voiceDir = path.join(__dirname, 'public', 'voice');
+if (!fs.existsSync(voiceDir)) {
+    fs.mkdirSync(voiceDir, { recursive: true });
+    console.log('Created voice directory:', voiceDir);
+}
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);

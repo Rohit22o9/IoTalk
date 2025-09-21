@@ -1232,14 +1232,31 @@
       
       peerConnection = new RTCPeerConnection(pcConfig);
       
-      // Connection state monitoring
+      // Connection state monitoring with enhanced logging
       peerConnection.onconnectionstatechange = () => {
         console.log('🔗 Connection state:', peerConnection.connectionState);
         if (peerConnection.connectionState === 'connected') {
-          console.log('✅ Peer connection established successfully');
+          console.log('✅ Peer connection established successfully! Audio should now flow.');
+          
+          // Update UI status to show connection
+          const connectionStatus = document.querySelector('#audio-indicator p');
+          if (connectionStatus && connectionStatus.textContent === 'Connected') {
+            connectionStatus.textContent = 'Connected - Audio Active';
+            connectionStatus.style.color = '#10b981'; // green color
+          }
+          
           startCallTimer();
+          
+          // Verify audio flow after connection
+          setTimeout(() => {
+            verifyAudioFlow();
+          }, 2000);
+          
+        } else if (peerConnection.connectionState === 'connecting') {
+          console.log('🔄 Peer connection is connecting...');
         } else if (peerConnection.connectionState === 'failed') {
           console.error('❌ Peer connection failed');
+          alert('Call connection failed. Please check your network and try again.');
           endCall();
         }
       };

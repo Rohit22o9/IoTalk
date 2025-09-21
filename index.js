@@ -2039,6 +2039,23 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Handle real-time voice messages
+    socket.on('voiceMessage', (data) => {
+        console.log('📩 Voice message received via Socket.IO from:', data.from);
+        
+        // Broadcast to the specific room (excluding sender)
+        socket.to(data.roomId).emit('voiceMessage', {
+            from: data.from,
+            to: data.to,
+            audio: data.audio,
+            filename: data.filename,
+            mimeType: data.mimeType,
+            timestamp: data.timestamp
+        });
+        
+        console.log('📩 Voice message broadcasted to room:', data.roomId);
+    });
+
     // WebRTC signaling for calls
     socket.on('call-offer', async (data) => {
         console.log(`📤 Call offer from ${socket.userId} for call ${data.callId}`);

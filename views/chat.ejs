@@ -1904,6 +1904,25 @@
         await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         console.log('✅ Remote description (answer) set successfully');
         
+        // ✅ FIX: Update caller's UI to show connected state
+        console.log('🔄 Updating caller UI to connected state...');
+        showActiveCallInterface(callType);
+        console.log('✅ Caller UI updated to connected state');
+        
+        // Process any pending ICE candidates
+        if (window.pendingIceCandidates && window.pendingIceCandidates.length > 0) {
+          console.log(`🧊 Processing ${window.pendingIceCandidates.length} pending ICE candidates...`);
+          for (const candidate of window.pendingIceCandidates) {
+            try {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+              console.log('✅ Pending ICE candidate added');
+            } catch (error) {
+              console.error('❌ Error adding pending ICE candidate:', error);
+            }
+          }
+          window.pendingIceCandidates = [];
+        }
+        
       } catch (error) {
         console.error('❌ Error handling call answer:', error);
         alert('Failed to process call answer');

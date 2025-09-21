@@ -1,6 +1,5 @@
 
-// WebRTC Debugging Utilities
-// WebRTC Debugging Utilities
+// WebRTC Debugging Utilities for ModernChat
 class WebRTCDebugger {
     static logMediaDevices() {
         navigator.mediaDevices.enumerateDevices()
@@ -99,79 +98,79 @@ class WebRTCDebugger {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: true, 
-                video: true 
+                video: false 
             });
             
             console.log('✅ Media access granted');
             console.log('🎤 Audio tracks:', stream.getAudioTracks().length);
-            console.log('📹 Video tracks:', stream.getVideoTracks().length);
             
             stream.getTracks().forEach(track => {
                 console.log(`  ${track.kind}: ${track.label} (enabled: ${track.enabled})`);
                 track.stop();
             });
             
+            return true;
         } catch (error) {
             console.error('❌ Media access failed:', error.name, error.message);
+            return false;
         }
     }
-}
 
-// Auto-run basic checks when loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔍 Running WebRTC diagnostics...');
-    WebRTCDebugger.checkBrowserSupport();
-    WebRTCDebugger.logMediaDevices();
-    WebRTCDebugger.testSTUNConnectivity();
-    WebRTCDebugger.testMediaAccess();
-});
-
-// Make available globally
-window.WebRTCDebugger = WebRTCDebugger;
-
-    static logPeerConnectionStats(pc) {
-        if (!pc) return;
+    static async testTURNConnectivity() {
+        console.log('🔄 Testing TURN connectivity...');
         
-        pc.getStats().then(stats => {
-            console.log('Peer Connection Stats:');
-            stats.forEach(report => {
-                if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                    console.log('Active candidate pair:', report);
-                }
-                if (report.type === 'inbound-rtp' && report.mediaType) {
-                    console.log(`Inbound ${report.mediaType}:`, {
-                        packetsReceived: report.packetsReceived,
-                        bytesReceived: report.bytesReceived,
-                        packetsLost: report.packetsLost
-                    });
-                }
-            });
-        }).catch(err => console.error('Error getting stats:', err));
-    }
-
-    static testSTUNConnectivity() {
         const pc = new RTCPeerConnection({
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' }
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
             ]
         });
 
         pc.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('STUN server test - ICE candidate:', event.candidate.candidate);
-                if (event.candidate.candidate.includes('srflx')) {
-                    console.log('✅ STUN server is working - got server reflexive candidate');
+                console.log('🔄 TURN test - ICE candidate:', event.candidate.candidate);
+                if (event.candidate.candidate.includes('relay')) {
+                    console.log('✅ TURN server working - got relay candidate');
                 }
             }
         };
 
-        // Create a dummy data channel to trigger ICE gathering
-        pc.createDataChannel('test');
+        // Create data channel and offer
+        pc.createDataChannel('turn-test');
         pc.createOffer().then(offer => pc.setLocalDescription(offer));
 
         setTimeout(() => {
             pc.close();
-            console.log('STUN connectivity test completed');
+            console.log('🔄 TURN connectivity test completed');
+        }, 10000);
+    }
+
+    static monitorCallQuality(pc) {
+        if (!pc) return;
+        
+        const interval = setInterval(() => {
+            if (pc.connectionState === 'closed') {
+                clearInterval(interval);
+                return;
+            }
+            
+            pc.getStats().then(stats => {
+                stats.forEach(report => {
+                    if (report.type === 'inbound-rtp' && report.mediaType === 'audio') {
+                        const packetsLost = report.packetsLost || 0;
+                        const packetsReceived = report.packetsReceived || 0;
+                        const total = packetsLost + packetsReceived;
+                        const lossRate = total > 0 ? (packetsLost / total * 100) : 0;
+                        
+                        if (lossRate > 5) {
+                            console.warn(`⚠️ High audio packet loss: ${lossRate.toFixed(2)}%`);
+                        }
+                    }
+                });
+            });
         }, 5000);
     }
 }
@@ -182,6 +181,8 @@ document.addEventListener('DOMContentLoaded', function() {
     WebRTCDebugger.checkBrowserSupport();
     WebRTCDebugger.logMediaDevices();
     WebRTCDebugger.testSTUNConnectivity();
+    WebRTCDebugger.testTURNConnectivity();
+    WebRTCDebugger.testMediaAccess();
 });
 
 // Make available globally

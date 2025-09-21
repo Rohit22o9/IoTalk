@@ -2056,28 +2056,38 @@ io.on('connection', (socket) => {
         console.log('📩 Voice message broadcasted to room:', data.roomId);
     });
 
-    // WebRTC signaling for calls
+    // Enhanced WebRTC signaling for calls with better validation and logging
     socket.on('call-offer', async (data) => {
         console.log(`📤 Call offer from ${socket.userId} for call ${data.callId}`);
+        console.log(`📤 Offer SDP type: ${data.offer?.type}, length: ${data.offer?.sdp?.length}`);
         
         try {
             const call = await Call.findById(data.callId);
             if (!call) {
                 console.error('❌ Call not found:', data.callId);
+                socket.emit('call-error', { error: 'Call not found', callId: data.callId });
                 return;
             }
             
             // Validate that the user is the caller
             if (call.caller.toString() !== socket.userId) {
                 console.error('❌ Unauthorized offer from:', socket.userId);
+                socket.emit('call-error', { error: 'Unauthorized', callId: data.callId });
+                return;
+            }
+            
+            // Validate offer structure
+            if (!data.offer || !data.offer.type || !data.offer.sdp) {
+                console.error('❌ Invalid offer structure');
+                socket.emit('call-error', { error: 'Invalid offer', callId: data.callId });
                 return;
             }
             
             const targetUserId = call.receiver.toString();
             console.log(`📤 Sending offer to receiver: ${targetUserId}`);
             
-            // Send offer to receiver
-            io.to(targetUserId).emit('call-offer', {
+            // Send offer to receiver with validation
+            const offerSent = io.to(targetUserId).emit('call-offer', {
                 callId: data.callId,
                 offer: data.offer,
                 from: socket.userId
@@ -2086,22 +2096,33 @@ io.on('connection', (socket) => {
             console.log(`✅ Offer sent to user ${targetUserId}`);
         } catch (error) {
             console.error('❌ Error sending call offer:', error);
+            socket.emit('call-error', { error: 'Server error', callId: data.callId });
         }
     });
 
     socket.on('call-answer', async (data) => {
         console.log(`📤 Call answer from ${socket.userId} for call ${data.callId}`);
+        console.log(`📤 Answer SDP type: ${data.answer?.type}, length: ${data.answer?.sdp?.length}`);
         
         try {
             const call = await Call.findById(data.callId);
             if (!call) {
                 console.error('❌ Call not found:', data.callId);
+                socket.emit('call-error', { error: 'Call not found', callId: data.callId });
                 return;
             }
             
             // Validate that the user is the receiver
             if (call.receiver.toString() !== socket.userId) {
                 console.error('❌ Unauthorized answer from:', socket.userId);
+                socket.emit('call-error', { error: 'Unauthorized', callId: data.callId });
+                return;
+            }
+            
+            // Validate answer structure
+            if (!data.answer || !data.answer.type || !data.answer.sdp) {
+                console.error('❌ Invalid answer structure');
+                socket.emit('call-error', { error: 'Invalid answer', callId: data.callId });
                 return;
             }
             
@@ -2118,11 +2139,13 @@ io.on('connection', (socket) => {
             console.log(`✅ Answer sent to user ${targetUserId}`);
         } catch (error) {
             console.error('❌ Error sending call answer:', error);
+            socket.emit('call-error', { error: 'Server error', callId: data.callId });
         }
     });
 
     socket.on('ice-candidate', async (data) => {
         console.log(`📤 ICE candidate from ${socket.userId} for call ${data.callId}`);
+        console.log(`🧊 Candidate type: ${data.candidate?.candidate?.split(' ')[7] || 'unknown'}`);
         
         try {
             const call = await Call.findById(data.callId);
@@ -2139,6 +2162,12 @@ io.on('connection', (socket) => {
             // Validate that the sender is a participant
             if (call.caller.toString() !== socket.userId && call.receiver.toString() !== socket.userId) {
                 console.error('❌ Unauthorized ICE candidate from:', socket.userId);
+                return;
+            }
+            
+            // Validate candidate structure
+            if (!data.candidate || (!data.candidate.candidate && data.candidate.candidate !== null)) {
+                console.error('❌ Invalid ICE candidate structure');
                 return;
             }
             

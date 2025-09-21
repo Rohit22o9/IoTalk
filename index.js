@@ -1984,98 +1984,103 @@ io.on('connection', (socket) => {
     });
 
     // WebRTC signaling for calls
-    socket.on('join-call-room', async (callId) => {
-        try {
-            socket.join(`call-${callId}`);
-            console.log(`✅ User ${socket.userId} joined call room: call-${callId}`);
-            
-            // Verify the call exists and user is authorized
-            const call = await Call.findById(callId);
-            if (call && (call.caller.toString() === socket.userId || call.receiver.toString() === socket.userId)) {
-                socket.emit('call-room-joined', { callId, success: true });
-                console.log(`✅ Call room joined successfully for user ${socket.userId}`);
-            } else {
-                console.log(`❌ Unauthorized call room join attempt by ${socket.userId}`);
-                socket.emit('call-room-joined', { callId, success: false, error: 'Unauthorized' });
-            }
-        } catch (error) {
-            console.error('Error joining call room:', error);
-            socket.emit('call-room-joined', { callId, success: false, error: 'Server error' });
-        }
-    });
-
     socket.on('call-offer', async (data) => {
         console.log(`📤 Call offer from ${socket.userId} for call ${data.callId}`);
-        console.log('📤 Offer SDP type:', data.offer?.type);
         
         try {
             const call = await Call.findById(data.callId);
-            if (call) {
-                const targetUserId = call.receiver.toString();
-                console.log(`📤 Sending offer to receiver: ${targetUserId}`);
-                
-                // Send directly to the receiver
-                io.to(targetUserId).emit('call-offer', {
-                    callId: data.callId,
-                    offer: data.offer,
-                    from: socket.userId
-                });
-                
-                console.log(`✅ Offer sent to user ${targetUserId}`);
+            if (!call) {
+                console.error('❌ Call not found:', data.callId);
+                return;
             }
+            
+            // Validate that the user is the caller
+            if (call.caller.toString() !== socket.userId) {
+                console.error('❌ Unauthorized offer from:', socket.userId);
+                return;
+            }
+            
+            const targetUserId = call.receiver.toString();
+            console.log(`📤 Sending offer to receiver: ${targetUserId}`);
+            
+            // Send offer to receiver
+            io.to(targetUserId).emit('call-offer', {
+                callId: data.callId,
+                offer: data.offer,
+                from: socket.userId
+            });
+            
+            console.log(`✅ Offer sent to user ${targetUserId}`);
         } catch (error) {
-            console.error('Error sending call offer:', error);
+            console.error('❌ Error sending call offer:', error);
         }
     });
 
     socket.on('call-answer', async (data) => {
         console.log(`📤 Call answer from ${socket.userId} for call ${data.callId}`);
-        console.log('📤 Answer SDP type:', data.answer?.type);
         
         try {
             const call = await Call.findById(data.callId);
-            if (call) {
-                const targetUserId = call.caller.toString();
-                console.log(`📤 Sending answer to caller: ${targetUserId}`);
-                
-                // Send directly to the caller
-                io.to(targetUserId).emit('call-answer', {
-                    callId: data.callId,
-                    answer: data.answer,
-                    from: socket.userId
-                });
-                
-                console.log(`✅ Answer sent to user ${targetUserId}`);
+            if (!call) {
+                console.error('❌ Call not found:', data.callId);
+                return;
             }
+            
+            // Validate that the user is the receiver
+            if (call.receiver.toString() !== socket.userId) {
+                console.error('❌ Unauthorized answer from:', socket.userId);
+                return;
+            }
+            
+            const targetUserId = call.caller.toString();
+            console.log(`📤 Sending answer to caller: ${targetUserId}`);
+            
+            // Send answer to caller
+            io.to(targetUserId).emit('call-answer', {
+                callId: data.callId,
+                answer: data.answer,
+                from: socket.userId
+            });
+            
+            console.log(`✅ Answer sent to user ${targetUserId}`);
         } catch (error) {
-            console.error('Error sending call answer:', error);
+            console.error('❌ Error sending call answer:', error);
         }
     });
 
     socket.on('ice-candidate', async (data) => {
         console.log(`📤 ICE candidate from ${socket.userId} for call ${data.callId}`);
-        console.log('📤 ICE candidate:', data.candidate?.candidate?.substring(0, 50) + '...');
         
         try {
             const call = await Call.findById(data.callId);
-            if (call) {
-                // Send to the other participant (caller or receiver)
-                const targetUserId = call.caller.toString() === socket.userId 
-                    ? call.receiver.toString() 
-                    : call.caller.toString();
-                    
-                console.log(`📤 Sending ICE candidate to: ${targetUserId}`);
-                
-                io.to(targetUserId).emit('ice-candidate', {
-                    callId: data.callId,
-                    candidate: data.candidate,
-                    from: socket.userId
-                });
-                
-                console.log(`✅ ICE candidate sent to user ${targetUserId}`);
+            if (!call) {
+                console.error('❌ Call not found for ICE candidate:', data.callId);
+                return;
             }
+            
+            // Determine target user (the other participant)
+            const targetUserId = call.caller.toString() === socket.userId 
+                ? call.receiver.toString() 
+                : call.caller.toString();
+            
+            // Validate that the sender is a participant
+            if (call.caller.toString() !== socket.userId && call.receiver.toString() !== socket.userId) {
+                console.error('❌ Unauthorized ICE candidate from:', socket.userId);
+                return;
+            }
+            
+            console.log(`📤 Relaying ICE candidate to: ${targetUserId}`);
+            
+            // Send ICE candidate to the other participant
+            io.to(targetUserId).emit('ice-candidate', {
+                callId: data.callId,
+                candidate: data.candidate,
+                from: socket.userId
+            });
+            
+            console.log(`✅ ICE candidate relayed to user ${targetUserId}`);
         } catch (error) {
-            console.error('Error sending ICE candidate:', error);
+            console.error('❌ Error relaying ICE candidate:', error);
         }
     });
 

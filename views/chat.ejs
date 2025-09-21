@@ -460,6 +460,7 @@
       }
       
       initializeCallSystem();
+      initializeChat();
       
       console.log('Chat page initialization complete');
     });
@@ -469,80 +470,101 @@
       
       // Socket event listeners for calls
       chatSocket.on('incoming-call', (data) => {
-        console.log('Incoming call received:', data);
+        console.log('📞 Incoming call received:', data);
         showIncomingCallNotification(data);
       });
 
       chatSocket.on('call-accepted', (data) => {
-        console.log('Call accepted:', data);
+        console.log('📞 Call accepted:', data);
         handleCallAccepted(data);
       });
 
       chatSocket.on('call-declined', (data) => {
-        console.log('Call declined:', data);
+        console.log('📞 Call declined:', data);
         handleCallDeclined(data);
       });
 
       chatSocket.on('call-ended', (data) => {
-        console.log('Call ended:', data);
+        console.log('📞 Call ended:', data);
         endCall();
       });
 
       chatSocket.on('call-cancelled', (data) => {
-        console.log('Call cancelled:', data);
+        console.log('📞 Call cancelled:', data);
         hideCallNotification();
       });
 
       chatSocket.on('call-timeout', (data) => {
-        console.log('Call timeout:', data);
+        console.log('📞 Call timeout:', data);
         handleCallTimeout();
       });
 
       chatSocket.on('call-missed', (data) => {
-        console.log('Call missed:', data);
+        console.log('📞 Call missed:', data);
         showMissedCallNotification(data);
       });
 
-      chatSocket.on('call-room-joined', (data) => {
-        if (data.success) {
-          console.log('✅ Successfully joined call room:', data.callId);
-          
-          // Process any pending ICE candidates
-          if (window.pendingIceCandidates && window.pendingIceCandidates.length > 0) {
-            console.log(`🧊 Processing ${window.pendingIceCandidates.length} pending ICE candidates...`);
-            window.pendingIceCandidates.forEach(async (candidate) => {
-              try {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                console.log('✅ Pending ICE candidate added');
-              } catch (error) {
-                console.error('❌ Error adding pending ICE candidate:', error);
-              }
-            });
-            window.pendingIceCandidates = [];
-          }
-        } else {
-          console.error('❌ Failed to join call room:', data.error);
-          alert('Failed to join call: ' + data.error);
-          endCall();
-        }
-      });
-
+      // WebRTC signaling events
       chatSocket.on('call-offer', async (data) => {
-        console.log('Received call offer:', data);
+        console.log('📥 Received call offer:', data);
         await handleCallOffer(data);
       });
 
       chatSocket.on('call-answer', async (data) => {
-        console.log('Received call answer:', data);
+        console.log('📥 Received call answer:', data);
         await handleCallAnswer(data);
       });
 
-      chatSocket.on('ice-candidate', (data) => {
-        console.log('Received ICE candidate:', data);
-        handleIceCandidate(data);
+      chatSocket.on('ice-candidate', async (data) => {
+        console.log('📥 Received ICE candidate:', data);
+        await handleIceCandidate(data);
       });
       
       console.log('Call system initialized');
+    }
+    
+    function initializeChat() {
+      // Room for private chat
+      const roomId = [currentUserId, otherUserId].sort().join('_');
+      chatSocket.emit('joinRoom', roomId);
+      
+      // Initialize message form
+      const messageForm = document.getElementById('message-form');
+      if (messageForm) {
+        messageForm.addEventListener('submit', sendMessage);
+      }
+      
+      // Initialize typing indicators
+      const messageInput = document.getElementById('message-input');
+      if (messageInput) {
+        let typingTimer;
+        messageInput.addEventListener('input', () => {
+          chatSocket.emit('typing start', {
+            from: currentUserId,
+            to: otherUserId,
+            username: '<%= currentUser.username %>'
+          });
+          
+          clearTimeout(typingTimer);
+          typingTimer = setTimeout(() => {
+            chatSocket.emit('typing stop', {
+              from: currentUserId,
+              to: otherUserId,
+              username: '<%= currentUser.username %>'
+            });
+          }, 1000);
+        });
+      }
+      
+      // Listen for incoming messages
+      chatSocket.on('chat message', (message) => {
+        appendMessage(message);
+      });
+      
+      // Listen for typing indicators
+      chatSocket.on('user typing', (data) => {
+        showTypingIndicator(data);
+      });
     }
     
     // Call initiation functions
@@ -601,9 +623,9 @@
           autoGainControl: true
         },
         video: type === 'video' ? {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 30 }
+          width: { ideal: 640, min: 320 },
+          height: { ideal: 480, min: 240 },
+          frameRate: { ideal: 30, min: 15 }
         } : false
       };
 
@@ -617,24 +639,27 @@
             track.stop();
             console.log(`🎤 Stopped ${track.kind} track`);
           });
+          localStream = null;
         }
         
+        // Request permissions
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('✅ Successfully got user media');
         
-        // Log track details
+        // Log track details and ensure they're enabled
         localStream.getTracks().forEach(track => {
           console.log(`🎤 Got ${track.kind} track:`, {
             enabled: track.enabled,
             muted: track.muted,
             readyState: track.readyState,
-            label: track.label
+            label: track.label,
+            settings: track.getSettings ? track.getSettings() : 'N/A'
           });
           
-          // Ensure tracks are enabled
+          // Force enable all tracks
           track.enabled = true;
           
-          // Listen for track events
+          // Add event listeners
           track.addEventListener('ended', () => {
             console.log(`🎤 ${track.kind} track ended`);
           });
@@ -648,19 +673,30 @@
           });
         });
         
+        // Test audio playback capability
+        if (localStream.getAudioTracks().length > 0) {
+          console.log('🔊 Audio track available for transmission');
+        }
+        
         return localStream;
       } catch (error) {
         console.error('❌ Error accessing media devices:', error);
         
-        // Provide user-friendly error messages
+        // Handle specific error types
+        let errorMessage = 'Failed to access microphone/camera';
         if (error.name === 'NotAllowedError') {
-          alert('Microphone/camera access was denied. Please allow access and try again.');
+          errorMessage = 'Please allow microphone and camera access in your browser settings and try again.';
         } else if (error.name === 'NotFoundError') {
-          alert('No microphone or camera found. Please connect a microphone and try again.');
+          errorMessage = 'No microphone or camera found. Please connect audio/video devices.';
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = 'Your microphone/camera is being used by another application.';
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage = 'Camera/microphone does not meet the required specifications.';
         } else {
-          alert('Failed to access microphone/camera: ' + error.message);
+          errorMessage = error.message || 'Unknown media access error';
         }
         
+        alert(errorMessage);
         throw error;
       }
     }
@@ -753,10 +789,26 @@
       console.log(`🟢 Accepting ${type} call ${callId}`);
       
       try {
+        // Set call state immediately
+        currentCall = {
+          callId: callId,
+          type: type,
+          role: 'receiver'
+        };
+        callType = type;
+        
         // Get user media first
         console.log('🎤 Getting user media...');
         await getUserMedia(type);
         console.log('✅ User media obtained');
+        
+        // Update UI
+        hideCallNotification();
+        showActiveCallInterface(type);
+        
+        // Create peer connection
+        console.log('🔗 Creating peer connection...');
+        await createPeerConnection();
         
         // Respond to server that call is accepted
         const response = await fetch(`/call/${callId}/respond`, {
@@ -768,27 +820,11 @@
         });
 
         if (response.ok) {
-          currentCall = {
-            callId: callId,
-            type: type,
-            role: 'receiver'
-          };
-          callType = type;
-          
-          console.log('✅ Call accepted on server');
-          
-          hideCallNotification();
-          showActiveCallInterface(type);
-          
-          // Create peer connection and join call room
-          await createPeerConnection();
-          console.log('📡 Joining call room...');
-          chatSocket.emit('join-call-room', callId);
-          
-          console.log('🟢 Call accepted, waiting for offer...');
+          console.log('✅ Call accepted on server, waiting for offer...');
         } else {
           throw new Error('Failed to accept call on server');
         }
+        
       } catch (error) {
         console.error('❌ Error accepting call:', error);
         alert('Failed to accept call: ' + error.message);
@@ -984,25 +1020,32 @@
     async function createPeerConnection() {
       console.log('🔗 Creating peer connection with config:', pcConfig);
       
+      // Close existing connection
       if (peerConnection) {
         peerConnection.close();
         console.log('🔗 Closed existing peer connection');
       }
       
+      // Clear any pending ICE candidates
+      window.pendingIceCandidates = [];
+      
       peerConnection = new RTCPeerConnection(pcConfig);
       
-      // Enhanced connection state logging
+      // Connection state monitoring
       peerConnection.onconnectionstatechange = () => {
-        console.log('🔗 Connection state changed:', peerConnection.connectionState);
-        if (peerConnection.connectionState === 'failed') {
-          console.error('❌ Peer connection failed, attempting to restart');
-          // Could implement restart logic here if needed
+        console.log('🔗 Connection state:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'connected') {
+          console.log('✅ Peer connection established successfully');
+          startCallTimer();
+        } else if (peerConnection.connectionState === 'failed') {
+          console.error('❌ Peer connection failed');
+          endCall();
         }
       };
       
       peerConnection.oniceconnectionstatechange = () => {
-        console.log('🧊 ICE connection state changed:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'connected') {
+        console.log('🧊 ICE connection state:', peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed') {
           console.log('✅ ICE connection established');
         } else if (peerConnection.iceConnectionState === 'failed') {
           console.error('❌ ICE connection failed');
@@ -1010,92 +1053,13 @@
       };
       
       peerConnection.onicegatheringstatechange = () => {
-        console.log('🧊 ICE gathering state changed:', peerConnection.iceGatheringState);
-      };
-      
-      // Add local tracks to peer connection
-      if (localStream) {
-        console.log('🎤 Adding local tracks to peer connection...');
-        localStream.getTracks().forEach(track => {
-          console.log(`🎤 Adding ${track.kind} track:`, track.enabled ? 'enabled' : 'disabled');
-          peerConnection.addTrack(track, localStream);
-        });
-        console.log('✅ All local tracks added');
-      } else {
-        console.warn('⚠️ No local stream available when creating peer connection');
-      }
-      
-      // Handle incoming remote tracks
-      peerConnection.ontrack = (event) => {
-        console.log('📥 Received remote tracks:', event.streams.length, 'streams');
-        const [remoteStream] = event.streams;
-        
-        console.log('📥 Remote stream tracks:', remoteStream.getTracks().map(t => t.kind));
-        
-        // Start call timer when we receive remote tracks (call is connected)
-        startCallTimer();
-        
-        // Set remote stream to video element
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) {
-          remoteVideo.srcObject = remoteStream;
-          console.log('📥 Remote stream attached to video element');
-          
-          // Ensure autoplay works
-          remoteVideo.play().then(() => {
-            console.log('▶️ Remote video/audio playback started');
-          }).catch(err => {
-            console.error('❌ Error starting remote playback:', err);
-            // Try to play on user interaction
-            remoteVideo.muted = true;
-            remoteVideo.play().then(() => {
-              console.log('▶️ Remote video playing (muted)');
-              // Unmute after starting
-              setTimeout(() => {
-                remoteVideo.muted = false;
-                console.log('🔊 Remote audio unmuted');
-              }, 1000);
-            });
-          });
-        }
-        
-        // Also create audio element for better audio handling
-        let remoteAudio = document.getElementById('remote-audio');
-        if (!remoteAudio) {
-          remoteAudio = document.createElement('audio');
-          remoteAudio.id = 'remote-audio';
-          remoteAudio.autoplay = true;
-          remoteAudio.controls = false;
-          remoteAudio.volume = 1.0;
-          document.body.appendChild(remoteAudio);
-          console.log('🔊 Created remote audio element');
-        }
-        
-        remoteAudio.srcObject = remoteStream;
-        
-        // Force audio to play
-        const playAudio = () => {
-          remoteAudio.play().then(() => {
-            console.log('🔊 Remote audio playing successfully');
-          }).catch(err => {
-            console.error('❌ Error playing remote audio:', err);
-            // Try to enable audio after user interaction
-            document.addEventListener('click', () => {
-              remoteAudio.play().then(() => {
-                console.log('🔊 Remote audio started after user interaction');
-              }).catch(console.error);
-            }, { once: true });
-          });
-        };
-        
-        // Try to play immediately
-        playAudio();
+        console.log('🧊 ICE gathering state:', peerConnection.iceGatheringState);
       };
       
       // Handle ICE candidates
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log('🧊 Sending ICE candidate:', event.candidate.candidate.substring(0, 50) + '...');
+          console.log('🧊 New ICE candidate:', event.candidate.type);
           chatSocket.emit('ice-candidate', {
             callId: currentCall.callId,
             candidate: event.candidate
@@ -1105,93 +1069,194 @@
         }
       };
       
-      console.log('✅ Peer connection created successfully');
+      // Handle incoming remote stream
+      peerConnection.ontrack = (event) => {
+        console.log('📥 Received remote track:', event.track.kind);
+        const [remoteStream] = event.streams;
+        
+        if (!remoteStream) {
+          console.error('❌ No remote stream received');
+          return;
+        }
+        
+        console.log('📥 Remote stream tracks:', remoteStream.getTracks().map(t => `${t.kind}:${t.enabled}`));
+        
+        // Handle remote video
+        const remoteVideo = document.getElementById('remote-video');
+        if (remoteVideo && callType === 'video') {
+          remoteVideo.srcObject = remoteStream;
+          remoteVideo.autoplay = true;
+          remoteVideo.playsInline = true;
+          remoteVideo.muted = false;
+          
+          remoteVideo.addEventListener('loadedmetadata', () => {
+            console.log('📥 Remote video metadata loaded');
+            remoteVideo.play().catch(err => {
+              console.error('❌ Error playing remote video:', err);
+            });
+          });
+        }
+        
+        // Handle remote audio - Create dedicated audio element
+        setupRemoteAudio(remoteStream);
+      };
+      
+      // Add local tracks if available
+      if (localStream) {
+        console.log('🎤 Adding local tracks to peer connection...');
+        localStream.getTracks().forEach(track => {
+          console.log(`🎤 Adding ${track.kind} track - enabled: ${track.enabled}`);
+          const sender = peerConnection.addTrack(track, localStream);
+          console.log('✅ Track added with sender:', sender);
+        });
+      } else {
+        console.warn('⚠️ No local stream available when creating peer connection');
+      }
+      
+      console.log('✅ Peer connection created and configured');
       return peerConnection;
     }
     
+    function setupRemoteAudio(remoteStream) {
+      // Remove existing remote audio
+      const existingAudio = document.getElementById('remote-audio');
+      if (existingAudio) {
+        existingAudio.remove();
+      }
+      
+      // Create new audio element
+      const remoteAudio = document.createElement('audio');
+      remoteAudio.id = 'remote-audio';
+      remoteAudio.autoplay = true;
+      remoteAudio.playsInline = true;
+      remoteAudio.controls = false;
+      remoteAudio.volume = 1.0;
+      remoteAudio.muted = false;
+      
+      // Hide the audio element
+      remoteAudio.style.display = 'none';
+      document.body.appendChild(remoteAudio);
+      
+      // Set the remote stream
+      remoteAudio.srcObject = remoteStream;
+      
+      console.log('🔊 Remote audio element created and configured');
+      
+      // Handle audio events
+      remoteAudio.addEventListener('canplay', () => {
+        console.log('🔊 Remote audio can play');
+        remoteAudio.play().then(() => {
+          console.log('✅ Remote audio playing successfully');
+        }).catch(error => {
+          console.error('❌ Error playing remote audio:', error);
+          // Retry on user interaction
+          document.addEventListener('click', function retryAudio() {
+            remoteAudio.play().then(() => {
+              console.log('✅ Remote audio started after user interaction');
+              document.removeEventListener('click', retryAudio);
+            }).catch(console.error);
+          });
+        });
+      });
+      
+      remoteAudio.addEventListener('error', (e) => {
+        console.error('❌ Remote audio error:', e);
+      });
+      
+      return remoteAudio;
+    }
+    
     async function handleCallAccepted(data) {
-      console.log('🟢 Call was accepted by receiver, creating offer...');
+      console.log('🟢 Call was accepted by receiver');
       
       try {
-        // Create peer connection if not already created
+        // Update UI first
+        showActiveCallInterface(callType);
+        
+        // Create peer connection if not exists
         if (!peerConnection) {
+          console.log('🔗 Creating peer connection for caller...');
           await createPeerConnection();
         }
         
-        // Join call room
-        console.log('📡 Joining call room...');
-        chatSocket.emit('join-call-room', currentCall.callId);
+        // Create and send offer
+        console.log('📤 Creating offer...');
+        const offer = await peerConnection.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: callType === 'video'
+        });
         
-        // Wait a moment for room join confirmation
-        setTimeout(async () => {
-          try {
-            // Create offer
-            console.log('📤 Creating offer...');
-            const offer = await peerConnection.createOffer({
-              offerToReceiveAudio: true,
-              offerToReceiveVideo: callType === 'video'
-            });
-            
-            console.log('📤 Setting local description...');
-            await peerConnection.setLocalDescription(offer);
-            
-            console.log('📤 Sending call offer to receiver...');
-            chatSocket.emit('call-offer', {
-              callId: currentCall.callId,
-              offer: offer
-            });
-            
-            console.log('✅ Offer sent, updating UI...');
-            showActiveCallInterface(callType);
-            
-          } catch (offerError) {
-            console.error('❌ Error creating/sending offer:', offerError);
-            alert('Failed to establish connection');
-            endCall();
-          }
-        }, 500);
+        console.log('📤 Setting local description with offer...');
+        await peerConnection.setLocalDescription(offer);
+        
+        console.log('📤 Sending offer to receiver...');
+        chatSocket.emit('call-offer', {
+          callId: currentCall.callId,
+          offer: offer
+        });
+        
+        console.log('✅ Offer sent successfully');
         
       } catch (error) {
         console.error('❌ Error handling call accepted:', error);
-        alert('Failed to start call');
+        alert('Failed to establish connection: ' + error.message);
         endCall();
       }
     }
     
     async function handleCallOffer(data) {
-      console.log('📥 Handling call offer from:', data.from);
+      console.log('📥 Handling call offer');
       
       try {
-        if (!peerConnection) {
-          console.log('📥 Creating peer connection for offer...');
-          await createPeerConnection();
-        }
-        
         if (!currentCall) {
           console.error('❌ No current call when handling offer');
           return;
         }
         
+        if (!peerConnection) {
+          console.log('🔗 Creating peer connection for offer...');
+          await createPeerConnection();
+        }
+        
         console.log('📥 Setting remote description (offer)...');
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-        console.log('✅ Remote description set');
+        const offerDesc = new RTCSessionDescription(data.offer);
+        await peerConnection.setRemoteDescription(offerDesc);
+        console.log('✅ Remote description (offer) set');
         
         console.log('📤 Creating answer...');
-        const answer = await peerConnection.createAnswer();
+        const answer = await peerConnection.createAnswer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: callType === 'video'
+        });
+        
         console.log('📤 Setting local description (answer)...');
         await peerConnection.setLocalDescription(answer);
         
         console.log('📤 Sending answer...');
         chatSocket.emit('call-answer', {
-          callId: data.callId,
+          callId: currentCall.callId,
           answer: answer
         });
         
         console.log('✅ Answer sent successfully');
         
+        // Process any pending ICE candidates
+        if (window.pendingIceCandidates && window.pendingIceCandidates.length > 0) {
+          console.log(`🧊 Processing ${window.pendingIceCandidates.length} pending ICE candidates...`);
+          for (const candidate of window.pendingIceCandidates) {
+            try {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+              console.log('✅ Pending ICE candidate added');
+            } catch (error) {
+              console.error('❌ Error adding pending ICE candidate:', error);
+            }
+          }
+          window.pendingIceCandidates = [];
+        }
+        
       } catch (error) {
         console.error('❌ Error handling call offer:', error);
-        alert('Failed to process call offer');
+        alert('Failed to process call offer: ' + error.message);
         endCall();
       }
     }
@@ -1217,23 +1282,32 @@
     }
     
     async function handleIceCandidate(data) {
-      console.log('📥 Handling ICE candidate from:', data.from);
+      console.log('📥 Handling ICE candidate');
       
       try {
+        if (!data.candidate) {
+          console.log('🧊 Received end-of-candidates signal');
+          return;
+        }
+        
         if (peerConnection && peerConnection.remoteDescription) {
           console.log('🧊 Adding ICE candidate...');
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+          const candidate = new RTCIceCandidate(data.candidate);
+          await peerConnection.addIceCandidate(candidate);
           console.log('✅ ICE candidate added successfully');
         } else {
-          console.warn('⚠️ Cannot add ICE candidate - no peer connection or remote description not set yet');
-          // Store candidate for later if needed
+          console.warn('⚠️ Storing ICE candidate for later (no remote description yet)');
           if (!window.pendingIceCandidates) {
             window.pendingIceCandidates = [];
           }
           window.pendingIceCandidates.push(data.candidate);
+          console.log(`📦 Stored ICE candidate. Total pending: ${window.pendingIceCandidates.length}`);
         }
       } catch (error) {
         console.error('❌ Error handling ICE candidate:', error);
+        if (error.name === 'OperationError') {
+          console.log('🧊 ICE candidate rejected (probably duplicate or invalid)');
+        }
       }
     }
     
@@ -1482,6 +1556,121 @@
       }
     }
     
+    // Chat message functions
+    async function sendMessage(e) {
+      e.preventDefault();
+      
+      const messageInput = document.getElementById('message-input');
+      const mediaInput = document.getElementById('media-input');
+      const message = messageInput.value.trim();
+      const file = mediaInput.files[0];
+      
+      if (!message && !file) return;
+      
+      const formData = new FormData();
+      if (message) formData.append('msg', message);
+      if (file) formData.append('media', file);
+      
+      try {
+        const response = await fetch(`/chat/${otherUserId}`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          messageInput.value = '';
+          mediaInput.value = '';
+          hideFilePreview();
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+      }
+    }
+    
+    function appendMessage(message) {
+      const container = document.getElementById('messages-container');
+      const messageDiv = document.createElement('div');
+      
+      // Add message to DOM (simplified version)
+      messageDiv.innerHTML = `
+        <div class="flex ${message.from._id === currentUserId ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
+            message.from._id === currentUserId ? 
+            'bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-br-md' : 
+            'bg-white/80 backdrop-blur-lg text-secondary-900 rounded-bl-md border border-white/20'
+          } shadow-lg">
+            <p class="text-sm leading-relaxed">${message.msg}</p>
+            <span class="text-xs ${message.from._id === currentUserId ? 'text-primary-100' : 'text-secondary-500'}">
+              ${new Date(message.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(messageDiv);
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    function showTypingIndicator(data) {
+      if (data.isTyping) {
+        document.getElementById('typing-indicator-container').classList.remove('hidden');
+        document.getElementById('typing-text').textContent = `${data.username} is typing...`;
+      } else {
+        document.getElementById('typing-indicator-container').classList.add('hidden');
+      }
+    }
+    
+    function hideFilePreview() {
+      document.getElementById('filePreview').classList.add('hidden');
+    }
+    
+    // AI and media functions (simplified)
+    async function summarizeContent(messageId, type, content) {
+      console.log('Summarizing content:', type);
+    }
+    
+    async function generateAIResponse() {
+      console.log('Generating AI response');
+    }
+    
+    function hideSmartReplies() {
+      const panel = document.getElementById('smart-replies-panel');
+      if (panel) panel.classList.add('hidden');
+    }
+    
+    function openMediaPreview(src, type, name) {
+      console.log('Opening media preview:', type);
+    }
+    
+    function closeMediaPreview() {
+      const modal = document.getElementById('mediaPreviewModal');
+      if (modal) modal.classList.add('hidden');
+    }
+    
+    function closeAISummary() {
+      const modal = document.getElementById('ai-summary-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    
+    function closeAISummaryOnOutsideClick(event) {
+      if (event.target === event.currentTarget) {
+        closeAISummary();
+      }
+    }
+    
+    // Voice recording functions (simplified)
+    function startVoiceRecording() {
+      console.log('Starting voice recording');
+    }
+    
+    function stopVoiceRecording() {
+      console.log('Stopping voice recording');
+    }
+    
+    function cancelVoiceRecording() {
+      console.log('Cancelling voice recording');
+    }
+
     // Initialize voice messages when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {
       initializeVoiceMessages();

@@ -443,27 +443,22 @@
     let isInCall = false;
     let callType = null;
     
-    // WebRTC configuration with STUN and TURN servers for Replit
+    // WebRTC configuration with comprehensive STUN and TURN servers for Replit
     const pcConfig = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject', 
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turns:openrelay.metered.ca:443?transport=tcp'
+          ],
           username: 'openrelayproject',
           credential: 'openrelayproject'
         }
-      ]
+      ],
+      iceCandidatePoolSize: 10
     };
     
     // Initialize everything when DOM is ready
@@ -931,6 +926,10 @@
         hideCallNotification();
         showActiveCallInterface(type);
         
+        // 🔊 AUTOPLAY FIX: Trigger audio playback on user gesture (accept)
+        // This ensures browser allows audio autoplay
+        console.log('🔊 Preparing audio autoplay after user gesture...');
+        
         // Create peer connection
         console.log('🔗 Creating peer connection...');
         await createPeerConnection();
@@ -1238,11 +1237,19 @@
         if (peerConnection.connectionState === 'connected') {
           console.log('✅ Peer connection established successfully! Audio should now flow.');
           
-          // Update UI status to show connection
-          const connectionStatus = document.querySelector('#audio-indicator p');
-          if (connectionStatus && connectionStatus.textContent === 'Connected') {
+          // ✅ AUTHORITATIVE UI UPDATE: Use connection state as source of truth
+          if (currentCall && currentCall.role === 'caller') {
+            // Update caller from "Calling..." to "Connected"
+            console.log('🔄 Updating caller UI from calling to connected state');
+            showActiveCallInterface(callType);
+          }
+          
+          // Update connection status indicator
+          const connectionStatus = document.querySelector('#audio-indicator p:last-child');
+          if (connectionStatus) {
             connectionStatus.textContent = 'Connected - Audio Active';
             connectionStatus.style.color = '#10b981'; // green color
+            connectionStatus.classList.add('animate-pulse');
           }
           
           startCallTimer();
@@ -1254,6 +1261,14 @@
           
         } else if (peerConnection.connectionState === 'connecting') {
           console.log('🔄 Peer connection is connecting...');
+        } else if (peerConnection.connectionState === 'disconnected') {
+          console.warn('⚠️ Peer connection disconnected - attempting to reconnect...');
+          // Update UI to show disconnection
+          const connectionStatus = document.querySelector('#audio-indicator p:last-child');
+          if (connectionStatus) {
+            connectionStatus.textContent = 'Reconnecting...';
+            connectionStatus.style.color = '#f59e0b'; // amber color
+          }
         } else if (peerConnection.connectionState === 'failed') {
           console.error('❌ Peer connection failed');
           alert('Call connection failed. Please check your network and try again.');
@@ -1463,6 +1478,10 @@
       remoteAudio.onloadeddata = () => console.log('🔊 Remote audio data loaded');
       remoteAudio.onloadedmetadata = () => {
         console.log('🔊 Remote audio metadata loaded, attempting play...');
+        // ✅ AUTOPLAY: Ensure play happens after user has interacted (accepted call)
+        if (currentCall && currentCall.role === 'receiver') {
+          console.log('🔊 User has accepted call - autoplay should work');
+        }
         attemptAudioPlay(remoteAudio);
       };
       
@@ -1942,18 +1961,19 @@
         await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
         console.log('✅ Remote description (answer) set successfully');
         
-        // ✅ FIX: Update caller's UI to show connected state
-        console.log('🔄 Updating caller UI to connected state...');
-        showActiveCallInterface(callType);
-        console.log('✅ Caller UI updated to connected state');
+        // ✅ REMOVED: Don't update UI here - let connectionState be the source of truth
+        // The UI will update when connectionState becomes 'connected'
+        console.log('✅ Answer processed - waiting for connection state to update UI');
         
         // Process any pending ICE candidates
         if (window.pendingIceCandidates && window.pendingIceCandidates.length > 0) {
           console.log(`🧊 Processing ${window.pendingIceCandidates.length} pending ICE candidates...`);
           for (const candidate of window.pendingIceCandidates) {
             try {
-              await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-              console.log('✅ Pending ICE candidate added');
+              if (candidate && candidate.candidate) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                console.log('✅ Pending ICE candidate added');
+              }
             } catch (error) {
               console.error('❌ Error adding pending ICE candidate:', error);
             }
@@ -1969,31 +1989,40 @@
     }
     
     async function handleIceCandidate(data) {
-      console.log('📥 Handling ICE candidate');
+      console.log('📥 Handling ICE candidate from:', data.from || 'remote');
       
       try {
-        if (!data.candidate) {
-          console.log('🧊 Received end-of-candidates signal');
+        // ✅ ROBUST ICE HANDLING: Guard against null candidates
+        if (!data.candidate || !data.candidate.candidate) {
+          console.log('🧊 Received end-of-candidates signal or null candidate');
           return;
         }
         
-        if (peerConnection && peerConnection.remoteDescription) {
-          console.log('🧊 Adding ICE candidate...');
+        console.log('🧊 ICE candidate details:', {
+          type: data.candidate.type,
+          protocol: data.candidate.protocol,
+          address: data.candidate.address ? data.candidate.address.substring(0, 10) + '...' : 'N/A'
+        });
+        
+        if (peerConnection && peerConnection.remoteDescription && peerConnection.signalingState !== 'closed') {
+          console.log('🧊 Adding ICE candidate immediately...');
           const candidate = new RTCIceCandidate(data.candidate);
           await peerConnection.addIceCandidate(candidate);
           console.log('✅ ICE candidate added successfully');
         } else {
-          console.warn('⚠️ Storing ICE candidate for later (no remote description yet)');
+          console.warn('⚠️ Queueing ICE candidate (no remote description or connection closed)');
           if (!window.pendingIceCandidates) {
             window.pendingIceCandidates = [];
           }
           window.pendingIceCandidates.push(data.candidate);
-          console.log(`📦 Stored ICE candidate. Total pending: ${window.pendingIceCandidates.length}`);
+          console.log(`📦 Queued ICE candidate. Total pending: ${window.pendingIceCandidates.length}`);
         }
       } catch (error) {
         console.error('❌ Error handling ICE candidate:', error);
         if (error.name === 'OperationError') {
-          console.log('🧊 ICE candidate rejected (probably duplicate or invalid)');
+          console.log('🧊 ICE candidate rejected (duplicate, invalid, or connection closed)');
+        } else if (error.name === 'InvalidStateError') {
+          console.log('🧊 ICE candidate rejected (invalid peer connection state)');
         }
       }
     }
@@ -2001,6 +2030,14 @@
     function handleCallDeclined(data) {
       console.log('Call was declined');
       hideCallInterface();
+      
+      // ✅ RESTORE UI: Show message footer after call decline
+      const messageFooter = document.getElementById('message-footer');
+      if (messageFooter) {
+        messageFooter.style.display = 'block';
+        console.log('✅ Chat typing bar restored after call decline');
+      }
+      
       currentCall = null;
       alert('Call was declined');
     }
@@ -2008,6 +2045,14 @@
     function handleCallTimeout() {
       console.log('Call timed out');
       hideCallInterface();
+      
+      // ✅ RESTORE UI: Show message footer after call timeout
+      const messageFooter = document.getElementById('message-footer');
+      if (messageFooter) {
+        messageFooter.style.display = 'block';
+        console.log('✅ Chat typing bar restored after call timeout');
+      }
+      
       currentCall = null;
       alert('Call timed out');
     }

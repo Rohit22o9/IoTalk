@@ -1984,53 +1984,118 @@ io.on('connection', (socket) => {
     });
 
     // WebRTC signaling for calls
-    socket.on('join-call-room', (callId) => {
-        socket.join(`call-${callId}`);
-        console.log(`User ${socket.userId} joined call room: call-${callId}`);
-        
-        // Emit confirmation back to the user
-        socket.emit('call-room-joined', { callId });
+    socket.on('join-call-room', async (callId) => {
+        try {
+            socket.join(`call-${callId}`);
+            console.log(`✅ User ${socket.userId} joined call room: call-${callId}`);
+            
+            // Verify the call exists and user is authorized
+            const call = await Call.findById(callId);
+            if (call && (call.caller.toString() === socket.userId || call.receiver.toString() === socket.userId)) {
+                socket.emit('call-room-joined', { callId, success: true });
+                console.log(`✅ Call room joined successfully for user ${socket.userId}`);
+            } else {
+                console.log(`❌ Unauthorized call room join attempt by ${socket.userId}`);
+                socket.emit('call-room-joined', { callId, success: false, error: 'Unauthorized' });
+            }
+        } catch (error) {
+            console.error('Error joining call room:', error);
+            socket.emit('call-room-joined', { callId, success: false, error: 'Server error' });
+        }
     });
 
-    socket.on('call-offer', (data) => {
-        console.log(`Call offer from ${socket.userId} for call ${data.callId}`);
-        console.log('Call offer SDP type:', data.offer?.type);
+    socket.on('call-offer', async (data) => {
+        console.log(`📤 Call offer from ${socket.userId} for call ${data.callId}`);
+        console.log('📤 Offer SDP type:', data.offer?.type);
         
-        // Broadcast to all users in the call room except sender
-        socket.to(`call-${data.callId}`).emit('call-offer', {
-            callId: data.callId,
-            offer: data.offer,
-            from: socket.userId
-        });
+        try {
+            const call = await Call.findById(data.callId);
+            if (call) {
+                const targetUserId = call.receiver.toString();
+                console.log(`📤 Sending offer to receiver: ${targetUserId}`);
+                
+                // Send directly to the receiver
+                io.to(targetUserId).emit('call-offer', {
+                    callId: data.callId,
+                    offer: data.offer,
+                    from: socket.userId
+                });
+                
+                console.log(`✅ Offer sent to user ${targetUserId}`);
+            }
+        } catch (error) {
+            console.error('Error sending call offer:', error);
+        }
     });
 
-    socket.on('call-answer', (data) => {
-        console.log(`Call answer from ${socket.userId} for call ${data.callId}`);
-        console.log('Call answer SDP type:', data.answer?.type);
+    socket.on('call-answer', async (data) => {
+        console.log(`📤 Call answer from ${socket.userId} for call ${data.callId}`);
+        console.log('📤 Answer SDP type:', data.answer?.type);
         
-        // Send answer back to the caller
-        socket.to(`call-${data.callId}`).emit('call-answer', {
-            callId: data.callId,
-            answer: data.answer,
-            from: socket.userId
-        });
+        try {
+            const call = await Call.findById(data.callId);
+            if (call) {
+                const targetUserId = call.caller.toString();
+                console.log(`📤 Sending answer to caller: ${targetUserId}`);
+                
+                // Send directly to the caller
+                io.to(targetUserId).emit('call-answer', {
+                    callId: data.callId,
+                    answer: data.answer,
+                    from: socket.userId
+                });
+                
+                console.log(`✅ Answer sent to user ${targetUserId}`);
+            }
+        } catch (error) {
+            console.error('Error sending call answer:', error);
+        }
     });
 
-    socket.on('ice-candidate', (data) => {
-        console.log(`ICE candidate from ${socket.userId} for call ${data.callId}`);
-        console.log('ICE candidate type:', data.candidate?.candidate);
+    socket.on('ice-candidate', async (data) => {
+        console.log(`📤 ICE candidate from ${socket.userId} for call ${data.callId}`);
+        console.log('📤 ICE candidate:', data.candidate?.candidate?.substring(0, 50) + '...');
         
-        // Forward ICE candidate to all other participants
-        socket.to(`call-${data.callId}`).emit('ice-candidate', {
-            callId: data.callId,
-            candidate: data.candidate,
-            from: socket.userId
-        });
+        try {
+            const call = await Call.findById(data.callId);
+            if (call) {
+                // Send to the other participant (caller or receiver)
+                const targetUserId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                    
+                console.log(`📤 Sending ICE candidate to: ${targetUserId}`);
+                
+                io.to(targetUserId).emit('ice-candidate', {
+                    callId: data.callId,
+                    candidate: data.candidate,
+                    from: socket.userId
+                });
+                
+                console.log(`✅ ICE candidate sent to user ${targetUserId}`);
+            }
+        } catch (error) {
+            console.error('Error sending ICE candidate:', error);
+        }
     });
 
-    socket.on('call-ended', (data) => {
-        console.log(`Call ended by ${socket.userId} for call ${data.callId}`);
-        socket.to(`call-${data.callId}`).emit('call-ended', data);
+    socket.on('call-ended', async (data) => {
+        console.log(`📞 Call ended by ${socket.userId} for call ${data.callId}`);
+        
+        try {
+            const call = await Call.findById(data.callId);
+            if (call) {
+                const targetUserId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                    
+                io.to(targetUserId).emit('call-ended', data);
+                console.log(`📞 Call end notification sent to user ${targetUserId}`);
+            }
+        } catch (error) {
+            console.error('Error handling call end:', error);
+        }
+        
         socket.leave(`call-${data.callId}`);
     });
 

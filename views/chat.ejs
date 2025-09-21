@@ -102,26 +102,32 @@
           <% if (isAudio && chat.media) { %>
             <!-- Voice message container -->
             <div class="max-w-xs lg:max-w-md">
-              <div class="voice-message-container relative group">
-                <button class="voice-play-btn" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
-                  <svg class="play-icon h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.166l-4.5-2.667a.5.5 0 00-.752.433v5.334a.5.5 0 00.752.433L14.752 11.166z"/>
-                  </svg>
-                  <svg class="pause-icon h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/>
-                  </svg>
-                </button>
-                <div class="voice-progress-bar-container">
-                  <div class="voice-progress"></div>
+              <div class="<%= isOwn ? 'bg-gradient-to-r from-primary-500 to-primary-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600' %> rounded-2xl <%= isOwn ? 'rounded-br-md' : 'rounded-bl-md' %> p-3 shadow-lg relative group">
+                <div class="flex items-center space-x-3">
+                  <button class="voice-play-btn flex-shrink-0 bg-white bg-opacity-20 border-2 border-white border-opacity-30 rounded-full w-10 h-10 flex items-center justify-center hover:bg-opacity-30 transition-all duration-200" data-audio-src="<%= chat.media.startsWith('/') ? chat.media : '/' + chat.media %>">
+                    <svg class="play-icon w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M8 5v10l7-5-7-5z"/>
+                    </svg>
+                    <svg class="pause-icon w-5 h-5 text-white hidden" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M6 4a1 1 0 011 1v10a1 1 0 11-2 0V5a1 1 0 011-1zM13 4a1 1 0 011 1v10a1 1 0 11-2 0V5a1 1 0 011-1z" clip-rule="evenodd"/>
+                    </svg>
+                  </button>
+                  <div class="flex-1 min-w-0">
+                    <div class="voice-progress-bar-container h-1 bg-white bg-opacity-30 rounded-full cursor-pointer">
+                      <div class="voice-progress h-full bg-white rounded-full transition-all duration-100" style="width: 0%"></div>
+                    </div>
+                  </div>
+                  <div class="voice-duration text-white text-sm font-medium min-w-10 text-right">0:00</div>
                 </div>
-                <div class="voice-duration">0:00</div>
                 <button onclick="summarizeContent('<%= chat._id %>', 'audio', '<%= chat.media %>')"
-                        class="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-primary-500 text-white text-xs px-2 py-1 rounded-full hover:bg-primary-600 shadow-lg">
-                  📝
+                        class="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 text-white text-xs p-1.5 rounded-full hover:bg-opacity-30 shadow-lg">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                  </svg>
                 </button>
               </div>
-              <div class="flex items-center justify-between mt-1 px-4 pb-3">
-                <span class="text-xs <%= isOwn ? 'text-primary-100' : 'text-secondary-500' %>">
+              <div class="flex items-center justify-between mt-1 px-2">
+                <span class="text-xs <%= isOwn ? 'text-secondary-500' : 'text-secondary-500' %>">
                   <%= new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) %>
                 </span>
                 <% if (chat.moderationResult && chat.moderationResult.flagged) { %>

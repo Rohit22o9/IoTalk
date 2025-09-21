@@ -154,67 +154,29 @@ html {
 }
 
 /* Voice Message Styles */
-.voice-message-container {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    space-x: 12px;
-    min-width: 200px;
-    max-width: 300px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 .voice-play-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
-    flex-shrink: 0;
 }
 
 .voice-play-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
     transform: scale(1.05);
 }
 
-.voice-play-btn svg {
-    color: white;
-    width: 18px;
-    height: 18px;
+.voice-progress-bar-container {
+    transition: all 0.2s ease;
 }
 
-.voice-progress-bar-container {
-    flex: 1;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 2px;
-    overflow: hidden;
-    cursor: pointer;
-    margin: 0 12px;
+.voice-progress-bar-container:hover {
+    transform: scaleY(1.2);
 }
 
 .voice-progress {
-    height: 100%;
-    background: white;
-    border-radius: 2px;
-    width: 0%;
     transition: width 0.1s ease;
 }
 
 .voice-duration {
-    color: white;
-    font-size: 12px;
-    font-weight: 500;
-    min-width: 35px;
-    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Call Interface Improvements */

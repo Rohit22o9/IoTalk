@@ -1,0 +1,39 @@
+You are my coding assistant.  
+In my Node.js + Express.js + Socket.IO chat app, the voice message feature is partially working:  
+
+1. The voice message is being sent to the server and delivered to the receiver,  
+   but the **recording is not actually capturing voice** (silent audio).  
+
+2. On the receiver’s side, the message arrives,  
+   but there is **no play button like WhatsApp** to play the voice message.  
+
+I want you to fix this issue by:  
+
+1. **Fixing Voice Recording**  
+   - Use `navigator.mediaDevices.getUserMedia({ audio: true })` to capture microphone input.  
+   - Properly configure `MediaRecorder` to record chunks and build a Blob (`audio/webm`).  
+   - Send the recorded Blob to the server via Socket.IO.  
+   - Make sure microphone permissions are requested and errors logged if access is denied.  
+
+2. **Adding Play Button in Chat**  
+   - When a voice message is received, dynamically create an `<audio controls>` element with a play button.  
+   - It should look like WhatsApp’s voice message (simple inline audio player).  
+   - Example:  
+     ```html
+     <audio controls style="width: 200px;">
+       <source src="blob_or_url" type="audio/webm">
+       Your browser does not support the audio element.
+     </audio>
+     ```  
+
+3. **Implementation Details**  
+   - Add `startRecording()` on mic button press (mousedown or click).  
+   - Add `stopRecording()` on mic button release (mouseup or second click).  
+   - On `mediaRecorder.onstop`, send the audio blob to the server.  
+   - On `socket.on("voiceMessage")`, render the `<audio controls>` player in the chat.  
+   - Add console logs like `🎙️ Recording started`, `🛑 Recording stopped`, `📩 Voice message received` for debugging.  
+
+Please update my **client-side JS** (chat UI) and **Socket.IO handling** so that:  
+- Voice is actually recorded and transmitted.  
+- The receiver sees a play button to listen to the voice message.  
+- Works in both personal and group chats.

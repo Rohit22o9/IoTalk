@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeFormValidation();
     initializeTooltips();
     initializeNotifications();
-    
+
     // Initialize call functionality if not already done
     if (typeof callManager === 'undefined' && typeof io !== 'undefined') {
         // Call manager will be initialized by call.js
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeAnimations() {
     // Add entrance animations to elements
     const animatedElements = document.querySelectorAll('[data-animate]');
-    
+
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
@@ -36,7 +36,7 @@ function initializeAnimations() {
         element.addEventListener('mouseenter', function() {
             this.style.transform = 'scale(1.05)';
         });
-        
+
         element.addEventListener('mouseleave', function() {
             this.style.transform = 'scale(1)';
         });
@@ -46,10 +46,10 @@ function initializeAnimations() {
 // Form validation enhancements
 function initializeFormValidation() {
     const forms = document.querySelectorAll('form');
-    
+
     forms.forEach(form => {
         const inputs = form.querySelectorAll('input[required]');
-        
+
         inputs.forEach(input => {
             input.addEventListener('blur', validateField);
             input.addEventListener('input', clearError);
@@ -60,10 +60,10 @@ function initializeFormValidation() {
 function validateField(event) {
     const field = event.target;
     const value = field.value.trim();
-    
+
     // Clear previous errors
     clearFieldError(field);
-    
+
     // Validate based on field type
     switch(field.type) {
         case 'email':
@@ -98,11 +98,11 @@ function clearFieldError(field) {
 
 function showFieldError(field, message) {
     field.classList.add('border-red-500');
-    
+
     const errorElement = document.createElement('p');
     errorElement.className = 'error-message text-sm text-red-600 mt-1';
     errorElement.textContent = message;
-    
+
     field.parentElement.appendChild(errorElement);
 }
 
@@ -120,7 +120,7 @@ function isValidPassword(password) {
 // Tooltip system
 function initializeTooltips() {
     const tooltipElements = document.querySelectorAll('[data-tooltip]');
-    
+
     tooltipElements.forEach(element => {
         element.addEventListener('mouseenter', showTooltip);
         element.addEventListener('mouseleave', hideTooltip);
@@ -130,13 +130,13 @@ function initializeTooltips() {
 function showTooltip(event) {
     const element = event.target;
     const tooltipText = element.getAttribute('data-tooltip');
-    
+
     const tooltip = document.createElement('div');
     tooltip.className = 'absolute z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded shadow-lg tooltip';
     tooltip.textContent = tooltipText;
-    
+
     document.body.appendChild(tooltip);
-    
+
     const rect = element.getBoundingClientRect();
     tooltip.style.left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2) + 'px';
     tooltip.style.top = rect.top - tooltip.offsetHeight - 5 + 'px';
@@ -162,21 +162,21 @@ function initializeNotifications() {
 
 function showNotification(message, type = 'info', duration = 5000) {
     const container = document.getElementById('notification-container');
-    
+
     const notification = document.createElement('div');
     notification.className = `
         max-w-sm w-full bg-white shadow-lg rounded-lg pointer-events-auto 
         ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all 
         duration-300 ease-in-out translate-x-full opacity-0
     `;
-    
+
     const colors = {
         success: 'bg-green-50 border-green-200 text-green-800',
         error: 'bg-red-50 border-red-200 text-red-800',
         warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
         info: 'bg-blue-50 border-blue-200 text-blue-800'
     };
-    
+
     notification.innerHTML = `
         <div class="p-4">
             <div class="flex items-start">
@@ -196,14 +196,14 @@ function showNotification(message, type = 'info', duration = 5000) {
             </div>
         </div>
     `;
-    
+
     container.appendChild(notification);
-    
+
     // Animate in
     setTimeout(() => {
         notification.classList.remove('translate-x-full', 'opacity-0');
     }, 100);
-    
+
     // Auto remove
     if (duration > 0) {
         setTimeout(() => {
@@ -241,7 +241,7 @@ function throttle(func, delay) {
     let lastExecTime = 0;
     return function (...args) {
         const currentTime = Date.now();
-        
+
         if (currentTime - lastExecTime > delay) {
             func.apply(this, args);
             lastExecTime = currentTime;
@@ -273,7 +273,7 @@ document.addEventListener('keydown', function(event) {
         const modals = document.querySelectorAll('.modal, .overlay');
         modals.forEach(modal => modal.remove());
     }
-    
+
     // Ctrl/Cmd + Enter to submit forms
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         const activeForm = document.querySelector('form:focus-within');
@@ -291,7 +291,7 @@ function initializeAccessibility() {
             document.body.classList.add('keyboard-nav');
         }
     });
-    
+
     document.addEventListener('mousedown', function() {
         document.body.classList.remove('keyboard-nav');
     });
@@ -308,3 +308,33 @@ window.ModernChat = {
     debounce,
     throttle
 };
+
+// Incoming call handling
+  socket.on("incoming-call", (data) => {
+    const modal = document.getElementById("incomingCallModal");
+    modal.classList.remove("hidden");
+
+    document.getElementById("acceptCall").onclick = () => {
+      socket.emit("accept-call", { to: data.from });
+      modal.classList.add("hidden");
+    };
+
+    document.getElementById("rejectCall").onclick = () => {
+      socket.emit("reject-call", { to: data.from });
+      modal.classList.add("hidden");
+    };
+  });
+
+  // Caller side event listeners
+  socket.on("call-accepted", (data) => {
+    // set remote description + start call timer
+    console.log("Call was accepted");
+  });
+
+  socket.on("call-rejected", () => {
+    alert("Call was rejected.");
+  });
+
+// Voice message functionality
+  let mediaRecorder;
+  let recordedChunks = [];

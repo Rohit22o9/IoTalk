@@ -1,72 +1,41 @@
 
-// WebRTC Call Manager - Fixed Audio Implementation
+// Clean WebRTC Calling System
 class CallManager {
     constructor() {
         this.socket = window.socket || io();
-        if (!window.socket) {
-            window.socket = this.socket;
-        }
-        
         this.localStream = null;
+        this.remoteStream = null;
         this.peerConnection = null;
         this.currentCall = null;
-        this.isInCall = false;
         this.callTimer = null;
         this.callStartTime = null;
         
-        // Enhanced WebRTC configuration with reliable STUN/TURN servers
         this.pcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
+                { urls: 'stun:stun1.l.google.com:19302' }
             ]
         };
         
         this.initializeEventListeners();
-        console.log('📞 CallManager initialized with enhanced audio support');
+        console.log('📞 CallManager initialized');
     }
 
     initializeEventListeners() {
         // Incoming call events
         this.socket.on('incoming-call', (data) => {
-            console.log('📞 Incoming call from:', data.caller.username);
+            console.log('📞 Incoming call:', data);
             this.showIncomingCallNotification(data);
         });
 
         this.socket.on('call-accepted', (data) => {
-            console.log('📞 Call accepted by:', data.receiver?.username || data.caller?.username);
+            console.log('📞 Call accepted:', data);
             this.handleCallAccepted(data);
         });
 
         this.socket.on('call-declined', (data) => {
-            console.log('📞 Call declined by:', data.receiver.username);
+            console.log('📞 Call declined');
             this.handleCallDeclined();
-        });
-
-        this.socket.on('call-cancelled', (data) => {
-            console.log('📞 Call cancelled');
-            this.handleCallCancelled();
-        });
-
-        this.socket.on('call-ended', (data) => {
-            console.log('📞 Call ended');
-            this.endCall();
         });
 
         this.socket.on('call-timeout', (data) => {
@@ -75,34 +44,47 @@ class CallManager {
         });
 
         this.socket.on('call-missed', (data) => {
-            console.log('📞 Missed call from:', data.caller.username);
-            this.showMissedCallNotification(data);
+            console.log('📞 Call missed');
+            this.hideCallNotification();
+        });
+
+        this.socket.on('call-ended', (data) => {
+            console.log('📞 Call ended');
+            this.endCall();
         });
 
         // WebRTC signaling events
-        this.socket.on('call-offer', async (data) => {
-            console.log('📤 Received call offer for call:', data.callId);
+        this.socket.on('call-user', async (data) => {
+            console.log('📥 Received offer');
             await this.handleOffer(data);
         });
 
-        this.socket.on('call-answer', async (data) => {
-            console.log('📤 Received call answer for call:', data.callId);
-            await this.handleAnswer(data);
+        this.socket.on('call-accepted', async (data) => {
+            if (data.answer) {
+                console.log('📥 Received answer');
+                await this.handleAnswer(data);
+            }
         });
 
         this.socket.on('ice-candidate', async (data) => {
-            console.log('🧊 Received ICE candidate for call:', data.callId);
+            console.log('📥 Received ICE candidate');
             await this.handleIceCandidate(data);
+        });
+
+        this.socket.on('end-call', (data) => {
+            console.log('📞 Call ended by peer');
+            this.endCall();
         });
     }
 
-    async initiateCall(receiverId, type = 'audio') {
+    async startCall(receiverId, type = 'audio') {
         try {
-            console.log('📞 Initiating call to:', receiverId, 'Type:', type);
+            console.log('📞 Starting call to:', receiverId);
             
-            // First get user media before making the call
+            // Get user media first
             await this.getUserMedia(type);
             
+            // Initiate call on server
             const response = await fetch('/call/initiate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -119,243 +101,179 @@ class CallManager {
                 };
                 
                 this.showOutgoingCallInterface();
-                console.log('📞 Call initiated successfully:', result.callId);
+                console.log('📞 Call initiated:', result.callId);
             } else {
-                console.error('❌ Failed to initiate call:', result.error);
-                this.releaseMedia();
-                alert(result.error);
+                throw new Error(result.error);
             }
         } catch (error) {
-            console.error('❌ Error initiating call:', error);
+            console.error('❌ Error starting call:', error);
             this.releaseMedia();
-            alert('Failed to start call');
+            alert('Failed to start call: ' + error.message);
         }
     }
 
-    async getUserMedia(type = 'audio') {
+    async acceptCall(callData) {
         try {
-            console.log('🎤 Requesting user media, type:', type);
+            console.log('📞 Accepting call:', callData.callId);
+            
+            // Get user media
+            await this.getUserMedia(callData.type);
+            
+            this.currentCall = {
+                callId: callData.callId,
+                callerId: callData.caller.id,
+                type: callData.type,
+                isInitiator: false
+            };
+
+            // Accept call on server
+            const response = await fetch(`/call/${callData.callId}/respond`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'accept' })
+            });
+
+            if (response.ok) {
+                this.hideCallNotification();
+                this.showInCallInterface();
+                console.log('📞 Call accepted');
+            } else {
+                throw new Error('Failed to accept call');
+            }
+        } catch (error) {
+            console.error('❌ Error accepting call:', error);
+            this.releaseMedia();
+            alert('Failed to accept call');
+        }
+    }
+
+    async declineCall(callId) {
+        try {
+            await fetch(`/call/${callId}/respond`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'decline' })
+            });
+            this.hideCallNotification();
+        } catch (error) {
+            console.error('❌ Error declining call:', error);
+        }
+    }
+
+    async getUserMedia(type) {
+        try {
+            console.log('🎤 Getting user media...');
             
             const constraints = {
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: true,
-                    sampleRate: 44100,
-                    channelCount: 2
+                    autoGainControl: true
                 },
-                video: type === 'video' ? {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    frameRate: { ideal: 30 }
-                } : false
+                video: type === 'video'
             };
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            
-            console.log('✅ User media obtained successfully');
-            console.log('🎤 Audio tracks:', this.localStream.getAudioTracks().length);
-            console.log('📹 Video tracks:', this.localStream.getVideoTracks().length);
-            
-            // Log track details and ensure they're enabled
-            this.localStream.getTracks().forEach(track => {
-                track.enabled = true;
-                console.log(`  ${track.kind}: ${track.label} (enabled: ${track.enabled})`);
-            });
-            
-            // Test audio levels
-            if (this.localStream.getAudioTracks().length > 0) {
-                this.testAudioLevels();
-            }
+            console.log('✅ User media obtained');
             
             return this.localStream;
         } catch (error) {
             console.error('❌ Error getting user media:', error);
             if (error.name === 'NotAllowedError') {
-                alert('Please allow microphone access to make calls');
-            } else if (error.name === 'NotFoundError') {
-                alert('No microphone found. Please connect a microphone');
+                alert('Please allow microphone access');
             }
             throw error;
         }
     }
 
-    testAudioLevels() {
-        try {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioContext.createMediaStreamSource(this.localStream);
-            const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            
-            const checkLevel = () => {
-                analyser.getByteFrequencyData(dataArray);
-                const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-                console.log('🎤 Audio level:', Math.round(average));
-                
-                if (average > 10) {
-                    console.log('✅ Audio input detected');
-                    audioContext.close();
-                } else {
-                    setTimeout(checkLevel, 100);
-                }
-            };
-            
-            checkLevel();
-        } catch (error) {
-            console.error('Audio level test failed:', error);
-        }
-    }
-
     createPeerConnection() {
-        console.log('🔗 Creating peer connection with config:', this.pcConfig);
+        console.log('🔗 Creating peer connection');
         
         this.peerConnection = new RTCPeerConnection(this.pcConfig);
 
-        // Add local tracks to peer connection
+        // Add local stream
         if (this.localStream) {
-            console.log('📤 Adding local tracks to peer connection');
             this.localStream.getTracks().forEach(track => {
-                console.log(`📤 Adding ${track.kind} track:`, track.label);
                 this.peerConnection.addTrack(track, this.localStream);
             });
         }
 
         // Handle remote stream
         this.peerConnection.ontrack = (event) => {
-            console.log('📥 Received remote track:', event.track.kind);
-            console.log('📥 Remote streams:', event.streams.length);
-            
-            if (event.streams.length > 0) {
-                const remoteStream = event.streams[0];
-                console.log('📥 Remote stream tracks:', remoteStream.getTracks().length);
-                
-                // Remove any existing remote audio elements
-                document.querySelectorAll('audio[id^="remoteAudio_"]').forEach(el => el.remove());
-                
-                // Create audio element for remote audio
-                const audioElement = document.createElement('audio');
-                audioElement.srcObject = remoteStream;
-                audioElement.autoplay = true;
-                audioElement.playsInline = true;
-                audioElement.controls = false;
-                audioElement.style.display = 'none';
-                audioElement.id = 'remoteAudio_' + Date.now();
-                audioElement.volume = 1.0;
-                
-                // Add event listeners for debugging
-                audioElement.onloadedmetadata = () => {
-                    console.log('✅ Remote audio metadata loaded');
-                    this.updateCallStatus('Connected');
-                    this.startCallTimer();
-                };
-                
-                audioElement.onplay = () => {
-                    console.log('▶️ Remote audio started playing');
-                };
-                
-                audioElement.onerror = (e) => {
-                    console.error('❌ Remote audio error:', e);
-                };
-                
-                audioElement.oncanplay = () => {
-                    console.log('📻 Remote audio can play');
-                };
-                
-                document.body.appendChild(audioElement);
-                console.log('✅ Remote audio element created and added to DOM');
-                
-                // Ensure audio plays with user interaction check
-                const playAudio = () => {
-                    audioElement.play().then(() => {
-                        console.log('✅ Remote audio play() succeeded');
-                    }).catch(err => {
-                        console.error('❌ Remote audio play() failed:', err);
-                        // Try to play again after user interaction
-                        document.addEventListener('click', () => {
-                            audioElement.play();
-                        }, { once: true });
-                    });
-                };
-                
-                // Play immediately or after user interaction
-                if (document.hasFocus()) {
-                    playAudio();
-                } else {
-                    document.addEventListener('click', playAudio, { once: true });
-                }
-            }
+            console.log('📥 Received remote track');
+            this.remoteStream = event.streams[0];
+            this.setupRemoteAudio(this.remoteStream);
+            this.updateCallStatus('Connected');
+            this.startCallTimer();
         };
 
         // Handle ICE candidates
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('🧊 Sending ICE candidate:', event.candidate.candidate);
+                console.log('🧊 Sending ICE candidate');
                 this.socket.emit('ice-candidate', {
                     callId: this.currentCall.callId,
                     candidate: event.candidate
                 });
-            } else {
-                console.log('🧊 ICE gathering completed');
             }
         };
 
         // Connection state changes
         this.peerConnection.onconnectionstatechange = () => {
             console.log('🔗 Connection state:', this.peerConnection.connectionState);
-            
             if (this.peerConnection.connectionState === 'connected') {
-                console.log('✅ Peer connection established successfully');
                 this.updateCallStatus('Connected');
-                if (!this.callTimer) {
-                    this.startCallTimer();
-                }
+                this.startCallTimer();
             } else if (this.peerConnection.connectionState === 'failed') {
-                console.error('❌ Peer connection failed');
-                this.updateCallStatus('Connection failed');
-                setTimeout(() => this.endCall(), 2000);
-            } else if (this.peerConnection.connectionState === 'disconnected') {
-                console.log('🔌 Peer connection disconnected');
-                this.updateCallStatus('Reconnecting...');
+                console.error('❌ Connection failed');
+                this.endCall();
             }
-        };
-
-        // ICE connection state changes
-        this.peerConnection.oniceconnectionstatechange = () => {
-            console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
         };
 
         return this.peerConnection;
     }
 
+    setupRemoteAudio(remoteStream) {
+        console.log('🔊 Setting up remote audio');
+        
+        // Remove existing audio element
+        const existingAudio = document.getElementById('remote-audio');
+        if (existingAudio) {
+            existingAudio.remove();
+        }
+
+        // Create new audio element
+        const audio = document.createElement('audio');
+        audio.id = 'remote-audio';
+        audio.srcObject = remoteStream;
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.volume = 1.0;
+        
+        // Hide but keep functional
+        audio.style.display = 'none';
+        document.body.appendChild(audio);
+
+        audio.onloadedmetadata = () => {
+            audio.play().catch(err => {
+                console.error('Audio play failed:', err);
+            });
+        };
+
+        console.log('✅ Remote audio setup complete');
+    }
+
     async handleCallAccepted(data) {
         try {
-            console.log('📞 Handling call acceptance');
+            console.log('📞 Call accepted, creating offer');
             
-            if (!this.currentCall) {
-                console.error('❌ No current call to accept');
-                return;
-            }
-
-            // Update UI to show connected state
-            this.updateCallStatus('Connecting...');
             this.showInCallInterface();
-            
-            // Create peer connection and send offer
             this.createPeerConnection();
             
-            console.log('📤 Creating offer');
-            const offer = await this.peerConnection.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: this.currentCall.type === 'video'
-            });
-            
+            const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
-            console.log('📤 Local description set, sending offer');
             
-            this.socket.emit('call-offer', {
+            this.socket.emit('call-user', {
                 callId: this.currentCall.callId,
                 offer: offer
             });
@@ -368,24 +286,16 @@ class CallManager {
 
     async handleOffer(data) {
         try {
-            console.log('📥 Handling incoming offer');
+            console.log('📥 Handling offer');
             
-            if (!this.currentCall || this.currentCall.callId !== data.callId) {
-                console.error('❌ No matching call for offer');
-                return;
-            }
-
             this.createPeerConnection();
             
             await this.peerConnection.setRemoteDescription(data.offer);
-            console.log('📥 Remote description set from offer');
-            
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
             
-            console.log('📤 Sending answer');
-            this.socket.emit('call-answer', {
-                callId: this.currentCall.callId,
+            this.socket.emit('call-accepted', {
+                callId: data.callId,
                 answer: answer
             });
             
@@ -399,14 +309,10 @@ class CallManager {
         try {
             console.log('📥 Handling answer');
             
-            if (!this.peerConnection) {
-                console.error('❌ No peer connection for answer');
-                return;
+            if (this.peerConnection) {
+                await this.peerConnection.setRemoteDescription(data.answer);
+                console.log('✅ Remote description set');
             }
-
-            await this.peerConnection.setRemoteDescription(data.answer);
-            console.log('✅ Remote description set from answer');
-            
         } catch (error) {
             console.error('❌ Error handling answer:', error);
             this.endCall();
@@ -415,93 +321,54 @@ class CallManager {
 
     async handleIceCandidate(data) {
         try {
-            if (!this.peerConnection) {
-                console.error('❌ No peer connection for ICE candidate');
-                return;
+            if (this.peerConnection && data.candidate) {
+                await this.peerConnection.addIceCandidate(data.candidate);
+                console.log('✅ ICE candidate added');
             }
-
-            await this.peerConnection.addIceCandidate(data.candidate);
-            console.log('✅ ICE candidate added successfully');
-            
         } catch (error) {
             console.error('❌ Error adding ICE candidate:', error);
         }
     }
 
-    async acceptCall(callData) {
-        try {
-            console.log('📞 Accepting call:', callData.callId);
+    startCallTimer() {
+        if (this.callTimer) return;
+        
+        this.callStartTime = Date.now();
+        this.callTimer = setInterval(() => {
+            const elapsed = Date.now() - this.callStartTime;
+            const minutes = Math.floor(elapsed / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             
-            // Get user media first
-            await this.getUserMedia(callData.type);
-            
-            this.currentCall = {
-                callId: callData.callId,
-                callerId: callData.caller.id,
-                type: callData.type,
-                isInitiator: false
-            };
-
-            const response = await fetch(`/call/${callData.callId}/respond`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'accept' })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                this.hideCallNotification();
-                this.showInCallInterface();
-                console.log('📞 Call accepted successfully');
-            } else {
-                console.error('❌ Failed to accept call:', result.error);
-                this.releaseMedia();
+            const timerElement = document.getElementById('call-timer');
+            if (timerElement) {
+                timerElement.textContent = timeStr;
             }
-        } catch (error) {
-            console.error('❌ Error accepting call:', error);
-            this.releaseMedia();
-        }
-    }
-
-    async declineCall(callId) {
-        try {
-            const response = await fetch(`/call/${callId}/respond`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'decline' })
-            });
-
-            if (response.ok) {
-                this.hideCallNotification();
-                console.log('📞 Call declined');
-            }
-        } catch (error) {
-            console.error('❌ Error declining call:', error);
-        }
+        }, 1000);
     }
 
     async endCall() {
-        try {
-            console.log('📞 Ending call');
-            
-            if (this.currentCall) {
+        console.log('📞 Ending call');
+        
+        if (this.currentCall) {
+            try {
                 await fetch(`/call/${this.currentCall.callId}/end`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    method: 'POST'
                 });
+                
+                this.socket.emit('end-call', {
+                    callId: this.currentCall.callId
+                });
+            } catch (error) {
+                console.error('Error ending call:', error);
             }
-
-            this.cleanup();
-        } catch (error) {
-            console.error('❌ Error ending call:', error);
-            this.cleanup();
         }
+
+        this.cleanup();
     }
 
     cleanup() {
-        console.log('🧹 Cleaning up call resources');
-        
-        // Stop call timer
+        // Stop timer
         if (this.callTimer) {
             clearInterval(this.callTimer);
             this.callTimer = null;
@@ -516,51 +383,27 @@ class CallManager {
         // Release media
         this.releaseMedia();
         
-        // Remove remote audio elements
-        document.querySelectorAll('audio[id^="remoteAudio_"]').forEach(el => el.remove());
+        // Remove remote audio
+        const remoteAudio = document.getElementById('remote-audio');
+        if (remoteAudio) {
+            remoteAudio.remove();
+        }
         
-        // Hide call interfaces
+        // Hide interfaces
         this.hideCallInterfaces();
         
         // Reset state
         this.currentCall = null;
-        this.isInCall = false;
         this.callStartTime = null;
         
-        console.log('✅ Call cleanup completed');
+        console.log('✅ Call cleanup complete');
     }
 
     releaseMedia() {
         if (this.localStream) {
-            console.log('🛑 Releasing local media stream');
-            this.localStream.getTracks().forEach(track => {
-                track.stop();
-                console.log(`🛑 Stopped ${track.kind} track`);
-            });
+            this.localStream.getTracks().forEach(track => track.stop());
             this.localStream = null;
         }
-    }
-
-    startCallTimer() {
-        if (this.callTimer) {
-            console.log('📱 Call timer already running');
-            return;
-        }
-        
-        console.log('📱 Starting call timer');
-        this.callStartTime = Date.now();
-        this.callTimer = setInterval(() => {
-            const elapsed = Date.now() - this.callStartTime;
-            const minutes = Math.floor(elapsed / 60000);
-            const seconds = Math.floor((elapsed % 60000) / 1000);
-            const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            const timerElement = document.getElementById('call-timer');
-            if (timerElement) {
-                timerElement.textContent = timeStr;
-                console.log('⏱️ Call duration:', timeStr);
-            }
-        }, 1000);
     }
 
     updateCallStatus(status) {
@@ -568,11 +411,10 @@ class CallManager {
         if (statusElement) {
             statusElement.textContent = status;
         }
-        console.log('📞 Call status updated:', status);
     }
 
     showIncomingCallNotification(data) {
-        this.hideCallNotification(); // Remove any existing notification
+        this.hideCallNotification();
         
         const notification = document.createElement('div');
         notification.id = 'call-notification';
@@ -614,7 +456,7 @@ class CallManager {
             <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4 text-center">
                 <div class="mb-4">
                     <div class="text-lg font-semibold mb-2">Calling...</div>
-                    <div id="call-status" class="text-gray-600">Calling...</div>
+                    <div id="call-status" class="text-gray-600">Connecting...</div>
                     <div id="call-timer" class="text-2xl font-mono mt-4">00:00</div>
                 </div>
                 <button onclick="callManager.endCall()" 
@@ -637,7 +479,7 @@ class CallManager {
             <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4 text-center">
                 <div class="mb-4">
                     <div class="text-lg font-semibold mb-2">In Call</div>
-                    <div id="call-status" class="text-gray-600">Connecting...</div>
+                    <div id="call-status" class="text-gray-600">Connected</div>
                     <div id="call-timer" class="text-2xl font-mono mt-4 text-green-600">00:00</div>
                 </div>
                 <div class="flex space-x-4 justify-center">
@@ -668,7 +510,6 @@ class CallManager {
                         ? 'bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600'
                         : 'bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600';
                 }
-                console.log('🎤 Microphone', audioTrack.enabled ? 'unmuted' : 'muted');
             }
         }
     }
@@ -694,36 +535,30 @@ class CallManager {
         this.cleanup();
     }
 
-    handleCallCancelled() {
-        this.hideCallInterfaces();
-        this.cleanup();
-    }
-
     handleCallTimeout() {
         this.hideCallInterfaces();
         alert('Call timed out');
         this.cleanup();
     }
-
-    showMissedCallNotification(data) {
-        if (window.ModernChat && window.ModernChat.showNotification) {
-            window.ModernChat.showNotification(
-                `Missed call from ${data.caller.username}`,
-                'info',
-                5000
-            );
-        }
-    }
 }
 
-// Initialize call manager when page loads
+// Initialize call manager
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof io !== 'undefined') {
         window.callManager = new CallManager();
-        console.log('📞 Call manager initialized and available globally');
-    } else {
-        console.error('❌ Socket.IO not loaded for calls');
+        console.log('📞 Call manager ready');
     }
 });
 
-console.log('📞 Call.js loaded with enhanced audio support');
+// Global functions for easy access
+window.startAudioCall = function(receiverId) {
+    if (window.callManager) {
+        window.callManager.startCall(receiverId, 'audio');
+    }
+};
+
+window.startVideoCall = function(receiverId) {
+    if (window.callManager) {
+        window.callManager.startCall(receiverId, 'video');
+    }
+};

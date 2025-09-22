@@ -305,7 +305,7 @@ app.post('/chat/:id', upload.single('media'), async (req, res) => {
         if (media) {
             // Determine the correct path based on file type
             let uploadPath = '/media/';
-            
+
             // Check if it's a voice message
             if (media.originalname && media.originalname.startsWith('voice_')) {
                 uploadPath = '/voice/';
@@ -317,7 +317,7 @@ app.post('/chat/:id', upload.single('media'), async (req, res) => {
                 const newPath = path.join(__dirname, 'public', 'voice', media.filename);
                 fs.renameSync(oldPath, newPath);
             }
-            
+
             mediaPath = uploadPath + media.filename;
             originalName = media.originalname;
 
@@ -608,7 +608,7 @@ app.post('/groupchat/:groupId', upload.single('media'), async (req, res) => {
         if (media) {
             // Determine the correct path based on file type
             let uploadPath = '/media/';
-            
+
             // Check if it's a voice message
             if (media.originalname && media.originalname.startsWith('voice_')) {
                 uploadPath = '/voice/';
@@ -622,7 +622,7 @@ app.post('/groupchat/:groupId', upload.single('media'), async (req, res) => {
                     fs.renameSync(oldPath, newPath);
                 }
             }
-            
+
             mediaPath = uploadPath + media.filename;
             originalName = media.originalname;
 
@@ -1549,7 +1549,7 @@ app.post('/call/initiate', async (req, res) => {
         console.log(`Call initiation: User ${receiverId} online status - Real-time: ${isUserOnline}`);
         console.log('Active connections:', Array.from(activeConnections.keys()));
         console.log(`Receiver ${receiverId} connections:`, activeConnections.get(receiverId));
-        
+
         // For now, allow calls even if user appears offline (they might just have connection issues)
         // We can still send the call request and let it timeout if truly offline
         if (!isUserOnline) {
@@ -1918,23 +1918,23 @@ io.on('connection', (socket) => {
     socket.on('userOnline', async (userId) => {
         try {
             console.log(`User ${userId} came online with socket ${socket.id}`);
-            
+
             socket.userId = userId;
             socket.join(userId);
-            
+
             // Track this socket connection for the user
             if (!activeConnections.has(userId)) {
                 activeConnections.set(userId, new Set());
             }
             activeConnections.get(userId).add(socket.id);
-            
+
             // Update user status in database
             await User.findByIdAndUpdate(userId, { 
                 online: true, 
                 lastSeen: null,
                 socketId: socket.id 
             });
-            
+
             // Broadcast status update to all clients
             io.emit('userStatus', { userId, online: true });
             console.log(`Broadcasting user ${userId} is now online`);
@@ -2046,7 +2046,7 @@ io.on('connection', (socket) => {
     // Handle real-time voice messages
     socket.on('voiceMessage', (data) => {
         console.log('📩 Voice message received via Socket.IO from:', data.from);
-        
+
         // Broadcast to the specific room (excluding sender)
         socket.to(data.roomId).emit('voiceMessage', {
             from: data.from,
@@ -2056,213 +2056,75 @@ io.on('connection', (socket) => {
             mimeType: data.mimeType,
             timestamp: data.timestamp
         });
-        
+
         console.log('📩 Voice message broadcasted to room:', data.roomId);
     });
 
-    // Enhanced WebRTC signaling for calls with better validation and logging
-    socket.on('call-offer', async (data) => {
-        console.log(`📤 Call offer from ${socket.userId} for call ${data.callId}`);
-        console.log(`📤 Offer SDP type: ${data.offer?.type}, length: ${data.offer?.sdp?.length}`);
-        
+    // WebRTC signaling for one-to-one calls
+    socket.on('call-user', async (data) => {
         try {
             const call = await Call.findById(data.callId);
-            if (!call) {
-                console.error('❌ Call not found:', data.callId);
-                socket.emit('call-error', { error: 'Call not found', callId: data.callId });
-                return;
-            }
-            
-            // Validate call status
-            if (call.status !== 'accepted') {
-                console.error('❌ Call not in accepted state:', call.status);
-                socket.emit('call-error', { error: 'Call not accepted', callId: data.callId });
-                return;
-            }
-            
-            // Validate that the user is the caller
-            if (call.caller.toString() !== socket.userId) {
-                console.error('❌ Unauthorized offer from:', socket.userId);
-                socket.emit('call-error', { error: 'Unauthorized', callId: data.callId });
-                return;
-            }
-            
-            // Validate offer structure
-            if (!data.offer || !data.offer.type || !data.offer.sdp) {
-                console.error('❌ Invalid offer structure');
-                socket.emit('call-error', { error: 'Invalid offer', callId: data.callId });
-                return;
-            }
-            
+            if (!call) return;
+
             const targetUserId = call.receiver.toString();
-            console.log(`📤 Sending offer to receiver: ${targetUserId}`);
-            
-            // Send offer to receiver with validation
-            io.to(targetUserId).emit('call-offer', {
+            io.to(targetUserId).emit('call-user', {
                 callId: data.callId,
                 offer: data.offer,
                 from: socket.userId
             });
-            
-            console.log(`✅ Offer sent to user ${targetUserId}`);
         } catch (error) {
-            console.error('❌ Error sending call offer:', error);
-            socket.emit('call-error', { error: 'Server error', callId: data.callId });
+            console.error('Error handling call-user:', error);
         }
     });
 
-    socket.on('call-answer', async (data) => {
-        console.log(`📤 Call answer from ${socket.userId} for call ${data.callId}`);
-        console.log(`📤 Answer SDP type: ${data.answer?.type}, length: ${data.answer?.sdp?.length}`);
-        
+    socket.on('call-accepted', async (data) => {
         try {
             const call = await Call.findById(data.callId);
-            if (!call) {
-                console.error('❌ Call not found:', data.callId);
-                socket.emit('call-error', { error: 'Call not found', callId: data.callId });
-                return;
-            }
-            
-            // Validate call status
-            if (call.status !== 'accepted') {
-                console.error('❌ Call not in accepted state:', call.status);
-                socket.emit('call-error', { error: 'Call not accepted', callId: data.callId });
-                return;
-            }
-            
-            // Validate that the user is the receiver
-            if (call.receiver.toString() !== socket.userId) {
-                console.error('❌ Unauthorized answer from:', socket.userId);
-                socket.emit('call-error', { error: 'Unauthorized', callId: data.callId });
-                return;
-            }
-            
-            // Validate answer structure
-            if (!data.answer || !data.answer.type || !data.answer.sdp) {
-                console.error('❌ Invalid answer structure');
-                socket.emit('call-error', { error: 'Invalid answer', callId: data.callId });
-                return;
-            }
-            
+            if (!call) return;
+
             const targetUserId = call.caller.toString();
-            console.log(`📤 Sending answer to caller: ${targetUserId}`);
-            
-            // Send answer to caller
-            io.to(targetUserId).emit('call-answer', {
+            io.to(targetUserId).emit('call-accepted', {
                 callId: data.callId,
                 answer: data.answer,
                 from: socket.userId
             });
-            
-            // Update call status to indicate WebRTC negotiation is happening
-            call.status = 'connecting';
-            await call.save();
-            
-            console.log(`✅ Answer sent to user ${targetUserId}, call status updated to connecting`);
         } catch (error) {
-            console.error('❌ Error sending call answer:', error);
-            socket.emit('call-error', { error: 'Server error', callId: data.callId });
+            console.error('Error handling call-accepted:', error);
         }
     });
 
     socket.on('ice-candidate', async (data) => {
-        console.log(`📤 ICE candidate from ${socket.userId} for call ${data.callId}`);
-        console.log(`🧊 Candidate type: ${data.candidate?.candidate?.split(' ')[7] || 'unknown'}`);
-        
         try {
             const call = await Call.findById(data.callId);
-            if (!call) {
-                console.error('❌ Call not found for ICE candidate:', data.callId);
-                return;
-            }
-            
-            // Determine target user (the other participant)
+            if (!call) return;
+
             const targetUserId = call.caller.toString() === socket.userId 
                 ? call.receiver.toString() 
                 : call.caller.toString();
-            
-            // Validate that the sender is a participant
-            if (call.caller.toString() !== socket.userId && call.receiver.toString() !== socket.userId) {
-                console.error('❌ Unauthorized ICE candidate from:', socket.userId);
-                return;
-            }
-            
-            // Validate candidate structure
-            if (!data.candidate || (!data.candidate.candidate && data.candidate.candidate !== null)) {
-                console.error('❌ Invalid ICE candidate structure');
-                return;
-            }
-            
-            console.log(`📤 Relaying ICE candidate to: ${targetUserId}`);
-            
-            // Send ICE candidate to the other participant
+
             io.to(targetUserId).emit('ice-candidate', {
                 callId: data.callId,
                 candidate: data.candidate,
                 from: socket.userId
             });
-            
-            console.log(`✅ ICE candidate relayed to user ${targetUserId}`);
         } catch (error) {
-            console.error('❌ Error relaying ICE candidate:', error);
+            console.error('Error handling ice-candidate:', error);
         }
     });
 
-    socket.on('call-ended', async (data) => {
-        console.log(`📞 Call ended by ${socket.userId} for call ${data.callId}`);
-        
+    socket.on('end-call', async (data) => {
         try {
             const call = await Call.findById(data.callId);
-            if (call) {
-                const targetUserId = call.caller.toString() === socket.userId 
-                    ? call.receiver.toString() 
-                    : call.caller.toString();
-                    
-                io.to(targetUserId).emit('call-ended', data);
-                console.log(`📞 Call end notification sent to user ${targetUserId}`);
-            }
+            if (!call) return;
+
+            const targetUserId = call.caller.toString() === socket.userId 
+                ? call.receiver.toString() 
+                : call.caller.toString();
+
+            io.to(targetUserId).emit('end-call', { callId: data.callId });
         } catch (error) {
-            console.error('Error handling call end:', error);
+            console.error('Error handling end-call:', error);
         }
-        
-        socket.leave(`call-${data.callId}`);
-    });
-
-    // Group call WebRTC signaling
-    socket.on('group-call-offer', (data) => {
-        socket.to(`group_${data.groupId}`).emit('group-call-offer', {
-            offer: data.offer,
-            from: data.from,
-            callId: data.callId,
-            groupId: data.groupId
-        });
-    });
-
-    socket.on('group-call-answer', (data) => {
-        socket.to(`group_${data.groupId}`).emit('group-call-answer', {
-            answer: data.answer,
-            from: data.from,
-            callId: data.callId,
-            groupId: data.groupId
-        });
-    });
-
-    socket.on('group-ice-candidate', (data) => {
-        socket.to(`group_${data.groupId}`).emit('group-ice-candidate', {
-            candidate: data.candidate,
-            from: data.from,
-            callId: data.callId,
-            groupId: data.groupId
-        });
-    });
-
-    // Group management events
-    socket.on('group-member-added', (data) => {
-        socket.to(`group_${data.groupId}`).emit('member-added-to-group', data);
-    });
-
-    socket.on('group-member-removed', (data) => {
-        socket.to(`group_${data.groupId}`).emit('member-removed-from-group', data);
     });
 
     socket.on('disconnect', async () => {
@@ -2271,21 +2133,21 @@ io.on('connection', (socket) => {
             if (socket.userId) {
                 const userId = socket.userId.toString();
                 console.log(`User ${userId} disconnected with socket ${socket.id}`);
-                
+
                 // Remove this socket from active connections
                 if (activeConnections.has(userId)) {
                     activeConnections.get(userId).delete(socket.id);
-                    
+
                     // Only mark user as offline if no other sockets are connected
                     if (activeConnections.get(userId).size === 0) {
                         activeConnections.delete(userId);
-                        
+
                         await User.findByIdAndUpdate(userId, {
                             online: false,
                             lastSeen: new Date(),
                             socketId: null
                         });
-                        
+
                         io.emit('userStatus', { userId, online: false });
                         console.log(`User ${userId} is now offline`);
                     } else {

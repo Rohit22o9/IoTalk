@@ -2071,15 +2071,60 @@ io.on('connection', (socket) => {
             }
 
             const targetUserId = call.receiver.toString();
-            console.log('📤 Sending offer to receiver:', targetUserId);
+            console.log('📤 Sending incoming call notification to receiver:', targetUserId);
 
-            io.to(targetUserId).emit('call-user', {
+            // Send incoming call notification to receiver
+            const caller = await User.findById(socket.userId);
+            io.to(targetUserId).emit('incoming-call', {
                 callId: data.callId,
+                caller: {
+                    id: caller._id,
+                    username: caller.username,
+                    avatar: caller.avatar
+                },
+                type: call.type,
                 offer: data.offer,
                 from: socket.userId
             });
         } catch (error) {
             console.error('Error handling call-user:', error);
+        }
+    });
+
+    socket.on('accept-call', async (data) => {
+        try {
+            console.log('📤 Relaying call acceptance from receiver to caller');
+            const call = await Call.findById(data.callId);
+            if (!call) {
+                console.error('❌ Call not found:', data.callId);
+                return;
+            }
+
+            const targetUserId = call.caller.toString();
+            console.log('📤 Sending call acceptance to caller:', targetUserId);
+
+            io.to(targetUserId).emit('call-accepted', {
+                callId: data.callId,
+                answer: data.answer,
+                from: socket.userId
+            });
+        } catch (error) {
+            console.error('Error handling accept-call:', error);
+        }
+    });
+
+    socket.on('reject-call', async (data) => {
+        try {
+            console.log('📤 Relaying call rejection from receiver to caller');
+            const call = await Call.findById(data.callId);
+            if (!call) return;
+
+            const targetUserId = call.caller.toString();
+            io.to(targetUserId).emit('call-rejected', {
+                callId: data.callId
+            });
+        } catch (error) {
+            console.error('Error handling reject-call:', error);
         }
     });
 

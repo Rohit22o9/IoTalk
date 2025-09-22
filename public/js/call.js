@@ -7,6 +7,7 @@ class CallManager {
         this.remoteStream = null;
         this.peerConnection = null;
         this.currentCall = null;
+        this.pendingCall = null;
         this.callTimer = null;
         this.callStartTime = null;
         
@@ -24,18 +25,26 @@ class CallManager {
     initializeEventListeners() {
         // Incoming call events
         this.socket.on('incoming-call', (data) => {
-            console.log('📞 Incoming call:', data);
+            console.log('📞 Incoming call from:', data.caller.username);
             this.showIncomingCallNotification(data);
+            
+            // Store the call data and offer for later use
+            this.pendingCall = {
+                callId: data.callId,
+                caller: data.caller,
+                type: data.type,
+                offer: data.offer
+            };
         });
 
         this.socket.on('call-accepted', (data) => {
-            console.log('📞 Call accepted:', data);
-            this.handleCallAccepted(data);
-        });
-
-        this.socket.on('call-declined', (data) => {
-            console.log('📞 Call declined');
-            this.handleCallDeclined();
+            if (data.answer) {
+                console.log('📞 Call accepted with answer, handling WebRTC');
+                this.handleCallAcceptedWithAnswer(data);
+            } else {
+                console.log('📞 Call accepted, creating offer for WebRTC');
+                this.handleCallAccepted(data);
+            }
         });
 
         this.socket.on('call-rejected', (data) => {
@@ -59,18 +68,6 @@ class CallManager {
         });
 
         // WebRTC signaling events
-        this.socket.on('call-user', async (data) => {
-            console.log('📥 Received offer');
-            await this.handleOffer(data);
-        });
-
-        this.socket.on('call-accepted', async (data) => {
-            if (data.answer) {
-                console.log('📥 Received answer');
-                await this.handleAnswer(data);
-            }
-        });
-
         this.socket.on('ice-candidate', async (data) => {
             console.log('📥 Received ICE candidate');
             await this.handleIceCandidate(data);
@@ -117,22 +114,27 @@ class CallManager {
         }
     }
 
-    async acceptCall(callData) {
+    async acceptIncomingCall() {
         try {
-            console.log('📞 Accepting call:', callData.callId);
+            if (!this.pendingCall) {
+                console.error('❌ No pending call to accept');
+                return;
+            }
+
+            console.log('📞 Accepting incoming call:', this.pendingCall.callId);
             
             // Get user media
-            await this.getUserMedia(callData.type);
+            await this.getUserMedia(this.pendingCall.type);
             
             this.currentCall = {
-                callId: callData.callId,
-                callerId: callData.caller.id,
-                type: callData.type,
+                callId: this.pendingCall.callId,
+                callerId: this.pendingCall.caller.id,
+                type: this.pendingCall.type,
                 isInitiator: false
             };
 
             // Accept call on server first
-            const response = await fetch(`/call/${callData.callId}/respond`, {
+            const response = await fetch(`/call/${this.pendingCall.callId}/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'accept' })
@@ -143,7 +145,9 @@ class CallManager {
                 this.showInCallInterface();
                 console.log('📞 Call accepted on server');
                 
-                // The WebRTC signaling will be handled by the call-user event listener
+                // Handle the WebRTC offer from the pending call
+                await this.handleIncomingOffer(this.pendingCall);
+                
             } else {
                 throw new Error('Failed to accept call');
             }
@@ -154,22 +158,57 @@ class CallManager {
         }
     }
 
-    async declineCall(callId) {
+    async rejectIncomingCall() {
         try {
+            if (!this.pendingCall) {
+                console.error('❌ No pending call to reject');
+                return;
+            }
+
+            console.log('📞 Rejecting incoming call:', this.pendingCall.callId);
+            
             // Decline on server
-            await fetch(`/call/${callId}/respond`, {
+            await fetch(`/call/${this.pendingCall.callId}/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'decline' })
             });
             
             // Also emit socket event for real-time notification
-            this.socket.emit('call-rejected', { callId: callId });
+            this.socket.emit('reject-call', { callId: this.pendingCall.callId });
             
             this.hideCallNotification();
-            console.log('📞 Call declined');
+            this.pendingCall = null;
+            console.log('📞 Call rejected');
         } catch (error) {
-            console.error('❌ Error declining call:', error);
+            console.error('❌ Error rejecting call:', error);
+        }
+    }
+
+    async handleIncomingOffer(callData) {
+        try {
+            console.log('📥 Handling incoming offer from pending call');
+            
+            if (!this.peerConnection) {
+                this.createPeerConnection();
+            }
+            
+            await this.peerConnection.setRemoteDescription(callData.offer);
+            const answer = await this.peerConnection.createAnswer();
+            await this.peerConnection.setLocalDescription(answer);
+            
+            // Send answer back to caller
+            this.socket.emit('accept-call', {
+                callId: callData.callId,
+                answer: answer
+            });
+            
+            console.log('📤 Answer sent to caller');
+            this.pendingCall = null;
+            
+        } catch (error) {
+            console.error('❌ Error handling incoming offer:', error);
+            this.endCall();
         }
     }
 
@@ -301,6 +340,20 @@ class CallManager {
             
         } catch (error) {
             console.error('❌ Error handling call acceptance:', error);
+            this.endCall();
+        }
+    }
+
+    async handleCallAcceptedWithAnswer(data) {
+        try {
+            console.log('📥 Handling answer from receiver');
+            
+            if (this.peerConnection && data.answer) {
+                await this.peerConnection.setRemoteDescription(data.answer);
+                console.log('✅ Remote description set from answer');
+            }
+        } catch (error) {
+            console.error('❌ Error handling answer:', error);
             this.endCall();
         }
     }
@@ -481,11 +534,11 @@ class CallManager {
         const acceptBtn = notification.querySelector('#accept-call-btn');
         
         declineBtn.addEventListener('click', () => {
-            this.declineCall(data.callId);
+            this.rejectIncomingCall();
         });
         
         acceptBtn.addEventListener('click', () => {
-            this.acceptCall(data);
+            this.acceptIncomingCall();
         });
         
         // Auto-dismiss after 30 seconds

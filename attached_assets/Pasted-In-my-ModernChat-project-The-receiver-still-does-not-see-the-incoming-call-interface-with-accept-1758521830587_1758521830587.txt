@@ -1,0 +1,64 @@
+In my ModernChat project:
+
+The receiver still does not see the incoming call interface with accept/reject buttons.  
+I want you to fix this with the following exact implementation:
+
+1. Add this modal to chat.ejs (if not already present):
+
+<div id="incomingCallModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+  <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+    <h2 class="text-lg font-semibold mb-4">Incoming Call...</h2>
+    <button id="acceptCall" class="bg-green-500 text-white px-4 py-2 rounded mr-2">Accept</button>
+    <button id="rejectCall" class="bg-red-500 text-white px-4 py-2 rounded">Reject</button>
+  </div>
+</div>
+
+2. In public/js/main.js (or the client file handling socket events), add:
+
+socket.on("incoming-call", (data) => {
+  const modal = document.getElementById("incomingCallModal");
+  modal.classList.remove("hidden");
+
+  document.getElementById("acceptCall").onclick = () => {
+    socket.emit("accept-call", { to: data.from });
+    modal.classList.add("hidden");
+  };
+
+  document.getElementById("rejectCall").onclick = () => {
+    socket.emit("reject-call", { to: data.from });
+    modal.classList.add("hidden");
+  };
+});
+
+3. In index.js (server), update Socket.IO events:
+
+socket.on("call-user", (data) => {
+  io.to(data.to).emit("incoming-call", {
+    from: socket.id,
+    offer: data.offer
+  });
+});
+
+socket.on("accept-call", (data) => {
+  io.to(data.to).emit("call-accepted", { answer: data.answer });
+});
+
+socket.on("reject-call", (data) => {
+  io.to(data.to).emit("call-rejected");
+});
+
+4. On the caller side, listen for:
+
+socket.on("call-accepted", (data) => {
+  // set remote description + start call timer
+});
+
+socket.on("call-rejected", () => {
+  alert("Call was rejected.");
+});
+
+Do not change anything else in the project.  
+Just ensure that:
+- The receiver always sees the incoming call modal when the caller clicks "call".
+- Accept and reject work properly.
+- Messaging, file sharing, and other features remain untouched.

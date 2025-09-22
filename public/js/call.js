@@ -38,6 +38,11 @@ class CallManager {
             this.handleCallDeclined();
         });
 
+        this.socket.on('call-rejected', (data) => {
+            console.log('📞 Call rejected');
+            this.handleCallDeclined();
+        });
+
         this.socket.on('call-timeout', (data) => {
             console.log('📞 Call timeout');
             this.handleCallTimeout();
@@ -126,7 +131,7 @@ class CallManager {
                 isInitiator: false
             };
 
-            // Accept call on server
+            // Accept call on server first
             const response = await fetch(`/call/${callData.callId}/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -136,7 +141,9 @@ class CallManager {
             if (response.ok) {
                 this.hideCallNotification();
                 this.showInCallInterface();
-                console.log('📞 Call accepted');
+                console.log('📞 Call accepted on server');
+                
+                // The WebRTC signaling will be handled by the call-user event listener
             } else {
                 throw new Error('Failed to accept call');
             }
@@ -149,12 +156,18 @@ class CallManager {
 
     async declineCall(callId) {
         try {
+            // Decline on server
             await fetch(`/call/${callId}/respond`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'decline' })
             });
+            
+            // Also emit socket event for real-time notification
+            this.socket.emit('call-rejected', { callId: callId });
+            
             this.hideCallNotification();
+            console.log('📞 Call declined');
         } catch (error) {
             console.error('❌ Error declining call:', error);
         }
@@ -265,14 +278,22 @@ class CallManager {
 
     async handleCallAccepted(data) {
         try {
-            console.log('📞 Call accepted, creating offer');
+            console.log('📞 Call accepted, creating offer for WebRTC');
             
             this.showInCallInterface();
-            this.createPeerConnection();
             
-            const offer = await this.peerConnection.createOffer();
+            // Create peer connection if not already created
+            if (!this.peerConnection) {
+                this.createPeerConnection();
+            }
+            
+            const offer = await this.peerConnection.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: this.currentCall.type === 'video'
+            });
             await this.peerConnection.setLocalDescription(offer);
             
+            console.log('📤 Sending WebRTC offer to receiver');
             this.socket.emit('call-user', {
                 callId: this.currentCall.callId,
                 offer: offer
@@ -414,28 +435,38 @@ class CallManager {
     }
 
     showIncomingCallNotification(data) {
+        console.log('📞 Showing incoming call notification for:', data.caller.username);
         this.hideCallNotification();
         
         const notification = document.createElement('div');
         notification.id = 'call-notification';
-        notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+        notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100]';
         notification.innerHTML = `
-            <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
                 <div class="text-center">
-                    <div class="mb-4">
-                        <img src="${data.caller.avatar || '/avatars/default.png'}" 
-                             alt="${data.caller.username}" 
-                             class="w-20 h-20 rounded-full mx-auto mb-2">
-                        <h3 class="text-lg font-semibold">${data.caller.username}</h3>
-                        <p class="text-gray-600">Incoming ${data.type} call</p>
+                    <div class="mb-6">
+                        <div class="relative inline-block">
+                            <img src="${data.caller.avatar || '/avatars/default.png'}" 
+                                 alt="${data.caller.username}" 
+                                 class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200">
+                            <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">${data.caller.username}</h3>
+                        <p class="text-gray-600 text-sm mt-1">Incoming ${data.type} call</p>
                     </div>
                     <div class="flex space-x-4">
-                        <button onclick="callManager.declineCall('${data.callId}')" 
-                                class="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                        <button id="decline-call-btn" 
+                                class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
+                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                            </svg>
                             Decline
                         </button>
-                        <button onclick="callManager.acceptCall(${JSON.stringify(data).replace(/"/g, '&quot;')})" 
-                                class="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                        <button id="accept-call-btn" 
+                                class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
+                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                            </svg>
                             Accept
                         </button>
                     </div>
@@ -444,6 +475,27 @@ class CallManager {
         `;
         
         document.body.appendChild(notification);
+        
+        // Add event listeners to buttons
+        const declineBtn = notification.querySelector('#decline-call-btn');
+        const acceptBtn = notification.querySelector('#accept-call-btn');
+        
+        declineBtn.addEventListener('click', () => {
+            this.declineCall(data.callId);
+        });
+        
+        acceptBtn.addEventListener('click', () => {
+            this.acceptCall(data);
+        });
+        
+        // Auto-dismiss after 30 seconds
+        setTimeout(() => {
+            if (document.getElementById('call-notification')) {
+                this.declineCall(data.callId);
+            }
+        }, 30000);
+        
+        console.log('✅ Incoming call notification displayed');
     }
 
     showOutgoingCallInterface() {

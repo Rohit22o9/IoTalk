@@ -2063,10 +2063,16 @@ io.on('connection', (socket) => {
     // WebRTC signaling for one-to-one calls
     socket.on('call-user', async (data) => {
         try {
+            console.log('📤 Relaying call offer from caller to receiver');
             const call = await Call.findById(data.callId);
-            if (!call) return;
+            if (!call) {
+                console.error('❌ Call not found:', data.callId);
+                return;
+            }
 
             const targetUserId = call.receiver.toString();
+            console.log('📤 Sending offer to receiver:', targetUserId);
+
             io.to(targetUserId).emit('call-user', {
                 callId: data.callId,
                 offer: data.offer,
@@ -2079,10 +2085,16 @@ io.on('connection', (socket) => {
 
     socket.on('call-accepted', async (data) => {
         try {
+            console.log('📤 Relaying call answer from receiver to caller');
             const call = await Call.findById(data.callId);
-            if (!call) return;
+            if (!call) {
+                console.error('❌ Call not found:', data.callId);
+                return;
+            }
 
             const targetUserId = call.caller.toString();
+            console.log('📤 Sending answer to caller:', targetUserId);
+
             io.to(targetUserId).emit('call-accepted', {
                 callId: data.callId,
                 answer: data.answer,
@@ -2124,6 +2136,21 @@ io.on('connection', (socket) => {
             io.to(targetUserId).emit('end-call', { callId: data.callId });
         } catch (error) {
             console.error('Error handling end-call:', error);
+        }
+    });
+    
+    socket.on('call-rejected', async (data) => {
+        try {
+            console.log('📤 Relaying call rejection');
+            const call = await Call.findById(data.callId);
+            if (!call) return;
+
+            const targetUserId = call.caller.toString();
+            io.to(targetUserId).emit('call-declined', { 
+                callId: data.callId 
+            });
+        } catch (error) {
+            console.error('Error handling call-rejected:', error);
         }
     });
 

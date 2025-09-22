@@ -1681,7 +1681,10 @@ app.post('/call/:callId/respond', async (req, res) => {
         const user = await User.findById(req.session.userId);
         if (action === 'accept') {
             call.status = 'accepted';
+            call.startTime = new Date();
             await call.save();
+
+            console.log(`📞 Call ${call._id} accepted by ${user.username}`);
 
             // Notify the caller that call was accepted
             io.to(call.caller.toString()).emit('call-accepted', {
@@ -1703,6 +1706,7 @@ app.post('/call/:callId/respond', async (req, res) => {
                 }
             });
 
+            console.log(`📞 Call acceptance notifications sent for call ${call._id}`);
             res.json({ success: true, message: 'Call accepted' });
         } else if (action === 'decline') {
             call.status = 'declined';
@@ -2069,6 +2073,13 @@ io.on('connection', (socket) => {
                 return;
             }
             
+            // Validate call status
+            if (call.status !== 'accepted') {
+                console.error('❌ Call not in accepted state:', call.status);
+                socket.emit('call-error', { error: 'Call not accepted', callId: data.callId });
+                return;
+            }
+            
             // Validate that the user is the caller
             if (call.caller.toString() !== socket.userId) {
                 console.error('❌ Unauthorized offer from:', socket.userId);
@@ -2087,7 +2098,7 @@ io.on('connection', (socket) => {
             console.log(`📤 Sending offer to receiver: ${targetUserId}`);
             
             // Send offer to receiver with validation
-            const offerSent = io.to(targetUserId).emit('call-offer', {
+            io.to(targetUserId).emit('call-offer', {
                 callId: data.callId,
                 offer: data.offer,
                 from: socket.userId
@@ -2109,6 +2120,13 @@ io.on('connection', (socket) => {
             if (!call) {
                 console.error('❌ Call not found:', data.callId);
                 socket.emit('call-error', { error: 'Call not found', callId: data.callId });
+                return;
+            }
+            
+            // Validate call status
+            if (call.status !== 'accepted') {
+                console.error('❌ Call not in accepted state:', call.status);
+                socket.emit('call-error', { error: 'Call not accepted', callId: data.callId });
                 return;
             }
             
@@ -2136,7 +2154,11 @@ io.on('connection', (socket) => {
                 from: socket.userId
             });
             
-            console.log(`✅ Answer sent to user ${targetUserId}`);
+            // Update call status to indicate WebRTC negotiation is happening
+            call.status = 'connecting';
+            await call.save();
+            
+            console.log(`✅ Answer sent to user ${targetUserId}, call status updated to connecting`);
         } catch (error) {
             console.error('❌ Error sending call answer:', error);
             socket.emit('call-error', { error: 'Server error', callId: data.callId });

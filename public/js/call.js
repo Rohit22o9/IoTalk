@@ -140,9 +140,15 @@ class CallManager {
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: true
+                    autoGainControl: true,
+                    sampleRate: 44100,
+                    channelCount: 2
                 },
-                video: type === 'video'
+                video: type === 'video' ? {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    frameRate: { ideal: 30 }
+                } : false
             };
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -151,15 +157,55 @@ class CallManager {
             console.log('🎤 Audio tracks:', this.localStream.getAudioTracks().length);
             console.log('📹 Video tracks:', this.localStream.getVideoTracks().length);
             
-            // Log track details
+            // Log track details and ensure they're enabled
             this.localStream.getTracks().forEach(track => {
+                track.enabled = true;
                 console.log(`  ${track.kind}: ${track.label} (enabled: ${track.enabled})`);
             });
+            
+            // Test audio levels
+            if (this.localStream.getAudioTracks().length > 0) {
+                this.testAudioLevels();
+            }
             
             return this.localStream;
         } catch (error) {
             console.error('❌ Error getting user media:', error);
+            if (error.name === 'NotAllowedError') {
+                alert('Please allow microphone access to make calls');
+            } else if (error.name === 'NotFoundError') {
+                alert('No microphone found. Please connect a microphone');
+            }
             throw error;
+        }
+    }
+
+    testAudioLevels() {
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(this.localStream);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            
+            const checkLevel = () => {
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
+                console.log('🎤 Audio level:', Math.round(average));
+                
+                if (average > 10) {
+                    console.log('✅ Audio input detected');
+                    audioContext.close();
+                } else {
+                    setTimeout(checkLevel, 100);
+                }
+            };
+            
+            checkLevel();
+        } catch (error) {
+            console.error('Audio level test failed:', error);
         }
     }
 
@@ -186,6 +232,9 @@ class CallManager {
                 const remoteStream = event.streams[0];
                 console.log('📥 Remote stream tracks:', remoteStream.getTracks().length);
                 
+                // Remove any existing remote audio elements
+                document.querySelectorAll('audio[id^="remoteAudio_"]').forEach(el => el.remove());
+                
                 // Create audio element for remote audio
                 const audioElement = document.createElement('audio');
                 audioElement.srcObject = remoteStream;
@@ -194,10 +243,13 @@ class CallManager {
                 audioElement.controls = false;
                 audioElement.style.display = 'none';
                 audioElement.id = 'remoteAudio_' + Date.now();
+                audioElement.volume = 1.0;
                 
                 // Add event listeners for debugging
                 audioElement.onloadedmetadata = () => {
                     console.log('✅ Remote audio metadata loaded');
+                    this.updateCallStatus('Connected');
+                    this.startCallTimer();
                 };
                 
                 audioElement.onplay = () => {
@@ -208,15 +260,32 @@ class CallManager {
                     console.error('❌ Remote audio error:', e);
                 };
                 
+                audioElement.oncanplay = () => {
+                    console.log('📻 Remote audio can play');
+                };
+                
                 document.body.appendChild(audioElement);
                 console.log('✅ Remote audio element created and added to DOM');
                 
-                // Ensure audio plays
-                audioElement.play().then(() => {
-                    console.log('✅ Remote audio play() succeeded');
-                }).catch(err => {
-                    console.error('❌ Remote audio play() failed:', err);
-                });
+                // Ensure audio plays with user interaction check
+                const playAudio = () => {
+                    audioElement.play().then(() => {
+                        console.log('✅ Remote audio play() succeeded');
+                    }).catch(err => {
+                        console.error('❌ Remote audio play() failed:', err);
+                        // Try to play again after user interaction
+                        document.addEventListener('click', () => {
+                            audioElement.play();
+                        }, { once: true });
+                    });
+                };
+                
+                // Play immediately or after user interaction
+                if (document.hasFocus()) {
+                    playAudio();
+                } else {
+                    document.addEventListener('click', playAudio, { once: true });
+                }
             }
         };
 
@@ -240,10 +309,16 @@ class CallManager {
             if (this.peerConnection.connectionState === 'connected') {
                 console.log('✅ Peer connection established successfully');
                 this.updateCallStatus('Connected');
-                this.startCallTimer();
+                if (!this.callTimer) {
+                    this.startCallTimer();
+                }
             } else if (this.peerConnection.connectionState === 'failed') {
                 console.error('❌ Peer connection failed');
-                this.endCall();
+                this.updateCallStatus('Connection failed');
+                setTimeout(() => this.endCall(), 2000);
+            } else if (this.peerConnection.connectionState === 'disconnected') {
+                console.log('🔌 Peer connection disconnected');
+                this.updateCallStatus('Reconnecting...');
             }
         };
 
@@ -266,6 +341,7 @@ class CallManager {
 
             // Update UI to show connected state
             this.updateCallStatus('Connecting...');
+            this.showInCallInterface();
             
             // Create peer connection and send offer
             this.createPeerConnection();
@@ -466,8 +542,12 @@ class CallManager {
     }
 
     startCallTimer() {
-        if (this.callTimer) return;
+        if (this.callTimer) {
+            console.log('📱 Call timer already running');
+            return;
+        }
         
+        console.log('📱 Starting call timer');
         this.callStartTime = Date.now();
         this.callTimer = setInterval(() => {
             const elapsed = Date.now() - this.callStartTime;
@@ -478,6 +558,7 @@ class CallManager {
             const timerElement = document.getElementById('call-timer');
             if (timerElement) {
                 timerElement.textContent = timeStr;
+                console.log('⏱️ Call duration:', timeStr);
             }
         }, 1000);
     }
@@ -557,16 +638,39 @@ class CallManager {
                 <div class="mb-4">
                     <div class="text-lg font-semibold mb-2">In Call</div>
                     <div id="call-status" class="text-gray-600">Connecting...</div>
-                    <div id="call-timer" class="text-2xl font-mono mt-4">00:00</div>
+                    <div id="call-timer" class="text-2xl font-mono mt-4 text-green-600">00:00</div>
                 </div>
-                <button onclick="callManager.endCall()" 
-                        class="bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600">
-                    End Call
-                </button>
+                <div class="flex space-x-4 justify-center">
+                    <button id="mute-btn" onclick="callManager.toggleMute()" 
+                            class="bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600">
+                        🎤 Mute
+                    </button>
+                    <button onclick="callManager.endCall()" 
+                            class="bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600">
+                        End Call
+                    </button>
+                </div>
             </div>
         `;
         
         document.body.appendChild(callInterface);
+    }
+
+    toggleMute() {
+        if (this.localStream) {
+            const audioTrack = this.localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                const muteBtn = document.getElementById('mute-btn');
+                if (muteBtn) {
+                    muteBtn.textContent = audioTrack.enabled ? '🎤 Mute' : '🔇 Unmute';
+                    muteBtn.className = audioTrack.enabled 
+                        ? 'bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600'
+                        : 'bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600';
+                }
+                console.log('🎤 Microphone', audioTrack.enabled ? 'unmuted' : 'muted');
+            }
+        }
     }
 
     hideCallNotification() {

@@ -1,189 +1,273 @@
 
 // WebRTC Debugging Utilities for ModernChat
 class WebRTCDebugger {
-    static logMediaDevices() {
-        navigator.mediaDevices.enumerateDevices()
-            .then(devices => {
-                console.log('🎤 Available media devices:');
-                devices.forEach(device => {
-                    console.log(`  ${device.kind}: ${device.label || 'Unknown'} (${device.deviceId})`);
-                });
-            })
-            .catch(err => console.error('❌ Error enumerating devices:', err));
+    constructor() {
+        this.isEnabled = localStorage.getItem('webrtc-debug') === 'true';
+        this.stats = [];
+        this.logContainer = null;
+        
+        if (this.isEnabled) {
+            this.createDebugInterface();
+        }
+        
+        console.log('🔧 WebRTC Debugger initialized, enabled:', this.isEnabled);
     }
 
-    static checkBrowserSupport() {
-        const support = {
-            getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-            RTCPeerConnection: !!window.RTCPeerConnection,
-            WebSocket: !!window.WebSocket,
-            socketIO: !!window.io
+    enable() {
+        this.isEnabled = true;
+        localStorage.setItem('webrtc-debug', 'true');
+        this.createDebugInterface();
+        console.log('🔧 WebRTC debugging enabled');
+    }
+
+    disable() {
+        this.isEnabled = false;
+        localStorage.setItem('webrtc-debug', 'false');
+        if (this.logContainer) {
+            this.logContainer.remove();
+            this.logContainer = null;
+        }
+        console.log('🔧 WebRTC debugging disabled');
+    }
+
+    createDebugInterface() {
+        if (this.logContainer) return;
+
+        this.logContainer = document.createElement('div');
+        this.logContainer.id = 'webrtc-debug';
+        this.logContainer.className = 'fixed bottom-4 left-4 w-96 h-64 bg-black bg-opacity-90 text-green-400 text-xs font-mono p-2 rounded border overflow-y-auto z-50';
+        this.logContainer.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-white font-bold">WebRTC Debug</span>
+                <button onclick="webrtcDebugger.disable()" class="text-red-400 hover:text-red-600">✕</button>
+            </div>
+            <div id="debug-log" class="whitespace-pre-wrap"></div>
+        `;
+        
+        document.body.appendChild(this.logContainer);
+    }
+
+    log(message, type = 'info') {
+        if (!this.isEnabled) return;
+
+        const timestamp = new Date().toLocaleTimeString();
+        const colors = {
+            info: 'text-green-400',
+            warning: 'text-yellow-400',
+            error: 'text-red-400',
+            success: 'text-blue-400'
         };
-        
-        console.log('🌐 Browser WebRTC support:', support);
-        
-        if (!support.getUserMedia) {
-            console.error('❌ getUserMedia not supported');
-        }
-        if (!support.RTCPeerConnection) {
-            console.error('❌ RTCPeerConnection not supported');
-        }
-        
-        return support;
-    }
 
-    static logPeerConnectionStats(pc) {
-        if (!pc) return;
-        
-        pc.getStats().then(stats => {
-            console.log('📊 Peer Connection Stats:');
-            stats.forEach(report => {
-                if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                    console.log('🔗 Active candidate pair:', report);
-                }
-                if (report.type === 'inbound-rtp' && report.mediaType) {
-                    console.log(`📥 Inbound ${report.mediaType}:`, {
-                        packetsReceived: report.packetsReceived,
-                        bytesReceived: report.bytesReceived,
-                        packetsLost: report.packetsLost
-                    });
-                }
-                if (report.type === 'outbound-rtp' && report.mediaType) {
-                    console.log(`📤 Outbound ${report.mediaType}:`, {
-                        packetsSent: report.packetsSent,
-                        bytesSent: report.bytesSent
-                    });
-                }
-            });
-        }).catch(err => console.error('❌ Error getting stats:', err));
-    }
+        const logMessage = `[${timestamp}] ${message}`;
+        console.log(`🔧 ${logMessage}`);
 
-    static testSTUNConnectivity() {
-        console.log('🧪 Testing STUN connectivity...');
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        });
+        if (this.logContainer) {
+            const logDiv = this.logContainer.querySelector('#debug-log');
+            if (logDiv) {
+                const entry = document.createElement('div');
+                entry.className = colors[type] || colors.info;
+                entry.textContent = logMessage;
+                logDiv.appendChild(entry);
+                logDiv.scrollTop = logDiv.scrollHeight;
 
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log('🧊 STUN test - ICE candidate:', event.candidate.candidate);
-                if (event.candidate.candidate.includes('srflx')) {
-                    console.log('✅ STUN server working - got server reflexive candidate');
+                // Keep only last 50 entries
+                while (logDiv.children.length > 50) {
+                    logDiv.removeChild(logDiv.firstChild);
                 }
-            } else {
-                console.log('🧊 STUN test - ICE gathering completed');
             }
-        };
-
-        pc.onicegatheringstatechange = () => {
-            console.log('🧊 STUN test - ICE gathering state:', pc.iceGatheringState);
-        };
-
-        // Create a dummy data channel to trigger ICE gathering
-        pc.createDataChannel('test');
-        pc.createOffer().then(offer => pc.setLocalDescription(offer));
-
-        setTimeout(() => {
-            pc.close();
-            console.log('🧪 STUN connectivity test completed');
-        }, 5000);
+        }
     }
 
-    static async testMediaAccess() {
-        console.log('🎤 Testing media access...');
-        
+    async checkMediaDevices() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: true, 
-                video: false 
-            });
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+            const videoInputs = devices.filter(d => d.kind === 'videoinput');
+
+            this.log(`📱 Media devices: ${audioInputs.length} audio inputs, ${audioOutputs.length} audio outputs, ${videoInputs.length} video inputs`);
             
-            console.log('✅ Media access granted');
-            console.log('🎤 Audio tracks:', stream.getAudioTracks().length);
+            audioInputs.forEach((device, i) => {
+                this.log(`🎤 Audio input ${i + 1}: ${device.label || 'Unknown'}`);
+            });
+
+            return { audioInputs, audioOutputs, videoInputs };
+        } catch (error) {
+            this.log(`❌ Media device enumeration failed: ${error.message}`, 'error');
+            return null;
+        }
+    }
+
+    async testMediaAccess(constraints = { audio: true, video: false }) {
+        try {
+            this.log(`🎤 Testing media access with constraints: ${JSON.stringify(constraints)}`);
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             
             stream.getTracks().forEach(track => {
-                console.log(`  ${track.kind}: ${track.label} (enabled: ${track.enabled})`);
+                this.log(`✅ Got ${track.kind} track: ${track.label} (enabled: ${track.enabled})`, 'success');
                 track.stop();
             });
-            
+
             return true;
         } catch (error) {
-            console.error('❌ Media access failed:', error.name, error.message);
+            this.log(`❌ Media access test failed: ${error.name} - ${error.message}`, 'error');
             return false;
         }
     }
 
-    static async testTURNConnectivity() {
-        console.log('🔄 Testing TURN connectivity...');
+    async testSTUNServers(servers = [
+        'stun:stun.l.google.com:19302',
+        'stun:stun1.l.google.com:19302'
+    ]) {
+        this.log('🧊 Testing STUN servers...');
         
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
-            ]
-        });
+        for (const server of servers) {
+            try {
+                const pc = new RTCPeerConnection({ iceServers: [{ urls: server }] });
+                
+                const testPromise = new Promise((resolve, reject) => {
+                    let resolved = false;
+                    
+                    pc.onicecandidate = (event) => {
+                        if (event.candidate && !resolved) {
+                            resolved = true;
+                            this.log(`✅ STUN server ${server} working`, 'success');
+                            pc.close();
+                            resolve(true);
+                        }
+                    };
 
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log('🔄 TURN test - ICE candidate:', event.candidate.candidate);
-                if (event.candidate.candidate.includes('relay')) {
-                    console.log('✅ TURN server working - got relay candidate');
-                }
+                    setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            this.log(`❌ STUN server ${server} timeout`, 'error');
+                            pc.close();
+                            reject(new Error('Timeout'));
+                        }
+                    }, 5000);
+                });
+
+                // Create a data channel to trigger ICE gathering
+                pc.createDataChannel('test');
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                await testPromise;
+            } catch (error) {
+                this.log(`❌ STUN server ${server} failed: ${error.message}`, 'error');
             }
-        };
-
-        // Create data channel and offer
-        pc.createDataChannel('turn-test');
-        pc.createOffer().then(offer => pc.setLocalDescription(offer));
-
-        setTimeout(() => {
-            pc.close();
-            console.log('🔄 TURN connectivity test completed');
-        }, 10000);
+        }
     }
 
-    static monitorCallQuality(pc) {
-        if (!pc) return;
-        
-        const interval = setInterval(() => {
+    monitorPeerConnection(pc, callId) {
+        if (!this.isEnabled || !pc) return;
+
+        this.log(`🔗 Monitoring peer connection for call ${callId}`);
+
+        pc.onconnectionstatechange = () => {
+            this.log(`🔗 Connection state: ${pc.connectionState}`);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            this.log(`🧊 ICE connection state: ${pc.iceConnectionState}`);
+        };
+
+        pc.onicegatheringstatechange = () => {
+            this.log(`🧊 ICE gathering state: ${pc.iceGatheringState}`);
+        };
+
+        pc.onsignalingstatechange = () => {
+            this.log(`📡 Signaling state: ${pc.signalingState}`);
+        };
+
+        pc.onicecandidate = (originalHandler) => {
+            return (event) => {
+                if (event.candidate) {
+                    const candidate = event.candidate;
+                    this.log(`🧊 ICE candidate: ${candidate.candidate.split(' ')[7]} ${candidate.candidate.split(' ')[0]}`);
+                } else {
+                    this.log(`🧊 ICE gathering complete`);
+                }
+                if (originalHandler) originalHandler(event);
+            };
+        };
+
+        pc.ontrack = (originalHandler) => {
+            return (event) => {
+                this.log(`📥 Received ${event.track.kind} track: ${event.track.label}`);
+                if (originalHandler) originalHandler(event);
+            };
+        };
+
+        // Monitor stats every 5 seconds during call
+        const statsInterval = setInterval(async () => {
             if (pc.connectionState === 'closed') {
-                clearInterval(interval);
+                clearInterval(statsInterval);
                 return;
             }
-            
-            pc.getStats().then(stats => {
-                stats.forEach(report => {
-                    if (report.type === 'inbound-rtp' && report.mediaType === 'audio') {
-                        const packetsLost = report.packetsLost || 0;
-                        const packetsReceived = report.packetsReceived || 0;
-                        const total = packetsLost + packetsReceived;
-                        const lossRate = total > 0 ? (packetsLost / total * 100) : 0;
-                        
-                        if (lossRate > 5) {
-                            console.warn(`⚠️ High audio packet loss: ${lossRate.toFixed(2)}%`);
-                        }
-                    }
-                });
-            });
+
+            try {
+                const stats = await pc.getStats();
+                this.processStats(stats, callId);
+            } catch (error) {
+                this.log(`❌ Stats collection failed: ${error.message}`, 'error');
+            }
         }, 5000);
+    }
+
+    processStats(stats, callId) {
+        let audioInbound = null;
+        let audioOutbound = null;
+
+        stats.forEach(report => {
+            if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+                audioInbound = report;
+            } else if (report.type === 'outbound-rtp' && report.kind === 'audio') {
+                audioOutbound = report;
+            }
+        });
+
+        if (audioInbound) {
+            this.log(`📊 Audio RX: ${audioInbound.packetsReceived} packets, ${audioInbound.bytesReceived} bytes`);
+        }
+
+        if (audioOutbound) {
+            this.log(`📊 Audio TX: ${audioOutbound.packetsSent} packets, ${audioOutbound.bytesSent} bytes`);
+        }
+    }
+
+    async runFullDiagnostic() {
+        this.log('🔧 Starting full WebRTC diagnostic...', 'info');
+        
+        // Check media devices
+        await this.checkMediaDevices();
+        
+        // Test media access
+        await this.testMediaAccess();
+        
+        // Test STUN servers
+        await this.testSTUNServers();
+        
+        this.log('🔧 Diagnostic complete', 'success');
     }
 }
 
-// Auto-run basic checks when loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔍 Running WebRTC diagnostics...');
-    WebRTCDebugger.checkBrowserSupport();
-    WebRTCDebugger.logMediaDevices();
-    WebRTCDebugger.testSTUNConnectivity();
-    WebRTCDebugger.testTURNConnectivity();
-    WebRTCDebugger.testMediaAccess();
-});
+// Initialize debugger
+const webrtcDebugger = new WebRTCDebugger();
 
-// Make available globally
-window.WebRTCDebugger = WebRTCDebugger;
+// Global functions for console access
+window.enableWebRTCDebug = () => webrtcDebugger.enable();
+window.disableWebRTCDebug = () => webrtcDebugger.disable();
+window.runWebRTCDiagnostic = () => webrtcDebugger.runFullDiagnostic();
+
+// Integrate with call manager if available
+if (typeof CallManager !== 'undefined') {
+    const originalCreatePeerConnection = CallManager.prototype.createPeerConnection;
+    CallManager.prototype.createPeerConnection = function() {
+        const pc = originalCreatePeerConnection.call(this);
+        webrtcDebugger.monitorPeerConnection(pc, this.currentCall?.callId);
+        return pc;
+    };
+}
+
+console.log('🔧 WebRTC Debug utilities loaded. Use enableWebRTCDebug() to start debugging.');

@@ -676,7 +676,7 @@
 
         // Request media with proper error handling
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        
+
         if (!localStream || !localStream.active) {
           throw new Error('Failed to get valid media stream');
         }
@@ -696,7 +696,7 @@
         audioTracks.forEach((track, index) => {
           track.enabled = true;
           console.log(`🔊 Audio track ${index}: ${track.label} - enabled: ${track.enabled}, state: ${track.readyState}`);
-          
+
           if (track.readyState !== 'live') {
             console.warn(`⚠️ Audio track ${index} is not live:`, track.readyState);
           }
@@ -705,7 +705,7 @@
         return localStream;
       } catch (error) {
         console.error('❌ Error getting user media:', error);
-        
+
         let errorMessage = 'Failed to access microphone';
         if (error.name === 'NotAllowedError') {
           errorMessage = 'Microphone access denied. Please allow microphone permissions and try again.';
@@ -1207,23 +1207,23 @@
       // ✅ FIX: Connection state monitoring with proper UI updates
       peerConnection.onconnectionstatechange = () => {
         console.log('🔗 Connection state changed to:', peerConnection.connectionState);
-        
+
         if (peerConnection.connectionState === 'connected') {
           console.log('✅ PEER CONNECTION ESTABLISHED - AUDIO SHOULD FLOW!');
-          
+
           // ✅ KEY FIX: Update caller UI from "Calling..." to "Connected"
           if (currentCall && currentCall.role === 'caller') {
             console.log('🔄 CALLER UI UPDATE: Switching from calling to connected state');
             showActiveCallInterface(callType);
           }
-          
+
           // Update status indicators
           updateCallConnectionStatus('Connected - Audio Active', '#10b981');
           startCallTimer();
-          
+
           // Verify audio after brief delay
           setTimeout(() => verifyAudioFlow(), 1000);
-          
+
         } else if (peerConnection.connectionState === 'connecting') {
           console.log('🔄 Peer connection connecting...');
           updateCallConnectionStatus('Connecting...', '#f59e0b');
@@ -1250,7 +1250,7 @@
       // ✅ FIX: Proper remote stream handling with audio autoplay
       peerConnection.ontrack = (event) => {
         console.log('📥 REMOTE TRACK RECEIVED:', event.track.kind, 'state:', event.track.readyState);
-        
+
         const [remoteStream] = event.streams;
         if (!remoteStream) {
           console.error('❌ No remote stream in ontrack event');
@@ -1285,10 +1285,10 @@
       console.log('🎤 Adding local tracks to peer connection...');
       localStream.getTracks().forEach((track, index) => {
         console.log(`🎤 Adding track ${index}:`, track.kind, 'enabled:', track.enabled, 'state:', track.readyState);
-        
+
         // Ensure track is enabled
         track.enabled = true;
-        
+
         // Add track to peer connection
         peerConnection.addTrack(track, localStream);
         console.log(`✅ Track ${index} (${track.kind}) added to peer connection`);
@@ -1420,11 +1420,11 @@
 
       // ✅ FIX: Force play with better error handling
       const playPromise = audioElement.play();
-      
+
       if (playPromise !== undefined) {
         playPromise.then(() => {
           console.log('✅ REMOTE AUDIO PLAY PROMISE RESOLVED!');
-          
+
           // Verify playback
           setTimeout(() => {
             if (audioElement.paused) {
@@ -1434,10 +1434,10 @@
               console.log('✅ Remote audio confirmed playing');
             }
           }, 500);
-          
+
         }).catch(error => {
           console.error('❌ Remote audio play failed:', error.name, error.message);
-          
+
           if (error.name === 'NotAllowedError') {
             console.log('🔊 Autoplay blocked - user interaction needed');
             showAudioAutoplayNotification();
@@ -1698,7 +1698,7 @@
         console.log('✅ Remote description (offer) set');
 
         // Verify local stream before creating answer
-        if (!localStream || localStream.getTracks().length === 0) {
+        if (!localStream || !localStream.active || localStream.getTracks().length === 0) {
           console.error('❌ No local stream available when creating answer');
           throw new Error('Local stream not available');
         }

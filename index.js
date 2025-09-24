@@ -2103,6 +2103,10 @@ io.on('connection', (socket) => {
         io.to(data.to).emit("call-rejected");
     });
 
+    socket.on("ice-candidate", (data) => {
+        io.to(data.to).emit("ice-candidate", { candidate: data.candidate });
+    });
+
     socket.on('call-offer', async (data) => {
         try {
             console.log('📤 Relaying call offer for callId:', data.callId);

@@ -309,16 +309,48 @@ window.ModernChat = {
     throttle
 };
 
+// WebRTC Call functionality
+let peerConnection;
+const config = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+};
+
 // Incoming call handling
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof window.socket !== 'undefined') {
-    window.socket.on("incoming-call", (data) => {
+    window.socket.on("incoming-call", async (data) => {
       const modal = document.getElementById("incomingCallModal");
       modal.classList.remove("hidden");
 
-      document.getElementById("acceptCall").onclick = () => {
-        window.socket.emit("accept-call", { to: data.from });
+      document.getElementById("acceptCall").onclick = async () => {
         modal.classList.add("hidden");
+
+        peerConnection = new RTCPeerConnection(config);
+
+        // Local audio
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+        // Remote audio
+        peerConnection.ontrack = (event) => {
+          const audio = document.createElement("audio");
+          audio.srcObject = event.streams[0];
+          audio.autoplay = true;
+          document.body.appendChild(audio);
+        };
+
+        // Send ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            window.socket.emit("ice-candidate", { to: data.from, candidate: event.candidate });
+          }
+        };
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        window.socket.emit("accept-call", { to: data.from, answer });
       };
 
       document.getElementById("rejectCall").onclick = () => {
@@ -327,10 +359,17 @@ document.addEventListener('DOMContentLoaded', function() {
       };
     });
 
-    // Caller side event listeners
-    window.socket.on("call-accepted", (data) => {
-      // set remote description + start call timer
-      console.log("Call was accepted");
+    window.socket.on("call-accepted", async (data) => {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+      console.log("Call connected successfully");
+    });
+
+    window.socket.on("ice-candidate", async (data) => {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (e) {
+        console.error("Error adding ICE candidate", e);
+      }
     });
 
     window.socket.on("call-rejected", () => {
@@ -338,6 +377,34 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// Caller side function
+async function startCall(receiverId) {
+  peerConnection = new RTCPeerConnection(config);
+
+  // Local audio
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+  // Remote audio
+  peerConnection.ontrack = (event) => {
+    const audio = document.createElement("audio");
+    audio.srcObject = event.streams[0];
+    audio.autoplay = true;
+    document.body.appendChild(audio);
+  };
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      window.socket.emit("ice-candidate", { to: receiverId, candidate: event.candidate });
+    }
+  };
+
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+
+  window.socket.emit("call-user", { to: receiverId, offer });
+}
 
 // Voice message functionality
   let mediaRecorder;

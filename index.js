@@ -1453,52 +1453,75 @@ app.post('/communities/:id/create-group', groupIconUpload.single('icon'), async 
 });
 
 // ----------- CALL ROUTES -----------
-app.post('/call/initiate/group', async (req, res) => {
+app.post('/api/call/initiate', async (req, res) => {
     try {
         if (!req.session.userId) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const { groupId, type } = req.body;
+        const { receiverId, groupId, type } = req.body;
 
-        if (!groupId || !type || !['audio', 'video'].includes(type)) {
-            return res.status(400).json({ error: 'Invalid call parameters' });
+        if (!type || !['audio', 'video'].includes(type)) {
+            return res.status(400).json({ error: 'Invalid call type' });
         }
 
-        const group = await Group.findById(groupId).populate('members');
-        if (!group) {
-            return res.status(404).json({ error: 'Group not found' });
-        }
-
-        if (!group.members.some(m => m._id.equals(req.session.userId))) {
-            return res.status(403).json({ error: 'Not authorized' });
-        }
-
+        const callId = `call_${Date.now()}_${Math.random().toString(36).substring(7)}`;
         const caller = await User.findById(req.session.userId);
-        const onlineMembers = group.members.filter(m => m.online && !m._id.equals(req.session.userId));
 
-        if (onlineMembers.length === 0) {
-            return res.status(400).json({ error: 'No online members to call' });
-        }
+        if (groupId) {
+            // Group call
+            const group = await Group.findById(groupId).populate('members');
+            if (!group || !group.members.some(m => m._id.equals(req.session.userId))) {
+                return res.status(403).json({ error: 'Not authorized' });
+            }
 
-        // Create call record for the group
-        const call = new Call({
-            caller: req.session.userId,
-            receiver: null, // No specific receiver for group calls
-            groupId: groupId,
-            type,
-            status: 'ringing'
-        });
-
-        await call.save();
-        const callWithCaller = await Call.findById(call._id).populate('caller', 'username avatar');
-
-        // Notify all online group members except the caller
-        onlineMembers.forEach(member => {
-            io.to(member._id.toString()).emit('incoming-group-call', {
-                callId: call._id,
+            const call = new Call({
+                callId,
+                caller: req.session.userId,
                 groupId: groupId,
-                groupName: group.name,
+                type,
+                status: 'ringing',
+                participants: [req.session.userId]
+            });
+
+            await call.save();
+
+            // Notify all group members
+            group.members.forEach(member => {
+                if (!member._id.equals(req.session.userId)) {
+                    io.to(member._id.toString()).emit('incoming-group-call', {
+                        callId,
+                        groupId,
+                        groupName: group.name,
+                        caller: {
+                            id: caller._id,
+                            username: caller.username,
+                            avatar: caller.avatar
+                        },
+                        type
+                    });
+                }
+            });
+
+        } else if (receiverId) {
+            // One-to-one call
+            const receiver = await User.findById(receiverId);
+            if (!receiver) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            const call = new Call({
+                callId,
+                caller: req.session.userId,
+                receiver: receiverId,
+                type,
+                status: 'ringing'
+            });
+
+            await call.save();
+
+            io.to(receiverId).emit('incoming-call', {
+                callId,
                 caller: {
                     id: caller._id,
                     username: caller.username,
@@ -1506,405 +1529,47 @@ app.post('/call/initiate/group', async (req, res) => {
                 },
                 type
             });
-        });
-
-        // Auto-end call after 30 seconds if no one joins
-        setTimeout(async () => {
-            const callCheck = await Call.findById(call._id);
-            if (callCheck && callCheck.status === 'ringing') {
-                callCheck.status = 'missed';
-                callCheck.endTime = new Date();
-                await callCheck.save();
-
-                io.to(`group_${groupId}`).emit('group-call-ended', { callId: call._id, reason: 'No participants joined' });
-            }
-        }, 30000);
-
-        res.json({ success: true, callId: call._id });
-    } catch (error) {
-        console.error('Group call initiation error:', error);
-        res.status(500).json({ error: 'Failed to initiate group call' });
-    }
-});
-
-app.post('/call/initiate', async (req, res) => {
-    try {
-        if (!req.session.userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
+        } else {
+            return res.status(400).json({ error: 'Either receiverId or groupId required' });
         }
 
-        const { receiverId, type } = req.body;
-
-        if (!receiverId || !type || !['audio', 'video'].includes(type)) {
-            return res.status(400).json({ error: 'Invalid call parameters' });
-        }
-
-        const receiver = await User.findById(receiverId);
-        if (!receiver) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        // Check if receiver has any active socket connections
-        const isUserOnline = activeConnections.has(receiverId) && activeConnections.get(receiverId).size > 0;
-        console.log(`Call initiation: User ${receiverId} online status - Real-time: ${isUserOnline}`);
-        console.log('Active connections:', Array.from(activeConnections.keys()));
-        console.log(`Receiver ${receiverId} connections:`, activeConnections.get(receiverId));
-
-        // For now, allow calls even if user appears offline (they might just have connection issues)
-        // We can still send the call request and let it timeout if truly offline
-        if (!isUserOnline) {
-            console.log(`User ${receiverId} appears offline, but sending call request anyway`);
-        }
-
-        const existingCall = await Call.findOne({
-            $or: [
-                { caller: req.session.userId, receiver: receiverId },
-                { caller: receiverId, receiver: req.session.userId }
-            ],
-            status: { $in: ['ringing', 'accepted'] }
-        });
-
-        if (existingCall) {
-            return res.status(400).json({ error: 'Call already in progress' });
-        }
-
-        const call = new Call({
-            caller: req.session.userId,
-            receiver: receiverId,
-            type,
-            status: 'ringing'
-        });
-
-        await call.save();
-        const caller = await User.findById(req.session.userId);
-
-        io.to(receiverId).emit('incoming-call', {
-            callId: call._id,
-            caller: {
-                id: caller._id,
-                username: caller.username,
-                avatar: caller.avatar
-            },
-            type
-        });
-
-        setTimeout(async () => {
-            const callCheck = await Call.findById(call._id);
-            if (callCheck && callCheck.status === 'ringing') {
-                callCheck.status = 'missed';
-                callCheck.endTime = new Date();
-                await callCheck.save();
-
-                io.to(req.session.userId).emit('call-timeout', { callId: call._id });
-                io.to(receiverId).emit('call-missed', {
-                    callId: call._id,
-                    caller: {
-                        id: caller._id,
-                        username: caller.username,
-                        avatar: caller.avatar
-                    },
-                    type: type
-                });
-            }
-        }, 30000);
-
-        res.json({ success: true, callId: call._id });
+        res.json({ success: true, callId });
     } catch (error) {
         console.error('Call initiation error:', error);
         res.status(500).json({ error: 'Failed to initiate call' });
     }
 });
 
-app.post('/call/:callId/respond', async (req, res) => {
+app.post('/api/call/:callId/end', async (req, res) => {
     try {
         if (!req.session.userId) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
         const { callId } = req.params;
-        const { action } = req.body;
-
-        if (!['accept', 'decline'].includes(action)) {
-            return res.status(400).json({ error: 'Invalid action' });
-        }
-
-        const call = await Call.findById(callId).populate('caller receiver');
+        const call = await Call.findOne({ callId });
         if (!call) {
             return res.status(404).json({ error: 'Call not found' });
-        }
-
-        // Handle group calls
-        if (call.groupId) {
-            const group = await Group.findById(call.groupId).populate('members');
-            if (!group.members.some(m => m._id.equals(req.session.userId))) {
-                return res.status(403).json({ error: 'Not authorized to respond to this group call' });
-            }
-
-            if (call.status !== 'ringing') {
-                return res.status(400).json({ error: 'Call is no longer available' });
-            }
-
-            if (action === 'accept') {
-                call.status = 'accepted';
-                if (!call.participants) call.participants = [];
-                if (!call.participants.includes(req.session.userId)) {
-                    call.participants.push(req.session.userId);
-                }
-                await call.save();
-
-                const user = await User.findById(req.session.userId);
-                io.to(`group_${call.groupId}`).emit('group-call-joined', {
-                    callId: call._id,
-                    user: {
-                        id: user._id,
-                        username: user.username,
-                        avatar: user.avatar
-                    }
-                });
-
-                res.json({ success: true, message: 'Joined group call' });
-            } else {
-                res.json({ success: true, message: 'Declined group call' });
-            }
-            return;
-        }
-
-        // Handle personal calls
-        if (call.receiver._id.toString() !== req.session.userId) {
-            return res.status(403).json({ error: 'Not authorized to respond to this call' });
-        }
-
-        if (call.status !== 'ringing') {
-            return res.status(400).json({ error: 'Call is no longer available' });
-        }
-
-        const user = await User.findById(req.session.userId);
-        if (action === 'accept') {
-            call.status = 'accepted';
-            call.startTime = new Date();
-            await call.save();
-
-            console.log(`📞 Call ${call._id} accepted by ${user.username}`);
-
-            // Notify the caller that call was accepted
-            io.to(call.caller.toString()).emit('call-accepted', {
-                callId: call._id,
-                receiver: {
-                    id: req.session.userId,
-                    username: user.username,
-                    avatar: user.avatar
-                }
-            });
-
-            // Also emit to the receiver to confirm acceptance
-            io.to(req.session.userId).emit('call-accepted', {
-                callId: call._id,
-                caller: {
-                    id: call.caller._id,
-                    username: call.caller.username,
-                    avatar: call.caller.avatar
-                }
-            });
-
-            console.log(`📞 Call acceptance notifications sent for call ${call._id}`);
-            res.json({ success: true, message: 'Call accepted' });
-        } else if (action === 'decline') {
-            call.status = 'declined';
-            call.endTime = new Date();
-            await call.save();
-
-            io.to(call.caller.toString()).emit('call-declined', {
-                callId: call._id,
-                receiver: {
-                    id: req.session.userId,
-                    username: user.username,
-                    avatar: user.avatar
-                }
-            });
-
-            res.json({ success: true, message: 'Call declined' });
-        }
-    } catch (error) {
-        console.error('Call response error:', error);
-        res.status(500).json({ error: 'Failed to respond to call' });
-    }
-});
-
-app.post('/call/:callId/end', async (req, res) => {
-    try {
-        if (!req.session.userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const { callId } = req.params;
-        const call = await Call.findById(callId);
-        if (!call) {
-            return res.status(404).json({ error: 'Call not found' });
-        }
-
-        // Handle group calls
-        if (call.groupId) {
-            const group = await Group.findById(call.groupId).populate('members');
-            const isParticipant = call.caller.toString() === req.session.userId ||
-                                (call.participants && call.participants.includes(req.session.userId));
-
-            if (!isParticipant) {
-                return res.status(403).json({ error: 'Not authorized to end this call' });
-            }
-
-            // If caller ends the call, end it for everyone
-            if (call.caller.toString() === req.session.userId) {
-                call.status = 'ended';
-                call.endTime = new Date();
-                await call.save();
-
-                io.to(`group_${call.groupId}`).emit('group-call-ended', {
-                    callId: call._id,
-                    reason: 'Ended by caller'
-                });
-            } else {
-                // Remove participant from call
-                if (call.participants) {
-                    call.participants = call.participants.filter(p => p.toString() !== req.session.userId);
-                    await call.save();
-                }
-
-                const user = await User.findById(req.session.userId);
-                io.to(`group_${call.groupId}`).emit('group-call-left', {
-                    callId: call._id,
-                    user: {
-                        id: user._id,
-                        username: user.username
-                    }
-                });
-            }
-
-            res.json({ success: true, message: 'Left group call' });
-            return;
-        }
-
-        // Handle personal calls
-        const isParticipant = call.caller.toString() === req.session.userId ||
-                            call.receiver.toString() === req.session.userId;
-
-        if (!isParticipant) {
-            return res.status(403).json({ error: 'Not authorized to end this call' });
         }
 
         call.status = 'ended';
         call.endTime = new Date();
         await call.save();
 
-        const otherParticipantId = call.caller.toString() === req.session.userId
-            ? call.receiver.toString()
-            : call.caller.toString();
+        // Notify all participants
+        if (call.groupId) {
+            io.to(`group_${call.groupId}`).emit('call-ended', { callId });
+        } else {
+            const otherParticipant = call.caller.toString() === req.session.userId 
+                ? call.receiver.toString() 
+                : call.caller.toString();
+            io.to(otherParticipant).emit('call-ended', { callId });
+        }
 
-        io.to(otherParticipantId).emit('call-ended', {
-            callId: call._id
-        });
-
-        res.json({ success: true, message: 'Call ended' });
+        res.json({ success: true });
     } catch (error) {
         console.error('End call error:', error);
         res.status(500).json({ error: 'Failed to end call' });
-    }
-});
-
-app.post('/call/:callId/cancel', async (req, res) => {
-    try {
-        if (!req.session.userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const { callId } = req.params;
-        const call = await Call.findById(callId);
-        if (!call) {
-            return res.status(404).json({ error: 'Call not found' });
-        }
-
-        if (call.caller.toString() !== req.session.userId) {
-            return res.status(403).json({ error: 'Only caller can cancel the call' });
-        }
-
-        if (!['ringing'].includes(call.status)) {
-            return res.status(400).json({ error: 'Call cannot be cancelled in current state' });
-        }
-
-        call.status = 'cancelled';
-        call.endTime = new Date();
-        await call.save();
-
-        io.to(call.receiver.toString()).emit('call-cancelled', {
-            callId: call._id
-        });
-
-        res.json({ success: true, message: 'Call cancelled' });
-    } catch (error) {
-        console.error('Cancel call error:', error);
-        res.status(500).json({ error: 'Failed to cancel call' });
-    }
-});
-
-app.get('/calls/history', async (req, res) => {
-    try {
-        if (!req.session.userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const skip = (page - 1) * limit;
-
-        const calls = await Call.find({
-            $or: [
-                { caller: req.session.userId },
-                { receiver: req.session.userId }
-            ]
-        })
-        .populate('caller receiver', 'username avatar')
-        .sort({ created_at: -1 })
-        .skip(skip)
-        .limit(limit);
-
-        const callsWithInfo = calls.map(call => {
-            const callObj = call.toObject();
-            const isIncoming = call.receiver._id.toString() === req.session.userId;
-            const otherUser = isIncoming ? call.caller : call.receiver;
-
-            return {
-                ...callObj,
-                isIncoming,
-                otherUser,
-                formattedDuration: call.formattedDuration
-            };
-        });
-
-        res.json(callsWithInfo);
-    } catch (error) {
-        console.error('Call history error:', error);
-        res.status(500).json({ error: 'Failed to fetch call history' });
-    }
-});
-
-app.get('/calls/active', async (req, res) => {
-    try {
-        if (!req.session.userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        const activeCalls = await Call.find({
-            $or: [
-                { caller: req.session.userId },
-                { receiver: req.session.userId }
-            ],
-            status: { $in: ['ringing', 'accepted'] }
-        })
-        .populate('caller receiver', 'username avatar');
-
-        res.json(activeCalls);
-    } catch (error) {
-        console.error('Active calls error:', error);
-        res.status(500).json({ error: 'Failed to fetch active calls' });
     }
 });
 
@@ -2060,146 +1725,70 @@ io.on('connection', (socket) => {
         console.log('📩 Voice message broadcasted to room:', data.roomId);
     });
 
-    // WebRTC signaling - handle call initiation from caller
+    // WebRTC Signaling Events
     socket.on('call-user', async (data) => {
         try {
-            console.log('📞 Relaying call from', socket.id, 'to', data.to, 'type:', data.type);
-            const call = await Call.findById(data.callId);
+            const call = await Call.findOne({ callId: data.callId });
             if (!call) return;
 
-            const caller = await User.findById(call.caller);
-            const targetUserId = call.receiver.toString();
-
-            // Send incoming call notification to receiver
-            io.to(targetUserId).emit('incoming-call', {
-                callId: data.callId,
-                from: call.caller.toString(),
-                caller: {
-                    id: caller._id,
-                    username: caller.username,
-                    avatar: caller.avatar
-                },
-                offer: data.offer,
-                type: data.type
-            });
-            console.log('📤 Incoming call notification sent to receiver:', targetUserId);
+            if (call.groupId) {
+                // Group call signaling
+                socket.to(`group_${call.groupId}`).emit('call-offer', {
+                    callId: data.callId,
+                    offer: data.offer,
+                    from: socket.userId
+                });
+            } else {
+                // One-to-one call signaling
+                const targetId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                io.to(targetId).emit('call-offer', {
+                    callId: data.callId,
+                    offer: data.offer,
+                    from: socket.userId
+                });
+            }
         } catch (error) {
             console.error('Error handling call-user:', error);
         }
     });
 
-    // The following are redundant with the above try-catch block, keeping the one that handles Call model data.
-    // socket.on("call-user", (data) => {
-    //   io.to(data.to).emit("incoming-call", {
-    //     from: socket.id,
-    //     offer: data.offer
-    //   });
-    // });
-
-    socket.on("accept-call", (data) => {
-        io.to(data.to).emit("call-accepted", { answer: data.answer });
-    });
-
-    socket.on("reject-call", (data) => {
-        io.to(data.to).emit("call-rejected");
-    });
-
-    // socket.on("ice-candidate", (data) => {
-    //   io.to(data.to).emit("ice-candidate", { candidate: data.candidate });
-    // });
-
-    socket.on('call-offer', async (data) => {
-        try {
-            console.log('📤 Relaying call offer for callId:', data.callId);
-            const call = await Call.findById(data.callId);
-            if (!call) return;
-
-            const targetUserId = call.receiver.toString();
-            io.to(targetUserId).emit('call-offer', {
-                callId: data.callId,
-                offer: data.offer
-            });
-        } catch (error) {
-            console.error('Error handling call-offer:', error);
-        }
-    });
-
-    socket.on('call-answer', async (data) => {
-        try {
-            console.log('📤 Relaying call answer for callId:', data.callId);
-            const call = await Call.findById(data.callId);
-            if (!call) return;
-
-            const targetUserId = call.caller.toString();
-            io.to(targetUserId).emit('call-answer', {
-                callId: data.callId,
-                answer: data.answer
-            });
-        } catch (error) {
-            console.error('Error handling call-answer:', error);
-        }
-    });
-
-    socket.on('ice-candidate', async (data) => {
-        try {
-            const call = await Call.findById(data.callId);
-            if (!call) return;
-
-            const targetUserId = call.caller.toString() === socket.userId 
-                ? call.receiver.toString() 
-                : call.caller.toString();
-
-            io.to(targetUserId).emit('ice-candidate', {
-                callId: data.callId,
-                candidate: data.candidate,
-                from: socket.userId
-            });
-        } catch (error) {
-            console.error('Error handling ice-candidate:', error);
-        }
-    });
-
-    socket.on('end-call', async (data) => {
-        try {
-            const call = await Call.findById(data.callId);
-            if (!call) return;
-
-            const targetUserId = call.caller.toString() === socket.userId 
-                ? call.receiver.toString() 
-                : call.caller.toString();
-
-            io.to(targetUserId).emit('end-call', { callId: data.callId });
-        } catch (error) {
-            console.error('Error handling end-call:', error);
-        }
-    });
-
-    socket.on('call-rejected', async (data) => {
-        try {
-            console.log('📤 Relaying call rejection');
-            const call = await Call.findById(data.callId);
-            if (!call) return;
-
-            const targetUserId = call.caller.toString();
-            io.to(targetUserId).emit('call-declined', { 
-                callId: data.callId 
-            });
-        } catch (error) {
-            console.error('Error handling call-rejected:', error);
-        }
-    });
-
     socket.on('accept-call', async (data) => {
         try {
-            console.log('📤 Relaying call acceptance with answer');
-            const call = await Call.findById(data.callId);
+            const call = await Call.findOne({ callId: data.callId });
             if (!call) return;
 
-            const targetUserId = call.caller.toString();
-            io.to(targetUserId).emit('accept-call', {
-                callId: data.callId,
-                answer: data.answer
-            });
+            // Update call status
+            call.status = 'connected';
+            if (!call.participants.includes(socket.userId)) {
+                call.participants.push(socket.userId);
+            }
+            await call.save();
+
+            if (call.groupId) {
+                // Group call acceptance
+                socket.to(`group_${call.groupId}`).emit('call-answer', {
+                    callId: data.callId,
+                    answer: data.answer,
+                    from: socket.userId
+                });
+                
+                socket.to(`group_${call.groupId}`).emit('user-joined-call', {
+                    callId: data.callId,
+                    userId: socket.userId
+                });
+            } else {
+                // One-to-one call acceptance
+                const targetId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                io.to(targetId).emit('call-answer', {
+                    callId: data.callId,
+                    answer: data.answer,
+                    from: socket.userId
+                });
+            }
         } catch (error) {
             console.error('Error handling accept-call:', error);
         }
@@ -2207,16 +1796,118 @@ io.on('connection', (socket) => {
 
     socket.on('reject-call', async (data) => {
         try {
-            console.log('📤 Relaying call rejection');
-            const call = await Call.findById(data.callId);
+            const call = await Call.findOne({ callId: data.callId });
             if (!call) return;
 
-            const targetUserId = call.caller.toString();
-            io.to(targetUserId).emit('reject-call', {
-                callId: data.callId
-            });
+            call.status = 'rejected';
+            call.endTime = new Date();
+            await call.save();
+
+            if (call.groupId) {
+                socket.to(`group_${call.groupId}`).emit('call-rejected', {
+                    callId: data.callId,
+                    from: socket.userId
+                });
+            } else {
+                const targetId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                io.to(targetId).emit('call-rejected', {
+                    callId: data.callId
+                });
+            }
         } catch (error) {
             console.error('Error handling reject-call:', error);
+        }
+    });
+
+    socket.on('ice-candidate', async (data) => {
+        try {
+            const call = await Call.findOne({ callId: data.callId });
+            if (!call) return;
+
+            if (call.groupId) {
+                socket.to(`group_${call.groupId}`).emit('ice-candidate', {
+                    callId: data.callId,
+                    candidate: data.candidate,
+                    from: socket.userId
+                });
+            } else {
+                const targetId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                io.to(targetId).emit('ice-candidate', {
+                    callId: data.callId,
+                    candidate: data.candidate,
+                    from: socket.userId
+                });
+            }
+        } catch (error) {
+            console.error('Error handling ice-candidate:', error);
+        }
+    });
+
+    socket.on('end-call', async (data) => {
+        try {
+            const call = await Call.findOne({ callId: data.callId });
+            if (!call) return;
+
+            call.status = 'ended';
+            call.endTime = new Date();
+            await call.save();
+
+            if (call.groupId) {
+                socket.to(`group_${call.groupId}`).emit('call-ended', {
+                    callId: data.callId
+                });
+            } else {
+                const targetId = call.caller.toString() === socket.userId 
+                    ? call.receiver.toString() 
+                    : call.caller.toString();
+                io.to(targetId).emit('call-ended', {
+                    callId: data.callId
+                });
+            }
+        } catch (error) {
+            console.error('Error handling end-call:', error);
+        }
+    });
+
+    socket.on('join-group-call', async (data) => {
+        try {
+            const call = await Call.findOne({ callId: data.callId });
+            if (!call || !call.groupId) return;
+
+            if (!call.participants.includes(socket.userId)) {
+                call.participants.push(socket.userId);
+                await call.save();
+            }
+
+            socket.join(`call_${data.callId}`);
+            socket.to(`call_${data.callId}`).emit('user-joined-call', {
+                callId: data.callId,
+                userId: socket.userId
+            });
+        } catch (error) {
+            console.error('Error handling join-group-call:', error);
+        }
+    });
+
+    socket.on('leave-group-call', async (data) => {
+        try {
+            const call = await Call.findOne({ callId: data.callId });
+            if (!call || !call.groupId) return;
+
+            call.participants = call.participants.filter(p => p.toString() !== socket.userId);
+            await call.save();
+
+            socket.leave(`call_${data.callId}`);
+            socket.to(`call_${data.callId}`).emit('user-left-call', {
+                callId: data.callId,
+                userId: socket.userId
+            });
+        } catch (error) {
+            console.error('Error handling leave-group-call:', error);
         }
     });
 

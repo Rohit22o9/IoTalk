@@ -373,14 +373,14 @@
         </div>
         <!-- Group call buttons -->
         <div id="group-call-buttons-container" class="flex space-x-2">
-            <button onclick="groupCallManager.initiateGroupCall('<%= group._id %>', 'audio')"
+            <button onclick="window.startGroupAudioCall('<%= group._id %>')"
                     class="p-3 rounded-xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
                     title="Audio Call">
                 <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
                 </svg>
             </button>
-            <button onclick="groupCallManager.initiateGroupCall('<%= group._id %>', 'video')"
+            <button onclick="window.startGroupVideoCall('<%= group._id %>')"
                     class="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
                     title="Video Call">
                 <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">

@@ -1,83 +1,41 @@
 
-// Clean WebRTC Calling System
+// Modern WebRTC Call Manager for ModernChat
 class CallManager {
     constructor() {
-        // Use existing socket or create new one
-        this.socket = window.socket;
-        if (!this.socket) {
-            this.socket = io();
-            window.socket = this.socket;
-        }
-        
+        this.socket = window.socket || io();
         this.localStream = null;
-        this.remoteStream = null;
-        this.peerConnection = null;
+        this.remoteStreams = new Map(); // For multiple participants in group calls
+        this.peerConnections = new Map(); // Multiple peer connections for group calls
         this.currentCall = null;
-        this.pendingCall = null;
         this.callTimer = null;
         this.callStartTime = null;
-        
-        this.pcConfig = {
+        this.isInitiator = false;
+
+        this.config = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' }
+                { urls: 'stun:stun2.l.google.com:19302' }
             ]
         };
-        
+
         this.initializeEventListeners();
-        console.log('📞 CallManager initialized with socket:', !!this.socket);
+        console.log('📞 CallManager initialized');
     }
 
     initializeEventListeners() {
         // Incoming call events
         this.socket.on('incoming-call', (data) => {
-            console.log('📞 Incoming call from:', data.caller.username);
-            
-            // Store the call data including the offer
-            this.pendingCall = {
-                callId: data.callId,
-                caller: data.caller,
-                type: data.type,
-                offer: data.offer
-            };
-            
-            // Check if we're on a chat page - if so, let the chat page handle the UI
-            if (window.location.pathname.includes('/chat/')) {
-                console.log('📞 On chat page, letting chat page handle incoming call UI');
-                // The chat page will handle showing the modal
-                return;
-            }
-            
-            // Show notification for dashboard or other pages
-            this.showIncomingCallNotification(data);
+            console.log('📞 Incoming one-to-one call:', data);
+            this.showIncomingCallModal(data);
         });
 
-        this.socket.on('call-user', async (data) => {
-            console.log('📞 Received call-user event with offer:', data);
-            // This is the WebRTC offer from the caller
-            if (this.currentCall && this.currentCall.callId === data.callId) {
-                // We're already in a call, handle the offer immediately
-                console.log('📞 Processing offer for current call');
-                await this.handleOffer(data);
-            } else if (this.pendingCall && this.pendingCall.callId === data.callId) {
-                this.pendingCall.offer = data.offer;
-                console.log('📞 Stored offer for pending call');
-            }
+        this.socket.on('incoming-group-call', (data) => {
+            console.log('📞 Incoming group call:', data);
+            this.showIncomingGroupCallModal(data);
         });
 
-        this.socket.on('call-accepted', (data) => {
-            console.log('📞 Call accepted:', data);
-            if (data.answer) {
-                console.log('📞 Call accepted with answer, handling WebRTC');
-                this.handleCallAcceptedWithAnswer(data);
-            } else {
-                console.log('📞 Call accepted, creating offer for WebRTC');
-                this.handleCallAccepted(data);
-            }
-        });
-
+        // WebRTC signaling
         this.socket.on('call-offer', async (data) => {
             console.log('📥 Received call offer');
             await this.handleOffer(data);
@@ -88,62 +46,42 @@ class CallManager {
             await this.handleAnswer(data);
         });
 
-        this.socket.on('call-rejected', (data) => {
-            console.log('📞 Call rejected');
-            this.handleCallDeclined();
-        });
-
-        this.socket.on('call-declined', (data) => {
-            console.log('📞 Call declined');
-            this.handleCallDeclined();
-        });
-
-        this.socket.on('accept-call', async (data) => {
-            console.log('📞 Call accepted by receiver');
-            this.handleCallAcceptedByReceiver(data);
-        });
-
-        this.socket.on('reject-call', (data) => {
-            console.log('📞 Call rejected by receiver');
-            this.handleCallDeclined();
-        });
-
-        this.socket.on('call-timeout', (data) => {
-            console.log('📞 Call timeout');
-            this.handleCallTimeout();
-        });
-
-        this.socket.on('call-missed', (data) => {
-            console.log('📞 Call missed');
-            this.hideCallNotification();
-        });
-
-        this.socket.on('call-ended', (data) => {
-            console.log('📞 Call ended');
-            this.endCall();
-        });
-
-        // WebRTC signaling events
         this.socket.on('ice-candidate', async (data) => {
             console.log('📥 Received ICE candidate');
             await this.handleIceCandidate(data);
         });
 
-        this.socket.on('end-call', (data) => {
-            console.log('📞 Call ended by peer');
+        this.socket.on('call-rejected', () => {
+            console.log('📞 Call rejected');
+            this.handleCallRejected();
+        });
+
+        this.socket.on('call-ended', () => {
+            console.log('📞 Call ended');
             this.endCall();
+        });
+
+        this.socket.on('user-joined-call', (data) => {
+            console.log('👥 User joined call:', data.userId);
+            this.handleUserJoinedCall(data);
+        });
+
+        this.socket.on('user-left-call', (data) => {
+            console.log('👥 User left call:', data.userId);
+            this.handleUserLeftCall(data);
         });
     }
 
+    // Start a one-to-one call
     async startCall(receiverId, type = 'audio') {
         try {
-            console.log('📞 Starting call to:', receiverId);
+            console.log(`📞 Starting ${type} call to user:`, receiverId);
             
             // Get user media first
             await this.getUserMedia(type);
             
             // Initiate call on server
-            const response = await fetch('/call/initiate', {
+            const response = await fetch('/api/call/initiate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ receiverId, type })
@@ -153,173 +91,127 @@ class CallManager {
             if (result.success) {
                 this.currentCall = {
                     callId: result.callId,
-                    receiverId: receiverId,
-                    type: type,
-                    isInitiator: true
+                    receiverId,
+                    type,
+                    isGroup: false
                 };
                 
-                this.showOutgoingCallInterface();
+                this.isInitiator = true;
+                this.showOutgoingCallModal();
                 
-                // Create peer connection and offer
-                this.createPeerConnection();
-                const offer = await this.peerConnection.createOffer({
-                    offerToReceiveAudio: true,
-                    offerToReceiveVideo: type === 'video'
-                });
-                await this.peerConnection.setLocalDescription(offer);
-                
-                // Send call with offer to receiver
-                this.socket.emit('call-user', {
-                    callId: result.callId,
-                    receiverId: receiverId,
-                    offer: offer,
-                    type: type
-                });
-                
-                console.log('📞 Call initiated with offer sent:', result.callId);
+                console.log('📞 Call initiated:', result.callId);
             } else {
                 throw new Error(result.error);
             }
         } catch (error) {
             console.error('❌ Error starting call:', error);
-            this.releaseMedia();
+            this.cleanup();
             alert('Failed to start call: ' + error.message);
         }
     }
 
-    async acceptIncomingCall() {
+    // Start a group call
+    async startGroupCall(groupId, type = 'audio') {
         try {
-            if (!this.pendingCall) {
-                console.error('❌ No pending call to accept');
-                return;
-            }
-
-            console.log('📞 Accepting incoming call:', this.pendingCall.callId);
+            console.log(`📞 Starting ${type} group call:`, groupId);
             
             // Get user media first
-            await this.getUserMedia(this.pendingCall.type);
+            await this.getUserMedia(type);
             
-            this.currentCall = {
-                callId: this.pendingCall.callId,
-                callerId: this.pendingCall.caller.id,
-                type: this.pendingCall.type,
-                isInitiator: false
-            };
-
-            // Accept call on server first
-            const response = await fetch(`/call/${this.pendingCall.callId}/respond`, {
+            // Initiate group call on server
+            const response = await fetch('/api/call/initiate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'accept' })
+                body: JSON.stringify({ groupId, type })
             });
 
-            if (response.ok) {
-                this.hideCallNotification();
-                this.showInCallInterface();
-                console.log('📞 Call accepted on server');
+            const result = await response.json();
+            if (result.success) {
+                this.currentCall = {
+                    callId: result.callId,
+                    groupId,
+                    type,
+                    isGroup: true
+                };
                 
-                // Create peer connection and handle the offer
-                this.createPeerConnection();
+                this.isInitiator = true;
+                this.showGroupCallModal();
                 
-                if (this.pendingCall.offer) {
-                    console.log('📞 Setting remote description from offer');
-                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(this.pendingCall.offer));
-                    
-                    // Create answer
-                    const answer = await this.peerConnection.createAnswer();
-                    await this.peerConnection.setLocalDescription(answer);
-                    
-                    // Send accept-call event with answer back to caller
-                    this.socket.emit('accept-call', {
-                        callId: this.pendingCall.callId,
-                        answer: answer
-                    });
-                    
-                    console.log('📞 Answer sent to caller');
-                } else {
-                    console.error('❌ No offer found in pending call');
-                    throw new Error('No offer available');
-                }
-                
-                this.pendingCall = null;
+                console.log('📞 Group call initiated:', result.callId);
             } else {
-                throw new Error('Failed to accept call');
+                throw new Error(result.error);
             }
         } catch (error) {
+            console.error('❌ Error starting group call:', error);
+            this.cleanup();
+            alert('Failed to start group call: ' + error.message);
+        }
+    }
+
+    // Accept incoming call
+    async acceptCall(callData) {
+        try {
+            console.log('📞 Accepting call:', callData.callId);
+            
+            this.currentCall = callData;
+            this.isInitiator = false;
+            
+            // Get user media
+            await this.getUserMedia(callData.type);
+            
+            // Create peer connection
+            const peerConnection = this.createPeerConnection(callData.caller?.id || 'caller');
+            
+            if (callData.isGroup) {
+                this.showGroupCallModal();
+                this.socket.emit('join-group-call', { callId: callData.callId });
+            } else {
+                this.showInCallModal();
+            }
+            
+            this.hideIncomingCallModal();
+            
+            console.log('✅ Call accepted');
+        } catch (error) {
             console.error('❌ Error accepting call:', error);
-            this.releaseMedia();
+            this.rejectCall(callData);
             alert('Failed to accept call: ' + error.message);
         }
     }
 
-    async rejectIncomingCall() {
-        try {
-            if (!this.pendingCall) {
-                console.error('❌ No pending call to reject');
-                return;
-            }
-
-            console.log('📞 Rejecting incoming call:', this.pendingCall.callId);
-            
-            // Decline on server
-            await fetch(`/call/${this.pendingCall.callId}/respond`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'decline' })
-            });
-            
-            // Send reject-call event to caller
-            this.socket.emit('reject-call', { 
-                callId: this.pendingCall.callId 
-            });
-            
-            this.hideCallNotification();
-            this.pendingCall = null;
-            console.log('📞 Call rejected');
-        } catch (error) {
-            console.error('❌ Error rejecting call:', error);
-        }
+    // Reject incoming call
+    rejectCall(callData) {
+        console.log('📞 Rejecting call:', callData.callId);
+        
+        this.socket.emit('reject-call', { callId: callData.callId });
+        this.hideIncomingCallModal();
+        this.cleanup();
     }
 
-    async handleIncomingOffer(callData) {
+    // End current call
+    async endCall() {
+        if (!this.currentCall) return;
+        
+        console.log('📞 Ending call:', this.currentCall.callId);
+        
         try {
-            console.log('📥 Handling incoming offer from pending call');
-            
-            if (!callData.offer) {
-                console.error('❌ No offer available in call data');
-                return;
-            }
-            
-            if (!this.peerConnection) {
-                this.createPeerConnection();
-            }
-            
-            console.log('📥 Setting remote description from offer...');
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
-            
-            console.log('📤 Creating answer...');
-            const answer = await this.peerConnection.createAnswer();
-            await this.peerConnection.setLocalDescription(answer);
-            
-            // Send answer back to caller
-            this.socket.emit('call-accepted', {
-                callId: callData.callId,
-                answer: answer
+            // End call on server
+            await fetch(`/api/call/${this.currentCall.callId}/end`, {
+                method: 'POST'
             });
             
-            console.log('📤 Answer sent to caller');
-            this.pendingCall = null;
-            
+            // Emit end call event
+            this.socket.emit('end-call', { callId: this.currentCall.callId });
         } catch (error) {
-            console.error('❌ Error handling incoming offer:', error);
-            this.endCall();
+            console.error('❌ Error ending call on server:', error);
         }
+        
+        this.cleanup();
     }
 
+    // Get user media
     async getUserMedia(type) {
         try {
-            console.log('🎤 Getting user media...');
-            
             const constraints = {
                 audio: {
                     echoCancellation: true,
@@ -329,213 +221,242 @@ class CallManager {
                 video: type === 'video'
             };
 
+            console.log('🎥 Getting user media with constraints:', constraints);
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-            console.log('✅ User media obtained');
             
+            console.log('✅ User media obtained');
             return this.localStream;
         } catch (error) {
             console.error('❌ Error getting user media:', error);
-            if (error.name === 'NotAllowedError') {
-                alert('Please allow microphone access');
-            }
             throw error;
         }
     }
 
-    createPeerConnection() {
-        console.log('🔗 Creating peer connection');
+    // Create peer connection
+    createPeerConnection(participantId) {
+        console.log('🔗 Creating peer connection for participant:', participantId);
         
-        this.peerConnection = new RTCPeerConnection(this.pcConfig);
+        const peerConnection = new RTCPeerConnection(this.config);
+        this.peerConnections.set(participantId, peerConnection);
 
         // Add local stream
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
                 console.log('➕ Adding local track:', track.kind);
-                this.peerConnection.addTrack(track, this.localStream);
+                peerConnection.addTrack(track, this.localStream);
             });
         }
 
         // Handle remote stream
-        this.peerConnection.ontrack = (event) => {
-            console.log('📥 Received remote track:', event.track.kind);
-            this.remoteStream = event.streams[0];
-            this.setupRemoteAudio(this.remoteStream);
-            this.updateCallStatus('Connected');
-            this.startCallTimer();
+        peerConnection.ontrack = (event) => {
+            console.log('📥 Received remote track from:', participantId);
+            const remoteStream = event.streams[0];
+            this.remoteStreams.set(participantId, remoteStream);
+            this.displayRemoteStream(participantId, remoteStream);
+            
+            if (!this.callTimer) {
+                this.startCallTimer();
+            }
         };
 
         // Handle ICE candidates
-        this.peerConnection.onicecandidate = (event) => {
+        peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('🧊 Sending ICE candidate:', event.candidate.type);
+                console.log('🧊 Sending ICE candidate to:', participantId);
                 this.socket.emit('ice-candidate', {
                     callId: this.currentCall.callId,
                     candidate: event.candidate
                 });
-            } else {
-                console.log('🧊 ICE gathering complete');
             }
         };
 
         // Connection state changes
-        this.peerConnection.onconnectionstatechange = () => {
-            console.log('🔗 Connection state:', this.peerConnection.connectionState);
-            if (this.peerConnection.connectionState === 'connected') {
+        peerConnection.onconnectionstatechange = () => {
+            console.log('🔗 Connection state with', participantId, ':', peerConnection.connectionState);
+            
+            if (peerConnection.connectionState === 'connected') {
                 this.updateCallStatus('Connected');
                 if (!this.callTimer) {
                     this.startCallTimer();
                 }
-            } else if (this.peerConnection.connectionState === 'failed') {
-                console.error('❌ Connection failed');
-                this.endCall();
+            } else if (peerConnection.connectionState === 'failed') {
+                console.error('❌ Connection failed with:', participantId);
+                this.peerConnections.delete(participantId);
+                this.remoteStreams.delete(participantId);
+                this.removeRemoteStream(participantId);
             }
         };
 
-        // ICE connection state changes
-        this.peerConnection.oniceconnectionstatechange = () => {
-            console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
-            if (this.peerConnection.iceConnectionState === 'connected') {
-                this.updateCallStatus('Connected');
-            }
-        };
-
-        return this.peerConnection;
+        return peerConnection;
     }
 
-    setupRemoteAudio(remoteStream) {
-        console.log('🔊 Setting up remote audio');
-        
-        // Remove existing audio element
-        const existingAudio = document.getElementById('remote-audio');
-        if (existingAudio) {
-            existingAudio.remove();
-        }
-
-        // Create new audio element
-        const audio = document.createElement('audio');
-        audio.id = 'remote-audio';
-        audio.srcObject = remoteStream;
-        audio.autoplay = true;
-        audio.playsInline = true;
-        audio.volume = 1.0;
-        
-        // Hide but keep functional
-        audio.style.display = 'none';
-        document.body.appendChild(audio);
-
-        audio.onloadedmetadata = () => {
-            audio.play().catch(err => {
-                console.error('Audio play failed:', err);
-            });
-        };
-
-        console.log('✅ Remote audio setup complete');
-    }
-
-    async handleCallAccepted(data) {
+    // Handle WebRTC offer
+    async handleOffer(data) {
         try {
-            console.log('📞 Call accepted, creating offer for WebRTC');
+            console.log('📥 Handling offer from:', data.from);
             
-            this.showInCallInterface();
-            
-            // Create peer connection if not already created
-            if (!this.peerConnection) {
-                this.createPeerConnection();
+            if (!this.currentCall || this.currentCall.callId !== data.callId) {
+                console.warn('❌ No matching call for offer');
+                return;
             }
+
+            let peerConnection = this.peerConnections.get(data.from);
+            if (!peerConnection) {
+                peerConnection = this.createPeerConnection(data.from);
+            }
+
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             
-            const offer = await this.peerConnection.createOffer({
-                offerToReceiveAudio: true,
-                offerToReceiveVideo: this.currentCall.type === 'video'
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            this.socket.emit('accept-call', {
+                callId: data.callId,
+                answer: answer
             });
-            await this.peerConnection.setLocalDescription(offer);
+
+            console.log('✅ Offer handled, answer sent');
+        } catch (error) {
+            console.error('❌ Error handling offer:', error);
+        }
+    }
+
+    // Handle WebRTC answer
+    async handleAnswer(data) {
+        try {
+            console.log('📥 Handling answer from:', data.from);
             
-            console.log('📤 Sending WebRTC offer to receiver');
+            const peerConnection = this.peerConnections.get(data.from);
+            if (peerConnection) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                console.log('✅ Answer handled');
+            }
+        } catch (error) {
+            console.error('❌ Error handling answer:', error);
+        }
+    }
+
+    // Handle ICE candidate
+    async handleIceCandidate(data) {
+        try {
+            const peerConnection = this.peerConnections.get(data.from);
+            if (peerConnection && data.candidate) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                console.log('✅ ICE candidate added from:', data.from);
+            }
+        } catch (error) {
+            console.error('❌ Error handling ICE candidate:', error);
+        }
+    }
+
+    // Handle user joined call (group calls)
+    async handleUserJoinedCall(data) {
+        if (!this.currentCall || !this.currentCall.isGroup) return;
+        
+        console.log('👥 User joined call:', data.userId);
+        
+        if (this.isInitiator) {
+            // Create offer for new participant
+            const peerConnection = this.createPeerConnection(data.userId);
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            
             this.socket.emit('call-user', {
                 callId: this.currentCall.callId,
                 offer: offer
             });
-            
-        } catch (error) {
-            console.error('❌ Error handling call acceptance:', error);
-            this.endCall();
         }
     }
 
-    async handleCallAcceptedWithAnswer(data) {
-        try {
-            console.log('📥 Handling answer from receiver');
+    // Handle user left call (group calls)
+    handleUserLeftCall(data) {
+        console.log('👥 User left call:', data.userId);
+        
+        const peerConnection = this.peerConnections.get(data.userId);
+        if (peerConnection) {
+            peerConnection.close();
+            this.peerConnections.delete(data.userId);
+        }
+        
+        this.remoteStreams.delete(data.userId);
+        this.removeRemoteStream(data.userId);
+    }
+
+    // Handle call rejected
+    handleCallRejected() {
+        console.log('📞 Call was rejected');
+        alert('Call was rejected');
+        this.cleanup();
+    }
+
+    // Display remote stream
+    displayRemoteStream(participantId, stream) {
+        console.log('🖥️ Displaying remote stream from:', participantId);
+        
+        const callContainer = document.getElementById('call-streams-container');
+        if (!callContainer) return;
+
+        // Remove existing stream for this participant
+        this.removeRemoteStream(participantId);
+
+        // Create video/audio element
+        const mediaElement = this.currentCall.type === 'video' 
+            ? document.createElement('video') 
+            : document.createElement('audio');
             
-            if (this.peerConnection && data.answer) {
-                await this.peerConnection.setRemoteDescription(data.answer);
-                console.log('✅ Remote description set from answer');
-            }
-        } catch (error) {
-            console.error('❌ Error handling answer:', error);
-            this.endCall();
+        mediaElement.id = `remote-stream-${participantId}`;
+        mediaElement.srcObject = stream;
+        mediaElement.autoplay = true;
+        mediaElement.playsInline = true;
+        
+        if (this.currentCall.type === 'video') {
+            mediaElement.className = 'w-full h-full object-cover rounded-lg';
+        } else {
+            mediaElement.className = 'hidden';
+        }
+
+        // Create container for the stream
+        const streamContainer = document.createElement('div');
+        streamContainer.id = `stream-container-${participantId}`;
+        streamContainer.className = 'relative bg-gray-900 rounded-lg overflow-hidden';
+        
+        if (this.currentCall.type === 'video') {
+            streamContainer.className += ' aspect-video';
+        }
+        
+        streamContainer.appendChild(mediaElement);
+        callContainer.appendChild(streamContainer);
+
+        // Update grid layout
+        this.updateStreamGrid();
+    }
+
+    // Remove remote stream
+    removeRemoteStream(participantId) {
+        const streamContainer = document.getElementById(`stream-container-${participantId}`);
+        if (streamContainer) {
+            streamContainer.remove();
+            this.updateStreamGrid();
         }
     }
 
-    async handleCallAcceptedByReceiver(data) {
-        try {
-            console.log('📞 Call accepted by receiver, handling answer');
-            this.showInCallInterface();
-            
-            if (this.peerConnection && data.answer) {
-                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                console.log('✅ Remote description set from receiver answer');
-            }
-        } catch (error) {
-            console.error('❌ Error handling call acceptance:', error);
-            this.endCall();
-        }
+    // Update stream grid layout
+    updateStreamGrid() {
+        const callContainer = document.getElementById('call-streams-container');
+        if (!callContainer) return;
+
+        const streamCount = callContainer.children.length;
+        
+        // Responsive grid classes based on participant count
+        let gridClass = 'grid-cols-1';
+        if (streamCount === 2) gridClass = 'grid-cols-2';
+        else if (streamCount <= 4) gridClass = 'grid-cols-2';
+        else if (streamCount <= 9) gridClass = 'grid-cols-3';
+        
+        callContainer.className = `grid ${gridClass} gap-4 h-full`;
     }
 
-    async handleOffer(data) {
-        try {
-            console.log('📥 Handling offer');
-            
-            this.createPeerConnection();
-            
-            await this.peerConnection.setRemoteDescription(data.offer);
-            const answer = await this.peerConnection.createAnswer();
-            await this.peerConnection.setLocalDescription(answer);
-            
-            this.socket.emit('call-accepted', {
-                callId: data.callId,
-                answer: answer
-            });
-            
-        } catch (error) {
-            console.error('❌ Error handling offer:', error);
-            this.endCall();
-        }
-    }
-
-    async handleAnswer(data) {
-        try {
-            console.log('📥 Handling answer');
-            
-            if (this.peerConnection) {
-                await this.peerConnection.setRemoteDescription(data.answer);
-                console.log('✅ Remote description set');
-            }
-        } catch (error) {
-            console.error('❌ Error handling answer:', error);
-            this.endCall();
-        }
-    }
-
-    async handleIceCandidate(data) {
-        try {
-            if (this.peerConnection && data.candidate) {
-                await this.peerConnection.addIceCandidate(data.candidate);
-                console.log('✅ ICE candidate added');
-            }
-        } catch (error) {
-            console.error('❌ Error adding ICE candidate:', error);
-        }
-    }
-
+    // Start call timer
     startCallTimer() {
         if (this.callTimer) return;
         
@@ -553,65 +474,7 @@ class CallManager {
         }, 1000);
     }
 
-    async endCall() {
-        console.log('📞 Ending call');
-        
-        if (this.currentCall) {
-            try {
-                await fetch(`/call/${this.currentCall.callId}/end`, {
-                    method: 'POST'
-                });
-                
-                this.socket.emit('end-call', {
-                    callId: this.currentCall.callId
-                });
-            } catch (error) {
-                console.error('Error ending call:', error);
-            }
-        }
-
-        this.cleanup();
-    }
-
-    cleanup() {
-        // Stop timer
-        if (this.callTimer) {
-            clearInterval(this.callTimer);
-            this.callTimer = null;
-        }
-        
-        // Close peer connection
-        if (this.peerConnection) {
-            this.peerConnection.close();
-            this.peerConnection = null;
-        }
-        
-        // Release media
-        this.releaseMedia();
-        
-        // Remove remote audio
-        const remoteAudio = document.getElementById('remote-audio');
-        if (remoteAudio) {
-            remoteAudio.remove();
-        }
-        
-        // Hide interfaces
-        this.hideCallInterfaces();
-        
-        // Reset state
-        this.currentCall = null;
-        this.callStartTime = null;
-        
-        console.log('✅ Call cleanup complete');
-    }
-
-    releaseMedia() {
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
-            this.localStream = null;
-        }
-    }
-
+    // Update call status
     updateCallStatus(status) {
         const statusElement = document.getElementById('call-status');
         if (statusElement) {
@@ -619,122 +482,7 @@ class CallManager {
         }
     }
 
-    showIncomingCallNotification(data) {
-        console.log('📞 Showing incoming call notification for:', data.caller.username);
-        this.hideCallNotification();
-        
-        const notification = document.createElement('div');
-        notification.id = 'call-notification';
-        notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100]';
-        notification.innerHTML = `
-            <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-                <div class="text-center">
-                    <div class="mb-6">
-                        <div class="relative inline-block">
-                            <img src="${data.caller.avatar || '/avatars/default.png'}" 
-                                 alt="${data.caller.username}" 
-                                 class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200">
-                            <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
-                        </div>
-                        <h3 class="text-xl font-bold text-gray-900">${data.caller.username}</h3>
-                        <p class="text-gray-600 text-sm mt-1">Incoming ${data.type} call</p>
-                    </div>
-                    <div class="flex space-x-4">
-                        <button id="decline-call-btn" 
-                                class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
-                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                            </svg>
-                            Decline
-                        </button>
-                        <button id="accept-call-btn" 
-                                class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
-                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                            </svg>
-                            Accept
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        // Add event listeners to buttons
-        const declineBtn = notification.querySelector('#decline-call-btn');
-        const acceptBtn = notification.querySelector('#accept-call-btn');
-        
-        declineBtn.addEventListener('click', () => {
-            this.rejectIncomingCall();
-        });
-        
-        acceptBtn.addEventListener('click', () => {
-            this.acceptIncomingCall();
-        });
-        
-        // Auto-dismiss after 30 seconds
-        setTimeout(() => {
-            if (document.getElementById('call-notification')) {
-                this.declineCall(data.callId);
-            }
-        }, 30000);
-        
-        console.log('✅ Incoming call notification displayed');
-    }
-
-    showOutgoingCallInterface() {
-        this.hideCallInterfaces();
-        
-        const callInterface = document.createElement('div');
-        callInterface.id = 'call-interface';
-        callInterface.className = 'fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50';
-        callInterface.innerHTML = `
-            <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4 text-center">
-                <div class="mb-4">
-                    <div class="text-lg font-semibold mb-2">Calling...</div>
-                    <div id="call-status" class="text-gray-600">Connecting...</div>
-                    <div id="call-timer" class="text-2xl font-mono mt-4">00:00</div>
-                </div>
-                <button onclick="callManager.endCall()" 
-                        class="bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600">
-                    End Call
-                </button>
-            </div>
-        `;
-        
-        document.body.appendChild(callInterface);
-    }
-
-    showInCallInterface() {
-        this.hideCallInterfaces();
-        
-        const callInterface = document.createElement('div');
-        callInterface.id = 'call-interface';
-        callInterface.className = 'fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50';
-        callInterface.innerHTML = `
-            <div class="bg-white rounded-lg p-6 max-w-sm w-full mx-4 text-center">
-                <div class="mb-4">
-                    <div class="text-lg font-semibold mb-2">In Call</div>
-                    <div id="call-status" class="text-gray-600">Connected</div>
-                    <div id="call-timer" class="text-2xl font-mono mt-4 text-green-600">00:00</div>
-                </div>
-                <div class="flex space-x-4 justify-center">
-                    <button id="mute-btn" onclick="callManager.toggleMute()" 
-                            class="bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600">
-                        🎤 Mute
-                    </button>
-                    <button onclick="callManager.endCall()" 
-                            class="bg-red-500 text-white px-6 py-3 rounded-full hover:bg-red-600">
-                        End Call
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(callInterface);
-    }
-
+    // Toggle mute
     toggleMute() {
         if (this.localStream) {
             const audioTrack = this.localStream.getAudioTracks()[0];
@@ -742,52 +490,331 @@ class CallManager {
                 audioTrack.enabled = !audioTrack.enabled;
                 const muteBtn = document.getElementById('mute-btn');
                 if (muteBtn) {
-                    muteBtn.textContent = audioTrack.enabled ? '🎤 Mute' : '🔇 Unmute';
+                    muteBtn.textContent = audioTrack.enabled ? '🎤' : '🔇';
                     muteBtn.className = audioTrack.enabled 
-                        ? 'bg-gray-500 text-white px-4 py-2 rounded-full hover:bg-gray-600'
-                        : 'bg-red-500 text-white px-4 py-2 rounded-full hover:bg-red-600';
+                        ? 'bg-gray-600 text-white px-4 py-2 rounded-full hover:bg-gray-700'
+                        : 'bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700';
                 }
             }
         }
     }
 
-    hideCallNotification() {
-        const notification = document.getElementById('call-notification');
-        if (notification) {
-            notification.remove();
+    // Toggle video
+    toggleVideo() {
+        if (this.localStream && this.currentCall.type === 'video') {
+            const videoTrack = this.localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                const videoBtn = document.getElementById('video-btn');
+                if (videoBtn) {
+                    videoBtn.textContent = videoTrack.enabled ? '📹' : '📹';
+                    videoBtn.className = videoTrack.enabled 
+                        ? 'bg-gray-600 text-white px-4 py-2 rounded-full hover:bg-gray-700'
+                        : 'bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700';
+                }
+                
+                // Hide/show local video
+                const localVideo = document.getElementById('local-video');
+                if (localVideo) {
+                    localVideo.style.opacity = videoTrack.enabled ? '1' : '0.3';
+                }
+            }
         }
     }
 
-    hideCallInterfaces() {
-        const callInterface = document.getElementById('call-interface');
-        if (callInterface) {
-            callInterface.remove();
+    // Show incoming call modal
+    showIncomingCallModal(callData) {
+        this.hideAllModals();
+        
+        const modal = document.createElement('div');
+        modal.id = 'incoming-call-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+                <div class="text-center">
+                    <div class="mb-6">
+                        <img src="${callData.caller.avatar || '/avatars/default.png'}" 
+                             alt="${callData.caller.username}" 
+                             class="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-green-200">
+                        <h3 class="text-xl font-bold text-gray-900">${callData.caller.username}</h3>
+                        <p class="text-gray-600 text-sm mt-1">Incoming ${callData.type} call</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button onclick="callManager.rejectCall({callId: '${callData.callId}'})" 
+                                class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
+                            Decline
+                        </button>
+                        <button onclick="callManager.acceptCall({callId: '${callData.callId}', type: '${callData.type}', caller: {id: '${callData.caller.id}'}, isGroup: false})" 
+                                class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
+                            Accept
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    // Show incoming group call modal
+    showIncomingGroupCallModal(callData) {
+        this.hideAllModals();
+        
+        const modal = document.createElement('div');
+        modal.id = 'incoming-group-call-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+                <div class="text-center">
+                    <div class="mb-6">
+                        <div class="w-24 h-24 bg-blue-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+                            <svg class="w-12 h-12 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 12a1 1 0 102 0V7a1 1 0 10-2 0v5zm2-7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path d="M14 13a2 2 0 01-2-2V9a2 2 0 012-2 1 1 0 011 1v3a1 1 0 11-2 0V8a1 1 0 10-2 0v3a4 4 0 01-4 4H8a1 1 0 110-2h1a2 2 0 002-2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">${callData.groupName}</h3>
+                        <p class="text-gray-600 text-sm mt-1">${callData.caller.username} started a ${callData.type} call</p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button onclick="callManager.rejectCall({callId: '${callData.callId}'})" 
+                                class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
+                            Decline
+                        </button>
+                        <button onclick="callManager.acceptCall({callId: '${callData.callId}', type: '${callData.type}', groupId: '${callData.groupId}', isGroup: true})" 
+                                class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
+                            Join Call
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    // Show outgoing call modal
+    showOutgoingCallModal() {
+        this.hideAllModals();
+        
+        const modal = document.createElement('div');
+        modal.id = 'outgoing-call-modal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center';
+        modal.innerHTML = `
+            <div class="text-center text-white">
+                <div class="mb-8">
+                    <div class="w-32 h-32 bg-white bg-opacity-20 rounded-full mx-auto mb-4 flex items-center justify-center animate-pulse">
+                        <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-2">Calling...</h3>
+                    <p id="call-status" class="text-lg opacity-75">Connecting...</p>
+                </div>
+                <button onclick="callManager.endCall()" 
+                        class="bg-red-600 text-white px-8 py-4 rounded-full hover:bg-red-700 transition-colors shadow-lg">
+                    End Call
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+    }
+
+    // Show in-call modal
+    showInCallModal() {
+        this.hideAllModals();
+        
+        const modal = document.createElement('div');
+        modal.id = 'in-call-modal';
+        modal.className = 'fixed inset-0 bg-black z-50 flex flex-col';
+        
+        const isVideo = this.currentCall.type === 'video';
+        
+        modal.innerHTML = `
+            <div class="flex-1 relative">
+                <!-- Call streams container -->
+                <div id="call-streams-container" class="absolute inset-4 grid grid-cols-1 gap-4">
+                    <!-- Remote streams will be added here -->
+                </div>
+                
+                <!-- Local video (only for video calls) -->
+                ${isVideo ? `
+                <div class="absolute top-4 right-4 w-32 h-24 bg-gray-900 rounded-lg overflow-hidden border-2 border-white shadow-lg">
+                    <video id="local-video" autoplay muted playsInline class="w-full h-full object-cover"></video>
+                </div>
+                ` : ''}
+                
+                <!-- Call info -->
+                <div class="absolute top-4 left-4 text-white">
+                    <p id="call-status" class="text-lg font-semibold">Connected</p>
+                    <p id="call-timer" class="text-2xl font-mono">00:00</p>
+                </div>
+            </div>
+            
+            <!-- Call controls -->
+            <div class="bg-black bg-opacity-50 p-6 flex justify-center space-x-4">
+                <button id="mute-btn" onclick="callManager.toggleMute()" 
+                        class="bg-gray-600 text-white px-4 py-2 rounded-full hover:bg-gray-700 transition-colors">
+                    🎤
+                </button>
+                ${isVideo ? `
+                <button id="video-btn" onclick="callManager.toggleVideo()" 
+                        class="bg-gray-600 text-white px-4 py-2 rounded-full hover:bg-gray-700 transition-colors">
+                    📹
+                </button>
+                ` : ''}
+                <button onclick="callManager.endCall()" 
+                        class="bg-red-600 text-white px-6 py-2 rounded-full hover:bg-red-700 transition-colors">
+                    End Call
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Set up local video if video call
+        if (isVideo && this.localStream) {
+            setTimeout(() => {
+                const localVideo = document.getElementById('local-video');
+                if (localVideo) {
+                    localVideo.srcObject = this.localStream;
+                }
+            }, 100);
         }
-        this.hideCallNotification();
     }
 
-    handleCallDeclined() {
-        this.hideCallInterfaces();
-        alert('Call was declined');
-        this.cleanup();
+    // Show group call modal
+    showGroupCallModal() {
+        this.hideAllModals();
+        
+        const modal = document.createElement('div');
+        modal.id = 'group-call-modal';
+        modal.className = 'fixed inset-0 bg-black z-50 flex flex-col';
+        
+        const isVideo = this.currentCall.type === 'video';
+        
+        modal.innerHTML = `
+            <div class="flex-1 relative">
+                <!-- Group call streams container -->
+                <div id="call-streams-container" class="absolute inset-4 grid grid-cols-2 gap-4">
+                    <!-- Participant streams will be added here -->
+                </div>
+                
+                <!-- Local video (only for video calls) -->
+                ${isVideo ? `
+                <div class="absolute top-4 right-4 w-32 h-24 bg-gray-900 rounded-lg overflow-hidden border-2 border-white shadow-lg z-10">
+                    <video id="local-video" autoplay muted playsInline class="w-full h-full object-cover"></video>
+                </div>
+                ` : ''}
+                
+                <!-- Call info -->
+                <div class="absolute top-4 left-4 text-white z-10">
+                    <p id="call-status" class="text-lg font-semibold">Group Call</p>
+                    <p id="call-timer" class="text-xl font-mono">00:00</p>
+                </div>
+            </div>
+            
+            <!-- Call controls -->
+            <div class="bg-black bg-opacity-50 p-6 flex justify-center space-x-4">
+                <button id="mute-btn" onclick="callManager.toggleMute()" 
+                        class="bg-gray-600 text-white px-4 py-2 rounded-full hover:bg-gray-700 transition-colors">
+                    🎤
+                </button>
+                ${isVideo ? `
+                <button id="video-btn" onclick="callManager.toggleVideo()" 
+                        class="bg-gray-600 text-white px-4 py-2 rounded-full hover:bg-gray-700 transition-colors">
+                    📹
+                </button>
+                ` : ''}
+                <button onclick="callManager.endCall()" 
+                        class="bg-red-600 text-white px-6 py-2 rounded-full hover:bg-red-700 transition-colors">
+                    Leave Call
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Set up local video if video call
+        if (isVideo && this.localStream) {
+            setTimeout(() => {
+                const localVideo = document.getElementById('local-video');
+                if (localVideo) {
+                    localVideo.srcObject = this.localStream;
+                }
+            }, 100);
+        }
     }
 
-    handleCallTimeout() {
-        this.hideCallInterfaces();
-        alert('Call timed out');
-        this.cleanup();
+    // Hide incoming call modal
+    hideIncomingCallModal() {
+        const modal = document.getElementById('incoming-call-modal');
+        if (modal) modal.remove();
+        
+        const groupModal = document.getElementById('incoming-group-call-modal');
+        if (groupModal) groupModal.remove();
+    }
+
+    // Hide all modals
+    hideAllModals() {
+        const modals = [
+            'incoming-call-modal',
+            'incoming-group-call-modal', 
+            'outgoing-call-modal',
+            'in-call-modal',
+            'group-call-modal'
+        ];
+        
+        modals.forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.remove();
+        });
+    }
+
+    // Cleanup resources
+    cleanup() {
+        console.log('🧹 Cleaning up call resources');
+        
+        // Stop call timer
+        if (this.callTimer) {
+            clearInterval(this.callTimer);
+            this.callTimer = null;
+        }
+        
+        // Close all peer connections
+        this.peerConnections.forEach(pc => pc.close());
+        this.peerConnections.clear();
+        
+        // Release media streams
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+        
+        this.remoteStreams.clear();
+        
+        // Hide all modals
+        this.hideAllModals();
+        
+        // Reset state
+        this.currentCall = null;
+        this.callStartTime = null;
+        this.isInitiator = false;
+        
+        console.log('✅ Call cleanup complete');
     }
 }
 
-// Initialize call manager
+// Initialize call manager when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof io !== 'undefined') {
         window.callManager = new CallManager();
-        console.log('📞 Call manager ready');
+        console.log('📞 Global call manager ready');
     }
 });
 
-// Global functions for easy access
+// Global helper functions
 window.startAudioCall = function(receiverId) {
     if (window.callManager) {
         window.callManager.startCall(receiverId, 'audio');
@@ -797,5 +824,17 @@ window.startAudioCall = function(receiverId) {
 window.startVideoCall = function(receiverId) {
     if (window.callManager) {
         window.callManager.startCall(receiverId, 'video');
+    }
+};
+
+window.startGroupAudioCall = function(groupId) {
+    if (window.callManager) {
+        window.callManager.startGroupCall(groupId, 'audio');
+    }
+};
+
+window.startGroupVideoCall = function(groupId) {
+    if (window.callManager) {
+        window.callManager.startGroupCall(groupId, 'video');
     }
 };

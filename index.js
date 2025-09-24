@@ -2063,13 +2063,13 @@ io.on('connection', (socket) => {
     // WebRTC signaling - handle call initiation from caller
     socket.on('call-user', async (data) => {
         try {
-            console.log('📤 Relaying call initiation with offer for callId:', data.callId);
+            console.log('📞 Relaying call from', socket.id, 'to', data.to, 'type:', data.type);
             const call = await Call.findById(data.callId);
             if (!call) return;
 
             const caller = await User.findById(call.caller);
             const targetUserId = call.receiver.toString();
-            
+
             // Send incoming call notification to receiver
             io.to(targetUserId).emit('incoming-call', {
                 callId: data.callId,
@@ -2088,12 +2088,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on("call-user", (data) => {
-        io.to(data.to).emit("incoming-call", {
-            from: socket.id,
-            offer: data.offer
-        });
-    });
+    // The following are redundant with the above try-catch block, keeping the one that handles Call model data.
+    // socket.on("call-user", (data) => {
+    //   io.to(data.to).emit("incoming-call", {
+    //     from: socket.id,
+    //     offer: data.offer
+    //   });
+    // });
 
     socket.on("accept-call", (data) => {
         io.to(data.to).emit("call-accepted", { answer: data.answer });
@@ -2103,9 +2104,9 @@ io.on('connection', (socket) => {
         io.to(data.to).emit("call-rejected");
     });
 
-    socket.on("ice-candidate", (data) => {
-        io.to(data.to).emit("ice-candidate", { candidate: data.candidate });
-    });
+    // socket.on("ice-candidate", (data) => {
+    //   io.to(data.to).emit("ice-candidate", { candidate: data.candidate });
+    // });
 
     socket.on('call-offer', async (data) => {
         try {

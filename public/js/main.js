@@ -319,43 +319,63 @@ const config = {
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof window.socket !== 'undefined') {
     window.socket.on("incoming-call", async (data) => {
+      console.log('📞 Incoming call from:', data.from, 'type:', data.type);
+      
       const modal = document.getElementById("incomingCallModal");
       modal.classList.remove("hidden");
 
       document.getElementById("acceptCall").onclick = async () => {
-        modal.classList.add("hidden");
+        try {
+          modal.classList.add("hidden");
 
-        peerConnection = new RTCPeerConnection(config);
+          peerConnection = new RTCPeerConnection(config);
 
-        // Local audio
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+          // Local media - match the call type
+          const mediaConstraints = {
+            audio: true,
+            video: data.type === 'video'
+          };
+          
+          const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+          stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
-        // Remote audio
-        peerConnection.ontrack = (event) => {
-          const audio = document.createElement("audio");
-          audio.srcObject = event.streams[0];
-          audio.autoplay = true;
-          document.body.appendChild(audio);
-        };
+          // Remote media
+          peerConnection.ontrack = (event) => {
+            console.log('📥 Received remote track:', event.track.kind);
+            const media = document.createElement(event.track.kind === 'video' ? 'video' : 'audio');
+            media.srcObject = event.streams[0];
+            media.autoplay = true;
+            media.id = 'remote-' + event.track.kind;
+            if (event.track.kind === 'video') {
+              media.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+            }
+            document.body.appendChild(media);
+          };
 
-        // Send ICE candidates
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            window.socket.emit("ice-candidate", { to: data.from, candidate: event.candidate });
-          }
-        };
+          // Send ICE candidates
+          peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+              window.socket.emit("ice-candidate", { to: data.from, candidate: event.candidate });
+            }
+          };
 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
 
-        window.socket.emit("accept-call", { to: data.from, answer });
+          window.socket.emit("accept-call", { to: data.from, answer });
+          console.log('✅ Call accepted, answer sent');
+          
+        } catch (error) {
+          console.error('❌ Error accepting call:', error);
+          alert('Failed to accept call: ' + error.message);
+        }
       };
 
       document.getElementById("rejectCall").onclick = () => {
         window.socket.emit("reject-call", { to: data.from });
         modal.classList.add("hidden");
+        console.log('❌ Call rejected');
       };
     });
 
@@ -379,32 +399,60 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Caller side function
-async function startCall(receiverId) {
-  peerConnection = new RTCPeerConnection(config);
+async function startCall(receiverId, type = 'audio') {
+  try {
+    console.log('📞 Starting call to:', receiverId, 'type:', type);
+    
+    peerConnection = new RTCPeerConnection(config);
 
-  // Local audio
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+    // Local media - audio for all calls, video only for video calls
+    const mediaConstraints = {
+      audio: true,
+      video: type === 'video'
+    };
+    
+    const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+    stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
 
-  // Remote audio
-  peerConnection.ontrack = (event) => {
-    const audio = document.createElement("audio");
-    audio.srcObject = event.streams[0];
-    audio.autoplay = true;
-    document.body.appendChild(audio);
-  };
+    // Remote audio/video
+    peerConnection.ontrack = (event) => {
+      console.log('📥 Received remote track:', event.track.kind);
+      const media = document.createElement(event.track.kind === 'video' ? 'video' : 'audio');
+      media.srcObject = event.streams[0];
+      media.autoplay = true;
+      media.id = 'remote-' + event.track.kind;
+      if (event.track.kind === 'video') {
+        media.style.cssText = 'width: 100%; height: 100%; object-fit: cover;';
+      }
+      document.body.appendChild(media);
+    };
 
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate) {
-      window.socket.emit("ice-candidate", { to: receiverId, candidate: event.candidate });
-    }
-  };
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        window.socket.emit("ice-candidate", { to: receiverId, candidate: event.candidate });
+      }
+    };
 
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
 
-  window.socket.emit("call-user", { to: receiverId, offer });
+    window.socket.emit("call-user", { to: receiverId, offer, type });
+    console.log('📤 Call offer sent');
+    
+  } catch (error) {
+    console.error('❌ Error starting call:', error);
+    alert('Failed to start call: ' + error.message);
+  }
 }
+
+// Global functions for easy access
+window.startCall = startCall;
+window.startAudioCall = function(receiverId) {
+  return startCall(receiverId, 'audio');
+};
+window.startVideoCall = function(receiverId) {
+  return startCall(receiverId, 'video');
+};
 
 // Voice message functionality
   let mediaRecorder;

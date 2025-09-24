@@ -36,13 +36,25 @@ class CallManager {
             console.log('📞 Incoming call from:', data.caller.username);
             this.showIncomingCallNotification(data);
             
-            // Store the call data and offer for later use
+            // Store the call data for later use
             this.pendingCall = {
                 callId: data.callId,
                 caller: data.caller,
-                type: data.type,
-                offer: data.offer
+                type: data.type
             };
+        });
+
+        this.socket.on('call-user', async (data) => {
+            console.log('📞 Received call-user event with offer:', data);
+            // This is the WebRTC offer from the caller
+            if (this.currentCall && this.currentCall.callId === data.callId) {
+                // We're already in a call, handle the offer immediately
+                console.log('📞 Processing offer for current call');
+                await this.handleOffer(data);
+            } else if (this.pendingCall && this.pendingCall.callId === data.callId) {
+                this.pendingCall.offer = data.offer;
+                console.log('📞 Stored offer for pending call');
+            }
         });
 
         this.socket.on('call-accepted', (data) => {
@@ -68,6 +80,11 @@ class CallManager {
 
         this.socket.on('call-rejected', (data) => {
             console.log('📞 Call rejected');
+            this.handleCallDeclined();
+        });
+
+        this.socket.on('call-declined', (data) => {
+            console.log('📞 Call declined');
             this.handleCallDeclined();
         });
 
@@ -142,7 +159,7 @@ class CallManager {
 
             console.log('📞 Accepting incoming call:', this.pendingCall.callId);
             
-            // Get user media
+            // Get user media first
             await this.getUserMedia(this.pendingCall.type);
             
             this.currentCall = {
@@ -164,8 +181,14 @@ class CallManager {
                 this.showInCallInterface();
                 console.log('📞 Call accepted on server');
                 
-                // Handle the WebRTC offer from the pending call
-                await this.handleIncomingOffer(this.pendingCall);
+                // If we already have the offer, handle it now
+                if (this.pendingCall.offer) {
+                    console.log('📞 Processing stored offer immediately');
+                    await this.handleIncomingOffer(this.pendingCall);
+                } else {
+                    console.log('📞 Waiting for offer from caller...');
+                    // The offer will come via 'call-user' event and be handled automatically
+                }
                 
             } else {
                 throw new Error('Failed to accept call');
@@ -173,7 +196,7 @@ class CallManager {
         } catch (error) {
             console.error('❌ Error accepting call:', error);
             this.releaseMedia();
-            alert('Failed to accept call');
+            alert('Failed to accept call: ' + error.message);
         }
     }
 
@@ -194,7 +217,7 @@ class CallManager {
             });
             
             // Also emit socket event for real-time notification
-            this.socket.emit('reject-call', { callId: this.pendingCall.callId });
+            this.socket.emit('call-rejected', { callId: this.pendingCall.callId });
             
             this.hideCallNotification();
             this.pendingCall = null;
@@ -208,16 +231,24 @@ class CallManager {
         try {
             console.log('📥 Handling incoming offer from pending call');
             
+            if (!callData.offer) {
+                console.error('❌ No offer available in call data');
+                return;
+            }
+            
             if (!this.peerConnection) {
                 this.createPeerConnection();
             }
             
-            await this.peerConnection.setRemoteDescription(callData.offer);
+            console.log('📥 Setting remote description from offer...');
+            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(callData.offer));
+            
+            console.log('📤 Creating answer...');
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
             
             // Send answer back to caller
-            this.socket.emit('accept-call', {
+            this.socket.emit('call-accepted', {
                 callId: callData.callId,
                 answer: answer
             });

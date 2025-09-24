@@ -2061,6 +2061,23 @@ io.on('connection', (socket) => {
     });
 
     // WebRTC signaling
+    socket.on('call-user', async (data) => {
+        try {
+            console.log('📤 Relaying WebRTC offer for callId:', data.callId);
+            const call = await Call.findById(data.callId);
+            if (!call) return;
+
+            const targetUserId = call.receiver.toString();
+            io.to(targetUserId).emit('call-user', {
+                callId: data.callId,
+                offer: data.offer
+            });
+            console.log('📤 WebRTC offer sent to receiver:', targetUserId);
+        } catch (error) {
+            console.error('Error handling call-user:', error);
+        }
+    });
+
     socket.on('call-offer', async (data) => {
         try {
             console.log('📤 Relaying call offer for callId:', data.callId);

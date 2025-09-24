@@ -36,11 +36,12 @@ class CallManager {
             console.log('📞 Incoming call from:', data.caller.username);
             this.showIncomingCallNotification(data);
             
-            // Store the call data for later use
+            // Store the call data including the offer
             this.pendingCall = {
                 callId: data.callId,
                 caller: data.caller,
-                type: data.type
+                type: data.type,
+                offer: data.offer
             };
         });
 
@@ -85,6 +86,16 @@ class CallManager {
 
         this.socket.on('call-declined', (data) => {
             console.log('📞 Call declined');
+            this.handleCallDeclined();
+        });
+
+        this.socket.on('accept-call', async (data) => {
+            console.log('📞 Call accepted by receiver');
+            this.handleCallAcceptedByReceiver(data);
+        });
+
+        this.socket.on('reject-call', (data) => {
+            console.log('📞 Call rejected by receiver');
             this.handleCallDeclined();
         });
 
@@ -139,7 +150,24 @@ class CallManager {
                 };
                 
                 this.showOutgoingCallInterface();
-                console.log('📞 Call initiated:', result.callId);
+                
+                // Create peer connection and offer
+                this.createPeerConnection();
+                const offer = await this.peerConnection.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: type === 'video'
+                });
+                await this.peerConnection.setLocalDescription(offer);
+                
+                // Send call with offer to receiver
+                this.socket.emit('call-user', {
+                    callId: result.callId,
+                    receiverId: receiverId,
+                    offer: offer,
+                    type: type
+                });
+                
+                console.log('📞 Call initiated with offer sent:', result.callId);
             } else {
                 throw new Error(result.error);
             }
@@ -181,15 +209,30 @@ class CallManager {
                 this.showInCallInterface();
                 console.log('📞 Call accepted on server');
                 
-                // If we already have the offer, handle it now
+                // Create peer connection and handle the offer
+                this.createPeerConnection();
+                
                 if (this.pendingCall.offer) {
-                    console.log('📞 Processing stored offer immediately');
-                    await this.handleIncomingOffer(this.pendingCall);
+                    console.log('📞 Setting remote description from offer');
+                    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(this.pendingCall.offer));
+                    
+                    // Create answer
+                    const answer = await this.peerConnection.createAnswer();
+                    await this.peerConnection.setLocalDescription(answer);
+                    
+                    // Send accept-call event with answer back to caller
+                    this.socket.emit('accept-call', {
+                        callId: this.pendingCall.callId,
+                        answer: answer
+                    });
+                    
+                    console.log('📞 Answer sent to caller');
                 } else {
-                    console.log('📞 Waiting for offer from caller...');
-                    // The offer will come via 'call-user' event and be handled automatically
+                    console.error('❌ No offer found in pending call');
+                    throw new Error('No offer available');
                 }
                 
+                this.pendingCall = null;
             } else {
                 throw new Error('Failed to accept call');
             }
@@ -216,8 +259,10 @@ class CallManager {
                 body: JSON.stringify({ action: 'decline' })
             });
             
-            // Also emit socket event for real-time notification
-            this.socket.emit('call-rejected', { callId: this.pendingCall.callId });
+            // Send reject-call event to caller
+            this.socket.emit('reject-call', { 
+                callId: this.pendingCall.callId 
+            });
             
             this.hideCallNotification();
             this.pendingCall = null;
@@ -417,6 +462,21 @@ class CallManager {
             }
         } catch (error) {
             console.error('❌ Error handling answer:', error);
+            this.endCall();
+        }
+    }
+
+    async handleCallAcceptedByReceiver(data) {
+        try {
+            console.log('📞 Call accepted by receiver, handling answer');
+            this.showInCallInterface();
+            
+            if (this.peerConnection && data.answer) {
+                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                console.log('✅ Remote description set from receiver answer');
+            }
+        } catch (error) {
+            console.error('❌ Error handling call acceptance:', error);
             this.endCall();
         }
     }

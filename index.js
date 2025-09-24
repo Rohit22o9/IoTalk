@@ -2060,19 +2060,29 @@ io.on('connection', (socket) => {
         console.log('📩 Voice message broadcasted to room:', data.roomId);
     });
 
-    // WebRTC signaling
+    // WebRTC signaling - handle call initiation from caller
     socket.on('call-user', async (data) => {
         try {
-            console.log('📤 Relaying WebRTC offer for callId:', data.callId);
+            console.log('📤 Relaying call initiation with offer for callId:', data.callId);
             const call = await Call.findById(data.callId);
             if (!call) return;
 
+            const caller = await User.findById(call.caller);
             const targetUserId = call.receiver.toString();
-            io.to(targetUserId).emit('call-user', {
+            
+            // Send incoming call notification to receiver
+            io.to(targetUserId).emit('incoming-call', {
                 callId: data.callId,
-                offer: data.offer
+                from: call.caller.toString(),
+                caller: {
+                    id: caller._id,
+                    username: caller.username,
+                    avatar: caller.avatar
+                },
+                offer: data.offer,
+                type: data.type
             });
-            console.log('📤 WebRTC offer sent to receiver:', targetUserId);
+            console.log('📤 Incoming call notification sent to receiver:', targetUserId);
         } catch (error) {
             console.error('Error handling call-user:', error);
         }
@@ -2156,6 +2166,37 @@ io.on('connection', (socket) => {
             });
         } catch (error) {
             console.error('Error handling call-rejected:', error);
+        }
+    });
+
+    socket.on('accept-call', async (data) => {
+        try {
+            console.log('📤 Relaying call acceptance with answer');
+            const call = await Call.findById(data.callId);
+            if (!call) return;
+
+            const targetUserId = call.caller.toString();
+            io.to(targetUserId).emit('accept-call', {
+                callId: data.callId,
+                answer: data.answer
+            });
+        } catch (error) {
+            console.error('Error handling accept-call:', error);
+        }
+    });
+
+    socket.on('reject-call', async (data) => {
+        try {
+            console.log('📤 Relaying call rejection');
+            const call = await Call.findById(data.callId);
+            if (!call) return;
+
+            const targetUserId = call.caller.toString();
+            io.to(targetUserId).emit('reject-call', {
+                callId: data.callId
+            });
+        } catch (error) {
+            console.error('Error handling reject-call:', error);
         }
     });
 

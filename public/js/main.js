@@ -310,30 +310,34 @@ window.ModernChat = {
 };
 
 // Incoming call handling
-  socket.on("incoming-call", (data) => {
-    const modal = document.getElementById("incomingCallModal");
-    modal.classList.remove("hidden");
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof window.socket !== 'undefined') {
+    window.socket.on("incoming-call", (data) => {
+      const modal = document.getElementById("incomingCallModal");
+      modal.classList.remove("hidden");
 
-    document.getElementById("acceptCall").onclick = () => {
-      socket.emit("accept-call", { to: data.from });
-      modal.classList.add("hidden");
-    };
+      document.getElementById("acceptCall").onclick = () => {
+        window.socket.emit("accept-call", { to: data.from });
+        modal.classList.add("hidden");
+      };
 
-    document.getElementById("rejectCall").onclick = () => {
-      socket.emit("reject-call", { to: data.from });
-      modal.classList.add("hidden");
-    };
-  });
+      document.getElementById("rejectCall").onclick = () => {
+        window.socket.emit("reject-call", { to: data.from });
+        modal.classList.add("hidden");
+      };
+    });
 
-  // Caller side event listeners
-  socket.on("call-accepted", (data) => {
-    // set remote description + start call timer
-    console.log("Call was accepted");
-  });
+    // Caller side event listeners
+    window.socket.on("call-accepted", (data) => {
+      // set remote description + start call timer
+      console.log("Call was accepted");
+    });
 
-  socket.on("call-rejected", () => {
-    alert("Call was rejected.");
-  });
+    window.socket.on("call-rejected", () => {
+      alert("Call was rejected.");
+    });
+  }
+});
 
 // Voice message functionality
   let mediaRecorder;

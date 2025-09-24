@@ -2088,6 +2088,21 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on("call-user", (data) => {
+        io.to(data.to).emit("incoming-call", {
+            from: socket.id,
+            offer: data.offer
+        });
+    });
+
+    socket.on("accept-call", (data) => {
+        io.to(data.to).emit("call-accepted", { answer: data.answer });
+    });
+
+    socket.on("reject-call", (data) => {
+        io.to(data.to).emit("call-rejected");
+    });
+
     socket.on('call-offer', async (data) => {
         try {
             console.log('📤 Relaying call offer for callId:', data.callId);

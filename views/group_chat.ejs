@@ -810,7 +810,11 @@
   <script src="/js/groupCall.js"></script>
   <script>
     // Initialize socket and group chat variables
-    const groupChatSocket = io();
+    const groupChatSocket = window.socket || io();
+    if (!window.socket) {
+      window.socket = groupChatSocket;
+    }
+    
     const groupId = "<%= group._id %>";
     const currentUserId = "<%= currentUser._id %>";
     const currentUsername = "<%= currentUser.username %>";
@@ -822,6 +826,7 @@
     let selectedFile = null;
 
     groupChatSocket.emit('joinGroup', groupId);
+    groupChatSocket.emit('userOnline', currentUserId);
 
     // Initialize notification manager
     if (window.notificationManager) {

@@ -2,7 +2,13 @@
 // Clean WebRTC Calling System
 class CallManager {
     constructor() {
-        this.socket = window.socket || io();
+        // Use existing socket or create new one
+        this.socket = window.socket;
+        if (!this.socket) {
+            this.socket = io();
+            window.socket = this.socket;
+        }
+        
         this.localStream = null;
         this.remoteStream = null;
         this.peerConnection = null;
@@ -14,12 +20,14 @@ class CallManager {
         this.pcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' }
             ]
         };
         
         this.initializeEventListeners();
-        console.log('📞 CallManager initialized');
+        console.log('📞 CallManager initialized with socket:', !!this.socket);
     }
 
     initializeEventListeners() {
@@ -38,6 +46,7 @@ class CallManager {
         });
 
         this.socket.on('call-accepted', (data) => {
+            console.log('📞 Call accepted:', data);
             if (data.answer) {
                 console.log('📞 Call accepted with answer, handling WebRTC');
                 this.handleCallAcceptedWithAnswer(data);
@@ -45,6 +54,16 @@ class CallManager {
                 console.log('📞 Call accepted, creating offer for WebRTC');
                 this.handleCallAccepted(data);
             }
+        });
+
+        this.socket.on('call-offer', async (data) => {
+            console.log('📥 Received call offer');
+            await this.handleOffer(data);
+        });
+
+        this.socket.on('call-answer', async (data) => {
+            console.log('📥 Received call answer');
+            await this.handleAnswer(data);
         });
 
         this.socket.on('call-rejected', (data) => {
@@ -246,13 +265,14 @@ class CallManager {
         // Add local stream
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => {
+                console.log('➕ Adding local track:', track.kind);
                 this.peerConnection.addTrack(track, this.localStream);
             });
         }
 
         // Handle remote stream
         this.peerConnection.ontrack = (event) => {
-            console.log('📥 Received remote track');
+            console.log('📥 Received remote track:', event.track.kind);
             this.remoteStream = event.streams[0];
             this.setupRemoteAudio(this.remoteStream);
             this.updateCallStatus('Connected');
@@ -262,11 +282,13 @@ class CallManager {
         // Handle ICE candidates
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                console.log('🧊 Sending ICE candidate');
+                console.log('🧊 Sending ICE candidate:', event.candidate.type);
                 this.socket.emit('ice-candidate', {
                     callId: this.currentCall.callId,
                     candidate: event.candidate
                 });
+            } else {
+                console.log('🧊 ICE gathering complete');
             }
         };
 
@@ -275,10 +297,20 @@ class CallManager {
             console.log('🔗 Connection state:', this.peerConnection.connectionState);
             if (this.peerConnection.connectionState === 'connected') {
                 this.updateCallStatus('Connected');
-                this.startCallTimer();
+                if (!this.callTimer) {
+                    this.startCallTimer();
+                }
             } else if (this.peerConnection.connectionState === 'failed') {
                 console.error('❌ Connection failed');
                 this.endCall();
+            }
+        };
+
+        // ICE connection state changes
+        this.peerConnection.oniceconnectionstatechange = () => {
+            console.log('🧊 ICE connection state:', this.peerConnection.iceConnectionState);
+            if (this.peerConnection.iceConnectionState === 'connected') {
+                this.updateCallStatus('Connected');
             }
         };
 

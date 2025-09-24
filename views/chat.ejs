@@ -441,16 +441,21 @@
     const otherUserId = "<%= otherUser._id %>";
     const currentUserId = "<%= currentUser._id %>";
 
-    // Initialize socket
+    // Initialize socket (only once)
     let chatSocket = null;
 
     // Initialize everything when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {
       console.log('Initializing chat page...');
 
-      // Create socket connection
-      chatSocket = io();
-      window.socket = chatSocket; // Make available globally for call manager
+      // Create socket connection only if not already exists
+      if (!window.socket) {
+        chatSocket = io();
+        window.socket = chatSocket; // Make available globally for call manager
+      } else {
+        chatSocket = window.socket;
+      }
+      
       chatSocket.emit('userOnline', currentUserId);
 
       // Initialize notification manager

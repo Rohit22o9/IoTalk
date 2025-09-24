@@ -2061,21 +2061,36 @@ io.on('connection', (socket) => {
     });
 
     // WebRTC signaling
-    socket.on('call-user', (data) => {
-        console.log('Call user event:', data);
-        // Emit to the target user
-        io.to(data.to).emit('incoming-call', {
-            from: socket.id,
-            offer: data.offer
-        });
+    socket.on('call-offer', async (data) => {
+        try {
+            console.log('📤 Relaying call offer for callId:', data.callId);
+            const call = await Call.findById(data.callId);
+            if (!call) return;
+
+            const targetUserId = call.receiver.toString();
+            io.to(targetUserId).emit('call-offer', {
+                callId: data.callId,
+                offer: data.offer
+            });
+        } catch (error) {
+            console.error('Error handling call-offer:', error);
+        }
     });
 
-    socket.on('accept-call', (data) => {
-        io.to(data.to).emit('call-accepted', { answer: data.answer });
-    });
+    socket.on('call-answer', async (data) => {
+        try {
+            console.log('📤 Relaying call answer for callId:', data.callId);
+            const call = await Call.findById(data.callId);
+            if (!call) return;
 
-    socket.on('reject-call', (data) => {
-        io.to(data.to).emit('call-rejected');
+            const targetUserId = call.caller.toString();
+            io.to(targetUserId).emit('call-answer', {
+                callId: data.callId,
+                answer: data.answer
+            });
+        } catch (error) {
+            console.error('Error handling call-answer:', error);
+        }
     });
 
     socket.on('ice-candidate', async (data) => {
@@ -2172,4 +2187,5 @@ if (!fs.existsSync(voiceDir)) {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Access the app at: http://0.0.0.0:${PORT}`);
 });

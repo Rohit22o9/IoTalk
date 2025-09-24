@@ -460,6 +460,12 @@
       
       chatSocket.emit('userOnline', currentUserId);
 
+      // Initialize call manager AFTER socket is ready
+      if (!window.callManager) {
+        window.callManager = new CallManager();
+        console.log('📞 CallManager initialized for chat page');
+      }
+
       // Initialize notification manager
       if (window.notificationManager) {
         window.notificationManager.setSocket(chatSocket, currentUserId);
@@ -523,14 +529,22 @@
 
     // Call initiation functions - handled by call manager
     function startAudioCall(receiverId) {
+      console.log('🎯 Starting audio call to:', receiverId);
       if (window.callManager) {
         window.callManager.startCall(receiverId, 'audio');
+      } else {
+        console.error('❌ CallManager not initialized');
+        alert('Call system not ready. Please refresh the page and try again.');
       }
     }
 
     function startVideoCall(receiverId) {
+      console.log('🎯 Starting video call to:', receiverId);
       if (window.callManager) {
         window.callManager.startCall(receiverId, 'video');
+      } else {
+        console.error('❌ CallManager not initialized');
+        alert('Call system not ready. Please refresh the page and try again.');
       }
     }
 

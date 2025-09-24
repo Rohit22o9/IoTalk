@@ -34,15 +34,15 @@ class CallManager {
         // Incoming call events
         this.socket.on('incoming-call', (data) => {
             console.log('📞 Incoming call from:', data.caller.username);
-            this.showIncomingCallNotification(data);
             
-            // Store the call data and offer for later use
+            // Store the call data for later use
             this.pendingCall = {
                 callId: data.callId,
                 caller: data.caller,
-                type: data.type,
-                offer: data.offer
+                type: data.type
             };
+            
+            this.showIncomingCallNotification(data);
         });
 
         this.socket.on('call-accepted', (data) => {
@@ -525,94 +525,120 @@ class CallManager {
         // Hide any existing notifications first
         this.hideCallNotification();
         
-        // Ensure we're on the main thread
-        setTimeout(() => {
-            const notification = document.createElement('div');
-            notification.id = 'call-notification';
-            notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[9999]';
-            notification.style.position = 'fixed';
-            notification.style.top = '0';
-            notification.style.left = '0';
-            notification.style.right = '0';
-            notification.style.bottom = '0';
-            notification.style.zIndex = '9999';
-            
-            notification.innerHTML = `
-                <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-pulse">
-                    <div class="text-center">
-                        <div class="mb-6">
-                            <div class="relative inline-block">
-                                <img src="${data.caller.avatar || '/avatars/default.png'}" 
-                                     alt="${data.caller.username}" 
-                                     class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200">
-                                <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-ping"></div>
-                            </div>
-                            <h3 class="text-xl font-bold text-gray-900">${data.caller.username}</h3>
-                            <p class="text-gray-600 text-sm mt-1">📞 Incoming ${data.type} call</p>
+        const notification = document.createElement('div');
+        notification.id = 'call-notification';
+        notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[9999]';
+        notification.style.cssText = `
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 9999 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background-color: rgba(0, 0, 0, 0.75) !important;
+        `;
+        
+        notification.innerHTML = `
+            <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl" style="animation: pulse 2s infinite;">
+                <div class="text-center">
+                    <div class="mb-6">
+                        <div class="relative inline-block">
+                            <img src="${data.caller.avatar || '/avatars/default.png'}" 
+                                 alt="${data.caller.username}" 
+                                 class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200"
+                                 style="width: 96px; height: 96px; border-radius: 50%; margin: 0 auto 12px auto; border: 4px solid #bbf7d0;">
+                            <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white" 
+                                 style="position: absolute; bottom: -4px; right: -4px; width: 24px; height: 24px; background-color: #10b981; border-radius: 50%; border: 2px solid white; animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
                         </div>
-                        <div class="flex space-x-4">
-                            <button id="decline-call-btn" 
-                                    class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
-                                <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                                </svg>
-                                Decline
-                            </button>
-                            <button id="accept-call-btn" 
-                                    class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
-                                <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                                </svg>
-                                Accept
-                            </button>
-                        </div>
+                        <h3 class="text-xl font-bold text-gray-900" style="font-size: 1.25rem; font-weight: 700; color: #111827; margin-bottom: 4px;">${data.caller.username}</h3>
+                        <p class="text-gray-600 text-sm mt-1" style="color: #4b5563; font-size: 0.875rem;">📞 Incoming ${data.type} call</p>
+                    </div>
+                    <div class="flex space-x-4" style="display: flex; gap: 16px;">
+                        <button id="decline-call-btn" 
+                                class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg"
+                                style="flex: 1; background-color: #ef4444; color: white; padding: 12px 24px; border-radius: 12px; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border: none; cursor: pointer; transition: background-color 0.2s;">
+                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px; display: inline; margin-right: 8px;">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                            </svg>
+                            Decline
+                        </button>
+                        <button id="accept-call-btn" 
+                                class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg"
+                                style="flex: 1; background-color: #10b981; color: white; padding: 12px 24px; border-radius: 12px; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border: none; cursor: pointer; transition: background-color 0.2s;">
+                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20" style="width: 20px; height: 20px; display: inline; margin-right: 8px;">
+                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                            </svg>
+                            Accept
+                        </button>
                     </div>
                 </div>
-            `;
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Add event listeners to buttons
+        const declineBtn = notification.querySelector('#decline-call-btn');
+        const acceptBtn = notification.querySelector('#accept-call-btn');
+        
+        if (declineBtn) {
+            declineBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📞 Decline button clicked');
+                this.rejectIncomingCall();
+            });
             
-            document.body.appendChild(notification);
+            declineBtn.addEventListener('mouseover', () => {
+                declineBtn.style.backgroundColor = '#dc2626';
+            });
             
-            // Add event listeners to buttons
-            const declineBtn = notification.querySelector('#decline-call-btn');
-            const acceptBtn = notification.querySelector('#accept-call-btn');
+            declineBtn.addEventListener('mouseout', () => {
+                declineBtn.style.backgroundColor = '#ef4444';
+            });
+        }
+        
+        if (acceptBtn) {
+            acceptBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📞 Accept button clicked');
+                this.acceptIncomingCall();
+            });
             
-            if (declineBtn) {
-                declineBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('📞 Decline button clicked');
-                    this.rejectIncomingCall();
-                });
+            acceptBtn.addEventListener('mouseover', () => {
+                acceptBtn.style.backgroundColor = '#059669';
+            });
+            
+            acceptBtn.addEventListener('mouseout', () => {
+                acceptBtn.style.backgroundColor = '#10b981';
+            });
+        }
+        
+        // Auto-dismiss after 30 seconds
+        const timeoutId = setTimeout(() => {
+            if (document.getElementById('call-notification')) {
+                console.log('📞 Auto-declining call after timeout');
+                this.rejectIncomingCall();
             }
-            
-            if (acceptBtn) {
-                acceptBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('📞 Accept button clicked');
-                    this.acceptIncomingCall();
-                });
-            }
-            
-            // Auto-dismiss after 30 seconds
-            setTimeout(() => {
-                if (document.getElementById('call-notification')) {
-                    console.log('📞 Auto-declining call after timeout');
-                    this.rejectIncomingCall();
-                }
-            }, 30000);
-            
-            console.log('✅ Incoming call notification displayed with enhanced styling');
-            
-            // Play notification sound if available
-            try {
-                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCQ==');
-                audio.volume = 0.3;
-                audio.play().catch(() => console.log('Could not play notification sound'));
-            } catch (e) {
-                console.log('Notification sound not available');
-            }
-        }, 100);
+        }, 30000);
+        
+        // Store timeout ID to clear it if needed
+        notification.setAttribute('data-timeout-id', timeoutId);
+        
+        console.log('✅ Incoming call notification displayed successfully');
+        
+        // Play notification sound
+        try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCQ==');
+            audio.volume = 0.3;
+            audio.play().catch(() => console.log('Could not play notification sound'));
+        } catch (e) {
+            console.log('Notification sound not available');
+        }
     }
 
     showOutgoingCallInterface() {
@@ -686,6 +712,11 @@ class CallManager {
     hideCallNotification() {
         const notification = document.getElementById('call-notification');
         if (notification) {
+            // Clear any pending timeout
+            const timeoutId = notification.getAttribute('data-timeout-id');
+            if (timeoutId) {
+                clearTimeout(parseInt(timeoutId));
+            }
             notification.remove();
         }
     }
@@ -711,28 +742,29 @@ class CallManager {
     }
 }
 
-// Initialize call manager
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof io !== 'undefined') {
-        // Delay initialization to ensure socket is ready
-        setTimeout(() => {
-            if (!window.callManager) {
-                window.callManager = new CallManager();
-                console.log('📞 Call manager initialized and ready');
-            }
-        }, 500);
-    }
-});
-
 // Global functions for easy access
 window.startAudioCall = function(receiverId) {
+    console.log('📞 Global startAudioCall called for:', receiverId);
     if (window.callManager) {
         window.callManager.startCall(receiverId, 'audio');
+    } else {
+        console.error('❌ CallManager not available');
+        alert('Call system not ready. Please refresh the page.');
     }
 };
 
 window.startVideoCall = function(receiverId) {
+    console.log('📞 Global startVideoCall called for:', receiverId);
     if (window.callManager) {
         window.callManager.startCall(receiverId, 'video');
+    } else {
+        console.error('❌ CallManager not available');
+        alert('Call system not ready. Please refresh the page.');
     }
 };
+
+// Auto-initialize if not done already
+if (typeof window !== 'undefined' && !window.callManager && typeof io !== 'undefined') {
+    console.log('📞 Auto-initializing CallManager');
+    window.callManager = new CallManager();
+}

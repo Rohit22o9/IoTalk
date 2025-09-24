@@ -1578,7 +1578,6 @@ app.post('/call/initiate', async (req, res) => {
         await call.save();
         const caller = await User.findById(req.session.userId);
 
-        console.log(`📞 Sending incoming call notification to user ${receiverId}`);
         io.to(receiverId).emit('incoming-call', {
             callId: call._id,
             caller: {
@@ -1586,9 +1585,8 @@ app.post('/call/initiate', async (req, res) => {
                 username: caller.username,
                 avatar: caller.avatar
             },
-            type: type
+            type
         });
-        console.log(`📞 Incoming call notification sent to ${receiverId}`);
 
         setTimeout(async () => {
             const callCheck = await Call.findById(call._id);
@@ -1919,7 +1917,7 @@ io.on('connection', (socket) => {
 
     socket.on('userOnline', async (userId) => {
         try {
-            console.log(`📱 User ${userId} came online with socket ${socket.id}`);
+            console.log(`User ${userId} came online with socket ${socket.id}`);
 
             socket.userId = userId;
             socket.join(userId);
@@ -1939,10 +1937,10 @@ io.on('connection', (socket) => {
 
             // Broadcast status update to all clients
             io.emit('userStatus', { userId, online: true });
-            console.log(`📡 Broadcasting user ${userId} is now online`);
-            console.log(`👥 Active connections: ${Array.from(activeConnections.keys()).join(', ')}`);
+            console.log(`Broadcasting user ${userId} is now online`);
+            console.log(`Active connections now: ${Array.from(activeConnections.keys()).join(', ')}`);
 
-            // Send any pending call notifications
+            // Send any pending notifications
             const pendingCalls = await Call.find({
                 $or: [
                     { receiver: userId, status: 'ringing' },
@@ -1955,13 +1953,8 @@ io.on('connection', (socket) => {
                 status: 'ringing'
             }).populate('caller', 'username avatar').populate('groupId', 'name');
 
-            if (pendingCalls.length > 0) {
-                console.log(`📞 Found ${pendingCalls.length} pending calls for user ${userId}`);
-            }
-
             pendingCalls.forEach(call => {
                 if (call.groupId) {
-                    console.log(`📞 Sending pending group call notification to ${userId}`);
                     socket.emit('incoming-group-call', {
                         callId: call._id,
                         groupId: call.groupId._id,
@@ -1974,7 +1967,6 @@ io.on('connection', (socket) => {
                         type: call.type
                     });
                 } else if (call.receiver.toString() === userId) {
-                    console.log(`📞 Sending pending call notification to ${userId}`);
                     socket.emit('incoming-call', {
                         callId: call._id,
                         caller: {

@@ -11,7 +11,18 @@ document.addEventListener('DOMContentLoaded', function() {
         // Call manager will be initialized by call.js
         console.log('Main.js loaded, call.js will handle call initialization');
     }
+
+    // Scroll to bottom on page load
+    window.onload = scrollToBottom;
 });
+
+// Function to scroll to the bottom of the chat messages
+function scrollToBottom() {
+    const chatContainer = document.getElementById("chat-messages");
+    if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+}
 
 // Animation utilities
 function initializeAnimations() {
@@ -332,3 +343,109 @@ window.startVideoCall = function(receiverId) {
 // Voice message functionality
   let mediaRecorder;
   let recordedChunks = [];
+
+// Mock socket.io for demonstration purposes if it's not available
+if (typeof io === 'undefined') {
+    console.warn('Socket.IO not found. Using mock socket.');
+    const mockSocket = {
+        on: function(eventName, callback) {
+            console.log(`Mock socket: Registered listener for ${eventName}`);
+            if (eventName === 'chat-message') {
+                // Simulate receiving a message after a delay
+                setTimeout(() => {
+                    console.log('Mock socket: Simulating a chat message');
+                    callback({ username: 'System', text: 'Welcome to ModernChat!' });
+                }, 2000);
+            }
+        },
+        emit: function(eventName, data) {
+            console.log(`Mock socket: Emitted ${eventName}`, data);
+            if (eventName === 'chat-message') {
+                // Simulate appending the message to the UI
+                const messagesContainer = document.getElementById('chat-messages');
+                if (messagesContainer) {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = 'message mb-3';
+                    messageElement.innerHTML = `
+                        <p class="text-gray-700"><strong>${data.username}:</strong> ${data.text}</p>
+                    `;
+                    messagesContainer.appendChild(messageElement);
+                    scrollToBottom(); // Scroll after appending
+                }
+            }
+        }
+    };
+    window.socket = mockSocket;
+} else {
+    const socket = io();
+    window.socket = socket;
+
+    // Handle incoming chat messages
+    socket.on("chat-message", (data) => {
+        const messagesContainer = document.getElementById("chat-messages");
+        if (messagesContainer) {
+            const messageElement = document.createElement("div");
+            messageElement.className = "message mb-3"; // Added margin-bottom for spacing
+            messageElement.innerHTML = `
+                <p class="text-gray-700"><strong>${data.username}:</strong> ${data.text}</p>
+            `;
+            messagesContainer.appendChild(messageElement);
+            scrollToBottom(); // Scroll to bottom after appending the new message
+        }
+    });
+
+    // Handle user joining/leaving (optional, for real-time updates)
+    socket.on("user-joined", (username) => {
+        const messagesContainer = document.getElementById("chat-messages");
+        if (messagesContainer) {
+            const systemMessage = document.createElement("div");
+            systemMessage.className = "system-message text-center text-sm text-gray-500 mb-3";
+            systemMessage.textContent = `${username} has joined the chat`;
+            messagesContainer.appendChild(systemMessage);
+            scrollToBottom();
+        }
+    });
+
+    socket.on("user-left", (username) => {
+        const messagesContainer = document.getElementById("chat-messages");
+        if (messagesContainer) {
+            const systemMessage = document.createElement("div");
+            systemMessage.className = "system-message text-center text-sm text-gray-500 mb-3";
+            systemMessage.textContent = `${username} has left the chat`;
+            messagesContainer.appendChild(systemMessage);
+            scrollToBottom();
+        }
+    });
+
+    // Handle form submission for sending messages
+    const messageForm = document.getElementById("message-form");
+    if (messageForm) {
+        messageForm.addEventListener("submit", function(e) {
+            e.preventDefault();
+            const messageInput = document.getElementById("message-input");
+            const message = messageInput.value.trim();
+
+            if (message) {
+                socket.emit("chat-message", {
+                    username: document.getElementById("current-username")?.value || "Anonymous", // Assuming username is available
+                    text: message
+                });
+                messageInput.value = ""; // Clear the input field
+            }
+        });
+    }
+}
+
+// Add a style rule to ensure the chat-messages div scrolls
+// This should ideally be in a CSS file, but for demonstration, it's here.
+const styleSheet = document.createElement("style");
+styleSheet.type = "text/css";
+styleSheet.innerText = `
+#chat-messages {
+  overflow-y: auto;
+  max-height: 400px; /* Example max-height, adjust as needed */
+  padding-bottom: 120px !important;
+  margin-bottom: 0;
+}
+`;
+document.head.appendChild(styleSheet);

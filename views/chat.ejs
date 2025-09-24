@@ -75,7 +75,7 @@
     </header>
 
     <!-- Messages Container -->
-    <main class="flex-1 overflow-y-auto p-4 space-y-4 chat-messages pb-24" id="messages-container">
+    <main class="flex-1 overflow-y-auto p-4 space-y-4 chat-messages pb-24" id="chat-messages"></main>
       <!-- Typing Indicator -->
       <div id="typing-indicator-container" class="hidden flex justify-start">
         <div class="bg-white/80 backdrop-blur-lg px-4 py-2 rounded-2xl rounded-bl-md border border-white/20 shadow-lg">
@@ -1127,9 +1127,9 @@
 
     // Helper function to scroll to bottom
     function scrollToBottom(smooth = true) {
-      const container = document.getElementById('messages-container');
+      const container = document.getElementById('chat-messages');
       if (!container) {
-        console.warn('Messages container not found for scrolling');
+        console.warn('Chat messages container not found for scrolling');
         return;
       }
 
@@ -1147,7 +1147,7 @@
 
     // Check if user is near bottom of chat
     function isNearBottom() {
-      const container = document.getElementById('messages-container');
+      const container = document.getElementById('chat-messages');
       if (!container) return true;
 
       const threshold = 100; // pixels from bottom
@@ -1199,9 +1199,9 @@
 
     // Initialize scroll behavior
     function initializeScrollBehavior() {
-      const container = document.getElementById('messages-container');
+      const container = document.getElementById('chat-messages');
       if (!container) {
-        console.warn('Messages container not found for scroll initialization');
+        console.warn('Chat messages container not found for scroll initialization');
         return;
       }
 
@@ -1267,7 +1267,7 @@
     }
 
     function appendMessage(message) {
-      const container = document.getElementById('messages-container');
+      const container = document.getElementById('chat-messages');
       const messageDiv = document.createElement('div');
 
       console.log('Appending new message from:', message.from.username);
@@ -1290,21 +1290,9 @@
 
       container.appendChild(messageDiv);
 
-      // Handle auto-scroll for new messages
-      if (message.from._id === currentUserId) {
-        // Always auto-scroll for own messages
-        console.log('Own message, auto-scrolling to bottom');
-        setTimeout(() => scrollToBottom(true), 100);
-      } else {
-        // For other users' messages, check if user is scrolled up
-        if (isNearBottom() && !isUserScrolling) {
-          console.log('User near bottom, auto-scrolling to new message');
-          setTimeout(() => scrollToBottom(true), 100);
-        } else {
-          console.log('User scrolled up, showing new message indicator');
-          showNewMessageIndicator();
-        }
-      }
+      // Always auto-scroll to bottom for new messages
+      console.log('New message added, auto-scrolling to bottom');
+      setTimeout(() => scrollToBottom(true), 100);
     }
 
     function appendVoiceMessage(data) {
@@ -1357,19 +1345,9 @@
         });
       }
 
-      // Handle auto-scroll for new voice messages
-      if (isOwn) {
-        console.log('Own voice message, auto-scrolling to bottom');
-        setTimeout(() => scrollToBottom(true), 100);
-      } else {
-        if (isNearBottom() && !isUserScrolling) {
-          console.log('User near bottom, auto-scrolling to new voice message');
-          setTimeout(() => scrollToBottom(true), 100);
-        } else {
-          console.log('User scrolled up, showing new message indicator');
-          showNewMessageIndicator();
-        }
-      }
+      // Always auto-scroll to bottom for new voice messages
+      console.log('Voice message added, auto-scrolling to bottom');
+      setTimeout(() => scrollToBottom(true), 100);
 
       console.log('✅ Voice message appended to chat');
     }
@@ -1845,7 +1823,7 @@
         });
       });
 
-      const messagesContainer = document.getElementById('messages-container');
+      const messagesContainer = document.getElementById('chat-messages');
       if (messagesContainer) {
         observer.observe(messagesContainer, {
           childList: true,

@@ -810,9 +810,14 @@
   <script src="/js/groupCall.js"></script>
   <script>
     // Initialize socket and group chat variables
-    const groupChatSocket = window.socket || io();
+    let groupChatSocket;
     if (!window.socket) {
+      groupChatSocket = io();
       window.socket = groupChatSocket;
+      console.log('✅ New socket created for group chat');
+    } else {
+      groupChatSocket = window.socket;
+      console.log('✅ Using existing socket for group chat');
     }
     
     const groupId = "<%= group._id %>";

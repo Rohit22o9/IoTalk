@@ -521,66 +521,98 @@ class CallManager {
 
     showIncomingCallNotification(data) {
         console.log('📞 Showing incoming call notification for:', data.caller.username);
+        
+        // Hide any existing notifications first
         this.hideCallNotification();
         
-        const notification = document.createElement('div');
-        notification.id = 'call-notification';
-        notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[100]';
-        notification.innerHTML = `
-            <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-                <div class="text-center">
-                    <div class="mb-6">
-                        <div class="relative inline-block">
-                            <img src="${data.caller.avatar || '/avatars/default.png'}" 
-                                 alt="${data.caller.username}" 
-                                 class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200">
-                            <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+        // Ensure we're on the main thread
+        setTimeout(() => {
+            const notification = document.createElement('div');
+            notification.id = 'call-notification';
+            notification.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[9999]';
+            notification.style.position = 'fixed';
+            notification.style.top = '0';
+            notification.style.left = '0';
+            notification.style.right = '0';
+            notification.style.bottom = '0';
+            notification.style.zIndex = '9999';
+            
+            notification.innerHTML = `
+                <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-pulse">
+                    <div class="text-center">
+                        <div class="mb-6">
+                            <div class="relative inline-block">
+                                <img src="${data.caller.avatar || '/avatars/default.png'}" 
+                                     alt="${data.caller.username}" 
+                                     class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200">
+                                <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-ping"></div>
+                            </div>
+                            <h3 class="text-xl font-bold text-gray-900">${data.caller.username}</h3>
+                            <p class="text-gray-600 text-sm mt-1">📞 Incoming ${data.type} call</p>
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900">${data.caller.username}</h3>
-                        <p class="text-gray-600 text-sm mt-1">Incoming ${data.type} call</p>
-                    </div>
-                    <div class="flex space-x-4">
-                        <button id="decline-call-btn" 
-                                class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
-                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                            </svg>
-                            Decline
-                        </button>
-                        <button id="accept-call-btn" 
-                                class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
-                            <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
-                            </svg>
-                            Accept
-                        </button>
+                        <div class="flex space-x-4">
+                            <button id="decline-call-btn" 
+                                    class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
+                                <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                                </svg>
+                                Decline
+                            </button>
+                            <button id="accept-call-btn" 
+                                    class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
+                                <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+                                </svg>
+                                Accept
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        // Add event listeners to buttons
-        const declineBtn = notification.querySelector('#decline-call-btn');
-        const acceptBtn = notification.querySelector('#accept-call-btn');
-        
-        declineBtn.addEventListener('click', () => {
-            this.rejectIncomingCall();
-        });
-        
-        acceptBtn.addEventListener('click', () => {
-            this.acceptIncomingCall();
-        });
-        
-        // Auto-dismiss after 30 seconds
-        setTimeout(() => {
-            if (document.getElementById('call-notification')) {
-                this.declineCall(data.callId);
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Add event listeners to buttons
+            const declineBtn = notification.querySelector('#decline-call-btn');
+            const acceptBtn = notification.querySelector('#accept-call-btn');
+            
+            if (declineBtn) {
+                declineBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('📞 Decline button clicked');
+                    this.rejectIncomingCall();
+                });
             }
-        }, 30000);
-        
-        console.log('✅ Incoming call notification displayed');
+            
+            if (acceptBtn) {
+                acceptBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('📞 Accept button clicked');
+                    this.acceptIncomingCall();
+                });
+            }
+            
+            // Auto-dismiss after 30 seconds
+            setTimeout(() => {
+                if (document.getElementById('call-notification')) {
+                    console.log('📞 Auto-declining call after timeout');
+                    this.rejectIncomingCall();
+                }
+            }, 30000);
+            
+            console.log('✅ Incoming call notification displayed with enhanced styling');
+            
+            // Play notification sound if available
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCTuB0fDahDEELIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LKeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMZCQ==');
+                audio.volume = 0.3;
+                audio.play().catch(() => console.log('Could not play notification sound'));
+            } catch (e) {
+                console.log('Notification sound not available');
+            }
+        }, 100);
     }
 
     showOutgoingCallInterface() {
@@ -682,8 +714,13 @@ class CallManager {
 // Initialize call manager
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof io !== 'undefined') {
-        window.callManager = new CallManager();
-        console.log('📞 Call manager ready');
+        // Delay initialization to ensure socket is ready
+        setTimeout(() => {
+            if (!window.callManager) {
+                window.callManager = new CallManager();
+                console.log('📞 Call manager initialized and ready');
+            }
+        }, 500);
     }
 });
 

@@ -452,8 +452,10 @@
       if (!window.socket) {
         chatSocket = io();
         window.socket = chatSocket; // Make available globally for call manager
+        console.log('✅ New socket created for chat');
       } else {
         chatSocket = window.socket;
+        console.log('✅ Using existing socket for chat');
       }
       
       chatSocket.emit('userOnline', currentUserId);

@@ -34,7 +34,6 @@ class CallManager {
         // Incoming call events
         this.socket.on('incoming-call', (data) => {
             console.log('📞 Incoming call from:', data.caller.username);
-            this.showIncomingCallNotification(data);
             
             // Store the call data including the offer
             this.pendingCall = {
@@ -43,6 +42,16 @@ class CallManager {
                 type: data.type,
                 offer: data.offer
             };
+            
+            // Check if we're on a chat page - if so, let the chat page handle the UI
+            if (window.location.pathname.includes('/chat/')) {
+                console.log('📞 On chat page, letting chat page handle incoming call UI');
+                // The chat page will handle showing the modal
+                return;
+            }
+            
+            // Show notification for dashboard or other pages
+            this.showIncomingCallNotification(data);
         });
 
         this.socket.on('call-user', async (data) => {

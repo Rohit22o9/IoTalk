@@ -423,13 +423,34 @@
   </div>
 
   <!-- Incoming Call Modal -->
-  <div id="incomingCallModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-      <h2 class="text-lg font-semibold mb-4">Incoming Call...</h2>
-      <button id="acceptCall" class="bg-green-500 text-white px-4 py-2 rounded mr-2">Accept</button>
-      <button id="rejectCall" class="bg-red-500 text-white px-4 py-2 rounded">Reject</button>
+    <div id="incomingCallModal" class="hidden fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-[200]">
+      <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+        <div class="text-center">
+          <div class="mb-6">
+            <div class="relative inline-block">
+              <img id="caller-avatar" src="" alt="" class="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-green-200">
+              <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white animate-pulse"></div>
+            </div>
+            <h3 id="caller-name" class="text-xl font-bold text-gray-900"></h3>
+            <p id="call-type-text" class="text-gray-600 text-sm mt-1"></p>
+          </div>
+          <div class="flex space-x-4">
+            <button id="rejectCall" class="flex-1 bg-red-500 text-white px-6 py-3 rounded-xl hover:bg-red-600 transition-colors font-semibold shadow-lg">
+              <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+              </svg>
+              Decline
+            </button>
+            <button id="acceptCall" class="flex-1 bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-colors font-semibold shadow-lg">
+              <svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+              </svg>
+              Accept
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/notifications.js"></script>
@@ -455,7 +476,7 @@
       } else {
         chatSocket = window.socket;
       }
-      
+
       chatSocket.emit('userOnline', currentUserId);
 
       // Initialize notification manager
@@ -465,6 +486,17 @@
 
       initializeChat();
       initializeScrollBehavior();
+
+      // Initialize incoming call handler
+      if (window.callManager) {
+        window.callManager.setSocket(chatSocket, currentUserId);
+        window.callManager.onIncomingCall = handleIncomingCall;
+        window.callManager.onCallAccepted = handleCallAccepted;
+        window.callManager.onCallAnswer = handleCallAnswer;
+        window.callManager.onIceCandidate = handleIceCandidate;
+        window.callManager.onCallDeclined = handleCallDeclined;
+        window.callManager.onCallEnd = handleCallEnd;
+      }
 
       console.log('Chat page initialization complete');
     });
@@ -532,29 +564,39 @@
       }
     }
 
-    
+    // Handle incoming call notification
+    function handleIncomingCall(callData) {
+      console.log('📞 Incoming call detected:', callData);
+      currentCall = callData; // Store call data for later use
+      const modal = document.getElementById('incomingCallModal');
+      const callerAvatar = document.getElementById('caller-avatar');
+      const callerName = document.getElementById('caller-name');
+      const callTypeText = document.getElementById('call-type-text');
+      const acceptButton = document.getElementById('acceptCall');
+      const rejectButton = document.getElementById('rejectCall');
 
-    
+      if (modal && callerAvatar && callerName && callTypeText && acceptButton && rejectButton) {
+        callerAvatar.src = callData.callerAvatar || '/avatars/default-avatar.png';
+        callerName.textContent = callData.callerName;
+        callTypeText.textContent = callData.type === 'video' ? 'Video Call' : 'Audio Call';
 
-    
+        // Set up button click handlers
+        acceptButton.onclick = () => {
+          console.log('🤝 Accepting call...');
+          modal.classList.add('hidden'); // Hide modal immediately
+          window.callManager.acceptCall(callData.callId);
+        };
+        rejectButton.onclick = () => {
+          console.log('❌ Declining call...');
+          modal.classList.add('hidden'); // Hide modal immediately
+          window.callManager.rejectCall(callData.callId);
+        };
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
+        modal.classList.remove('hidden');
+      } else {
+        console.error('❌ Failed to find elements for incoming call modal');
+      }
+    }
 
     async function handleCallAccepted(data) {
       console.log('🟢 CALL ACCEPTED - Starting WebRTC negotiation...');
@@ -757,23 +799,28 @@
       alert('Call was declined');
     }
 
-    function handleCallTimeout() {
-      console.log('Call timed out');
+    function handleCallEnd(data) {
+      console.log('Call ended:', data);
       hideCallInterface();
 
-      // ✅ RESTORE UI: Show message footer after call timeout
+      // ✅ RESTORE UI: Show message footer after call end
       const messageFooter = document.getElementById('message-footer');
       if (messageFooter) {
         messageFooter.style.display = 'block';
-        console.log('✅ Chat typing bar restored after call timeout');
+        console.log('✅ Chat typing bar restored after call end');
       }
 
+      // Clear any ongoing call state
       currentCall = null;
-      alert('Call timed out');
+      localStream = null;
+      peerConnection = null;
+
+      alert('Call ended');
     }
 
     function showMissedCallNotification(data) {
       console.log('Showing missed call notification');
+      // Implementation for missed call notification
     }
 
     function toggleAudio() {
@@ -1172,7 +1219,7 @@
       `;
 
       newMessageIndicator.addEventListener('click', () => {
-        console.log('📜 New message indicator clicked, scrolling to bottom');
+        console.log('Scrolling to bottom');
         hideNewMessageIndicator();
         scrollToBottom(true);
       });
@@ -1183,7 +1230,7 @@
     // Hide new message indicator
     function hideNewMessageIndicator() {
       if (newMessageIndicator) {
-        console.log('📜 Hiding new message indicator');
+        console.log('Hiding new message indicator');
         newMessageIndicator.remove();
         newMessageIndicator = null;
       }
@@ -1197,7 +1244,7 @@
         return;
       }
 
-      console.log('📜 Initializing scroll behavior');
+      console.log('Initializing scroll behavior');
 
       // Detect user scrolling
       container.addEventListener('scroll', () => {
@@ -1212,12 +1259,12 @@
         // Reset user scrolling flag after scroll ends
         scrollTimeout = setTimeout(() => {
           isUserScrolling = false;
-          console.log('📜 User stopped scrolling');
+          console.log('User stopped scrolling');
         }, 150);
       });
 
       // Auto-scroll to bottom when chat opens
-      console.log('📜 Auto-scrolling to bottom on chat open');
+      console.log('Auto-scrolling to bottom on chat open');
       setTimeout(() => {
         scrollToBottom(false); // No smooth scroll on initial load
       }, 100);
@@ -1250,7 +1297,7 @@
           hideFilePreview();
 
           // Auto-scroll after sending message
-          console.log('📜 Message sent, auto-scrolling to bottom');
+          console.log('Message sent, auto-scrolling to bottom');
           setTimeout(() => scrollToBottom(true), 100);
         }
       } catch (error) {
@@ -1262,7 +1309,7 @@
       const container = document.getElementById('messages-container');
       const messageDiv = document.createElement('div');
 
-      console.log('📜 Appending new message from:', message.from.username);
+      console.log('Appending new message from:', message.from.username);
 
       // Add message to DOM (simplified version)
       messageDiv.innerHTML = `
@@ -1285,15 +1332,15 @@
       // Handle auto-scroll for new messages
       if (message.from._id === currentUserId) {
         // Always auto-scroll for own messages
-        console.log('📜 Own message, auto-scrolling to bottom');
+        console.log('Own message, auto-scrolling to bottom');
         setTimeout(() => scrollToBottom(true), 100);
       } else {
         // For other users' messages, check if user is scrolled up
         if (isNearBottom() && !isUserScrolling) {
-          console.log('📜 User near bottom, auto-scrolling to new message');
+          console.log('User near bottom, auto-scrolling to new message');
           setTimeout(() => scrollToBottom(true), 100);
         } else {
-          console.log('📜 User scrolled up, showing new message indicator');
+          console.log('User scrolled up, showing new message indicator');
           showNewMessageIndicator();
         }
       }
@@ -1351,14 +1398,14 @@
 
       // Handle auto-scroll for new voice messages
       if (isOwn) {
-        console.log('📜 Own voice message, auto-scrolling to bottom');
+        console.log('Own voice message, auto-scrolling to bottom');
         setTimeout(() => scrollToBottom(true), 100);
       } else {
         if (isNearBottom() && !isUserScrolling) {
-          console.log('📜 User near bottom, auto-scrolling to new voice message');
+          console.log('User near bottom, auto-scrolling to new voice message');
           setTimeout(() => scrollToBottom(true), 100);
         } else {
-          console.log('📜 User scrolled up, showing new message indicator');
+          console.log('User scrolled up, showing new message indicator');
           showNewMessageIndicator();
         }
       }
@@ -1537,11 +1584,56 @@
 
     function openMediaPreview(src, type, name) {
       console.log('Opening media preview:', type);
+      const modal = document.getElementById('mediaPreviewModal');
+      const previewContainer = document.getElementById('previewMediaContainer');
+      const downloadBtn = document.getElementById('downloadMediaBtn');
+
+      if (!modal || !previewContainer || !downloadBtn) {
+        console.error('Media preview modal elements not found');
+        return;
+      }
+
+      previewContainer.innerHTML = ''; // Clear previous content
+
+      let mediaElement;
+      if (type === 'image') {
+        mediaElement = document.createElement('img');
+        mediaElement.src = src;
+        mediaElement.alt = name;
+        mediaElement.className = 'max-w-full max-h-full object-contain rounded-lg shadow-xl';
+        downloadBtn.onclick = () => downloadMedia(src, name);
+      } else if (type === 'video') {
+        mediaElement = document.createElement('video');
+        mediaElement.src = src;
+        mediaElement.controls = true;
+        mediaElement.autoplay = true;
+        mediaElement.className = 'max-w-full max-h-full object-contain rounded-lg shadow-xl';
+        downloadBtn.onclick = () => downloadMedia(src, name);
+      } else {
+        console.error('Unsupported media type for preview:', type);
+        return;
+      }
+
+      previewContainer.appendChild(mediaElement);
+      modal.classList.remove('hidden');
     }
 
     function closeMediaPreview() {
       const modal = document.getElementById('mediaPreviewModal');
       if (modal) modal.classList.add('hidden');
+      // Optionally pause video if it was playing
+      const videoElement = document.querySelector('#previewMediaContainer video');
+      if (videoElement) {
+        videoElement.pause();
+      }
+    }
+
+    function downloadMedia(src, name) {
+      console.log('Downloading media:', name);
+      // This functionality is usually handled by the browser's default download behavior
+      // when the href is set to a file, but we can trigger it programmatically if needed.
+      // For now, relying on the `<a>` tag with `download` attribute.
+      // If you need custom download logic, implement it here.
     }
 
     function closeAISummary() {
@@ -1702,6 +1794,7 @@
         recordingStream = null;
       }
       isRecording = false;
+      mediaRecorder = null; // Reset mediaRecorder
     }
 
     function showVoiceRecordingModal() {
